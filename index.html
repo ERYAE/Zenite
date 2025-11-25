@@ -3,765 +3,943 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Zenite Manager v9.0 Mastermind</title>
+    <title>ZENITE OS // WARLORD REDUX</title>
     
+    <!-- CORE STACK -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Inter:wght@300;400;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
 
-        /* --- TEMAS --- */
         :root {
-            --bg-body: #0f172a; --bg-radial: radial-gradient(circle at top center, #1e293b, #0f172a);
-            --bg-card: #1e293b; --border: #334155; --primary: #0ea5e9;
-            --primary-glow: rgba(14, 165, 233, 0.15); --text-main: #f8fafc; --text-muted: #94a3b8;
-            --input-bg: rgba(0, 0, 0, 0.2);
-            --crit-success: #4ade80; --crit-fail: #f87171;
-        }
-        [data-theme="crimson"] { --bg-body: #1a0505; --bg-radial: radial-gradient(circle at top center, #450a0a, #1a0505); --bg-card: #2b0b0b; --border: #521818; --primary: #f87171; --primary-glow: rgba(248, 113, 113, 0.15); }
-        [data-theme="forest"] { --bg-body: #020904; --bg-radial: radial-gradient(circle at top center, #062e15, #020904); --bg-card: #051a0d; --border: #11361f; --primary: #4ade80; --primary-glow: rgba(74, 222, 128, 0.15); }
-        [data-theme="mist"] { --bg-body: #f1f5f9; --bg-radial: radial-gradient(circle at top center, #e2e8f0, #f1f5f9); --bg-card: #ffffff; --border: #cbd5e1; --primary: #0f172a; --primary-glow: rgba(15, 23, 42, 0.05); --text-main: #0f172a; --text-muted: #64748b; --input-bg: #f8fafc; }
-        [data-theme="aether"] { --bg-body: #0f0518; --bg-radial: radial-gradient(circle at top center, #2e1065, #0f0518); --bg-card: #19082f; --border: #3b0764; --primary: #c084fc; --primary-glow: rgba(192, 132, 252, 0.15); }
-
-        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); min-height: 100vh; padding-bottom: 120px; transition: background-color 0.5s ease; user-select: none; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
-        .bg-ambient { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-radial); z-index: -1; pointer-events: none; }
-        
-        /* OVERLAYS & FLASH EFFECTS */
-        #flash-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 99; opacity: 0; transition: opacity 0.3s ease-out; mix-blend-mode: overlay; }
-        .flash-damage { background-color: #ef4444; }
-        .flash-heal { background-color: #3b82f6; }
-
-        h1, h2, h3, .brand-font { font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; }
-
-        /* UI ELEMENTS */
-        .glass-panel { background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px -2px rgba(0,0,0,0.2); transition: border-color 0.3s, background-color 0.3s; }
-        .input-minimal { background: var(--input-bg); border: 1px solid transparent; border-bottom: 1px solid var(--border); color: var(--text-main); border-radius: 4px; transition: all 0.3s; font-size: 16px; } 
-        .input-minimal:focus { background: rgba(255,255,255,0.05); border-color: var(--primary); outline: none; }
-        select.input-minimal option { background: var(--bg-card); color: var(--text-main); }
-        
-        .input-locked { color: var(--text-muted); cursor: default; background: transparent; border-color: transparent; }
-        .input-unlocked { color: var(--text-main); border-color: var(--primary); background: var(--input-bg); }
-
-        .btn-ghost { color: var(--text-muted); border: 1px solid var(--border); background: transparent; transition: all 0.2s; cursor: pointer; }
-        .btn-ghost:active, .btn-ghost:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-glow); }
-        .btn-solid { background: var(--primary); color: var(--bg-body); font-weight: 600; border: 1px solid var(--primary); transition: all 0.2s; cursor: pointer; }
-        [data-theme="mist"] .btn-solid { color: white; }
-        .btn-solid:active, .btn-solid:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 12px var(--primary-glow); }
-
-        /* GM MODE WIDGETS */
-        .gm-widget { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; transition: all 0.2s; }
-        .gm-widget:hover { border-color: var(--primary); }
-        .gm-widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px dashed var(--border); }
-        .gm-widget-title { font-size: 0.8rem; font-weight: bold; color: var(--primary); outline: none; background: transparent; width: 80%; }
-        .gm-delete-btn { color: var(--text-muted); font-size: 0.7rem; cursor: pointer; }
-        .gm-delete-btn:hover { color: #ef4444; }
-
-        /* DRAG & LAYOUT */
-        .draggable-block { position: relative; background: transparent; transition: transform 0.2s; }
-        body.is-editing .draggable-block { cursor: grab; border: 1px dashed var(--text-muted); padding: 1rem; margin-bottom: 1rem; border-radius: 8px; background: rgba(125, 125, 125, 0.05); }
-        body.is-editing .draggable-block::before { content: "⋮⋮ ARRASTAR"; position: absolute; top: -10px; left: 10px; background: var(--bg-card); padding: 0 8px; font-size: 0.6rem; color: var(--text-muted); font-weight: bold; border: 1px solid var(--border); border-radius: 4px; pointer-events: none; }
-        .draggable-block.dragging { opacity: 0.5; border-color: var(--primary); }
-
-        /* MODALS & VIEWS */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 100; align-items: center; justify-content: center; padding: 15px; }
-        .modal-overlay.open { display: flex; }
-        .view-section { display: none; animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); width: 100%; }
-        .view-section.active { display: block; }
-        .tab-content { display: none; animation: fadeUp 0.3s ease-out; }
-        .tab-content.active { display: block; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* DICE TRAY */
-        .dice-tray { 
-            position: fixed; bottom: 20px; right: 20px; 
-            background: var(--bg-card); border: 1px solid var(--border); 
-            padding: 12px 20px; border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
-            display: flex; gap: 8px; align-items: center; 
-            z-index: 50; flex-wrap: wrap; justify-content: center; 
-            max-width: 95vw; transition: all 0.3s ease;
+            --bg-void: #050507;
+            --glass-panel: rgba(20, 20, 25, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --neon-core: #0ea5e9;
+            --neon-alert: #ef4444;
+            --neon-success: #10b981;
+            --neon-warn: #f59e0b;
+            --neon-purple: #d946ef;
         }
 
-        @media (max-width: 768px) {
-            .dice-tray {
-                bottom: 0; right: 0; left: 0; width: 100%; max-width: 100%;
-                border-radius: 16px 16px 0 0; border-bottom: none; border-left: none; border-right: none;
-                padding: 12px; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap;
-                background: rgba(var(--bg-card), 0.98); box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-            }
-            .dice-tray::-webkit-scrollbar { display: none; }
-            .dice-btn { flex-shrink: 0; min-width: 38px; height: 38px; font-size: 0.7rem; }
-            body { padding-bottom: 90px; }
+        [x-cloak] { display: none !important; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: var(--bg-void);
+            color: #e2e8f0;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.05), transparent 70%),
+                linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        .dice-btn { color: var(--text-muted); font-size: 0.7rem; font-weight: bold; padding: 6px 8px; border-radius: 6px; background: var(--input-bg); transition: all 0.2s; min-width: 35px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; }
-        .dice-btn:active, .dice-btn:hover { background: var(--primary); color: var(--bg-body); border-color: var(--primary); }
-        .crit-anim-success { animation: pulseGreen 0.5s infinite alternate; color: var(--crit-success); text-shadow: 0 0 10px var(--crit-success); }
-        .crit-anim-fail { animation: pulseRed 0.5s infinite alternate; color: var(--crit-fail); text-shadow: 0 0 10px var(--crit-fail); }
-        @keyframes pulseGreen { from { transform: scale(1); } to { transform: scale(1.1); } }
-        @keyframes pulseRed { from { transform: scale(1); } to { transform: scale(1.1); } }
+        /* FX LAYERS */
+        #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
+        #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
+        #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
 
-        /* DICE LOG POPUP */
-        .dice-log-popup { position: absolute; bottom: 100%; left: 0; md:left:auto; md:right: 0; width: 160px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; display: none; flex-direction: column; gap: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 55; }
-        .dice-log-popup.open { display: flex; }
-        .log-entry { font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 4px; display: flex; justify-content: space-between; }
+        /* UI COMPONENTS */
+        .glass {
+            background: var(--glass-panel);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
 
-        /* TEMPLATE CARDS */
-        .template-card { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.2); }
-        .template-card:hover { border-color: var(--primary); background: var(--primary-glow); }
-        .template-card .info { display: flex; flex-direction: column; }
+        .input-cyber {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--glass-border);
+            color: white;
+            transition: all 0.3s ease;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); outline: none; }
 
-        /* WIZARD UI */
-        .class-card { border: 1px solid var(--border); border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; min-width: 100px; }
-        .class-card:hover, .class-card.selected { border-color: var(--primary); background: var(--primary-glow); transform: translateY(-2px); }
-        .class-card i { font-size: 2rem; color: var(--text-muted); }
-        .class-card.selected i { color: var(--primary); }
-        .stat-control { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid transparent; transition: border-color 0.2s; }
-        .stat-btn { width: 36px; height: 36px; background: var(--border); color: var(--text-main); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-weight: bold; font-size: 1.2rem; }
-        .stat-btn:active, .stat-btn:hover:not(:disabled) { background: var(--primary); color: var(--bg-body); }
-        .stat-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-action {
+            position: relative; overflow: hidden; transition: all 0.3s;
+            font-family: 'Orbitron', sans-serif; letter-spacing: 1px; text-transform: uppercase;
+        }
+        .btn-action:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        .btn-action:active { transform: translateY(0); }
 
-        /* IMAGE CROPPER */
-        .cropper-area { width: 250px; height: 250px; border-radius: 50%; overflow: hidden; position: relative; border: 2px dashed var(--primary); margin: 0 auto; background: black; cursor: move; touch-action: none; }
-        .cropper-img { position: absolute; transform-origin: center; pointer-events: none; }
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
 
-        /* SCROLL & EXTRAS */
-        ::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        .theme-dot { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s; }
-        .theme-dot.active { border-color: var(--text-main); box-shadow: 0 0 0 2px var(--bg-card); }
-        .power-slot { background: var(--input-bg); border-left: 2px solid var(--border); padding: 10px; transition: border-color 0.3s; }
-        .power-slot:focus-within { border-left-color: var(--primary); background: var(--primary-glow); }
+        /* ANIMATIONS */
+        .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
+        .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
+        @keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
         
-        .logo-z { color: var(--primary); }
-        .nav-scroll { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 0px; max-width: 100%; }
-        .nav-scroll::-webkit-scrollbar { display: none; }
+        /* EXTRAS */
+        .cropper-view-box, .cropper-face { border-radius: 50%; }
+        .cropper-container { width: 100% !important; height: 100% !important; }
+        .skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
+        .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
     </style>
-</head>
-<body>
 
-    <div class="bg-ambient"></div>
-    <div id="flash-overlay"></div>
-    <div id="save-toast" class="fixed top-5 right-5 bg-emerald-500 text-white px-4 py-2 rounded shadow-lg text-xs font-bold opacity-0 transition-opacity pointer-events-none z-[100] flex items-center gap-2"></div>
+    <script>
+        const MAX_AGENTS = 30;
+        const APP_VERSION = 'v12.1';
 
-    <!-- MENU PRINCIPAL -->
-    <div id="menu-view" class="view-section w-full max-w-6xl p-4 md:p-6 active mx-auto mt-2 md:mt-10">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-white/10 pb-6">
-            <div class="flex items-center gap-4 mb-4 md:mb-0">
-                <div class="w-12 h-12 bg-[var(--bg-card)] border border-[var(--primary)] rounded-xl flex items-center justify-center shadow-[0_0_15px_var(--primary-glow)]">
-                    <span class="brand-font text-2xl font-bold logo-z">Z</span>
-                </div>
-                <div><h1 class="text-2xl font-bold text-[var(--primary)] tracking-widest">ZENITE</h1><p class="text-xs text-[var(--text-muted)] uppercase tracking-widest">Manager v9.0</p></div>
-            </div>
-            <div class="flex gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
-                 <button onclick="openConfigModal()" class="btn-ghost w-12 h-10 rounded-lg flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
-                 <button onclick="openGMMode()" class="btn-ghost px-4 h-10 rounded-lg text-sm border-dashed border-opacity-50 hover:border-opacity-100 flex-grow md:flex-grow-0"><i class="fa-solid fa-crown mr-2"></i>MESTRE</button>
-                <button onclick="startCharWizard()" class="btn-solid px-6 h-10 rounded-lg text-sm flex items-center justify-center gap-2 flex-grow md:flex-grow-0"><i class="fa-solid fa-plus"></i> NOVA FICHA</button>
-            </div>
-        </div>
-        
-        <div class="w-full bg-[var(--border)] h-1.5 rounded-full mb-8 overflow-hidden relative group">
-            <div id="storage-bar" class="h-full bg-[var(--primary)] transition-all duration-1000" style="width: 0%"></div>
-            <div class="absolute top-2 left-0 text-[10px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity">Armazenamento Local</div>
-        </div>
-
-        <div id="char-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"></div>
-        <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-[var(--text-muted)] opacity-60"><i class="fa-thin fa-ghost text-6xl mb-4"></i><p class="text-lg font-light">Banco de dados vazio.</p></div>
-    </div>
-
-    <!-- MODO MESTRE (NOVO) -->
-    <div id="gm-view" class="view-section w-full max-w-7xl glass-panel md:rounded-2xl overflow-hidden relative mb-20 mx-auto mt-0 md:mt-4 min-h-[80vh] flex flex-col">
-        <header class="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--bg-card)]">
-            <div class="flex items-center gap-4">
-                <button onclick="exitToMenu()" class="btn-ghost px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2"><i class="fa-solid fa-arrow-left"></i> SAIR</button>
-                <span class="brand-font text-[var(--primary)] font-bold">Painel do Mestre</span>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="addGMBlock('note')" class="btn-ghost px-3 py-1.5 rounded text-xs" title="Adicionar Nota"><i class="fa-solid fa-sticky-note"></i> Nota</button>
-                <button onclick="addGMBlock('counter')" class="btn-ghost px-3 py-1.5 rounded text-xs" title="Adicionar Contador"><i class="fa-solid fa-stopwatch"></i> Contador</button>
-                <button onclick="addGMBlock('tracker')" class="btn-ghost px-3 py-1.5 rounded text-xs" title="Adicionar Rastreador"><i class="fa-solid fa-list-ol"></i> Rastreador</button>
-            </div>
-        </header>
-        <div id="gm-workspace" class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto flex-grow">
-            <!-- GM WIDGETS GO HERE -->
-        </div>
-        <div id="gm-empty" class="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] pointer-events-none">
-            <i class="fa-solid fa-dungeon text-4xl mb-4 opacity-30"></i>
-            <p class="text-xs opacity-50">Adicione widgets para construir seu painel.</p>
-        </div>
-    </div>
-
-    <!-- FICHA DE PERSONAGEM -->
-    <div id="sheet-view" class="view-section w-full max-w-7xl glass-panel md:rounded-2xl overflow-hidden relative mb-20 mx-auto mt-0 md:mt-4">
-        <header class="p-4 md:p-6 border-b border-[var(--border)] flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6">
-            <div class="flex items-center justify-between w-full lg:w-auto">
-                <div class="flex items-center gap-4">
-                    <button onclick="exitToMenu()" class="btn-ghost px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2"><i class="fa-solid fa-arrow-left"></i> <span class="hidden md:inline">VOLTAR</span></button>
-                    <div class="h-6 w-px bg-[var(--border)]"></div>
-                    <button onclick="fullRest()" title="Descanso Completo (Recuperar Tudo)" class="text-blue-300 hover:text-blue-100 transition-colors p-2 bg-blue-500/10 rounded-full"><i class="fa-solid fa-moon"></i></button>
-                    <button onclick="openConfigModal()" class="text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors p-2"><i class="fa-solid fa-sliders"></i></button>
-                </div>
-                <span class="text-xs text-[var(--text-muted)] uppercase font-bold tracking-wider md:ml-2" id="current-char-id">ID: --</span>
-            </div>
-            <nav class="flex bg-[var(--input-bg)] p-1 rounded-lg w-full md:w-auto nav-scroll">
-                <button onclick="switchTab('page1')" id="tab-page1" class="px-5 py-2 rounded text-xs font-bold transition-all btn-solid flex-1 md:flex-none">PERFIL</button>
-                <button onclick="switchTab('page3')" id="tab-page3" class="px-5 py-2 rounded text-xs font-bold transition-all text-[var(--text-muted)] hover:text-[var(--primary)] flex-1 md:flex-none">PODERES</button>
-                <button onclick="switchTab('page2')" id="tab-page2" class="px-5 py-2 rounded text-xs font-bold transition-all text-[var(--text-muted)] hover:text-[var(--primary)] flex-1 md:flex-none">LOGÍSTICA</button>
-            </nav>
-        </header>
-
-        <!-- TAB 1: PERFIL -->
-        <div id="page1" class="tab-content active p-4 md:p-10">
-            <div id="layout-container-page1" class="flex flex-col gap-6 md:gap-10">
+        // Define Global Function for Alpine x-data
+        function zeniteSystem() {
+            return {
+                // --- STATE ---
+                currentView: 'dashboard',
+                chars: {},
+                activeCharId: null,
+                char: null, 
                 
-                <div id="block-profile" class="draggable-block">
-                    <div class="flex flex-col xl:flex-row gap-6 md:gap-8">
-                        <div class="w-full xl:w-48 flex-shrink-0 flex flex-col items-center">
-                            <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-2 border-[var(--border)] p-1 cursor-pointer hover:border-[var(--primary)] transition-colors relative group overflow-hidden" onclick="openImageEditor()">
-                                <div id="char-photo-container" class="w-full h-full rounded-full overflow-hidden bg-black relative">
-                                    <img id="char-photo" src="" class="absolute object-cover" style="top:50%; left:50%; transform: translate(-50%, -50%) scale(1);">
-                                </div>
-                                <div class="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-pen text-white"></i></div>
-                            </div>
-                            
-                            <div class="mt-4 flex flex-col items-center w-full px-2">
-                                <div class="flex items-center justify-center gap-2 mb-1">
-                                    <span class="text-[10px] uppercase font-bold text-[var(--text-muted)]">NÍVEL</span>
-                                    <select id="char-level" class="bg-transparent text-[var(--primary)] font-bold text-xl outline-none cursor-pointer text-center w-12 border-b border-transparent hover:border-[var(--primary)]" onchange="recalculateStats()">
-                                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
+                // --- UI ---
+                activeTab: 'profile',
+                logisticsTab: 'inventory',
+                notifications: [],
+                configModal: false,
+                
+                // --- DICE ---
+                showDiceLog: false,
+                diceLog: [],
+                lastRoll: '--',
+                lastNatural: 0,
+                lastFaces: 0,
+                diceMod: 0,
 
-                        <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 content-start">
-                            <div class="md:col-span-2"><label class="text-[10px] text-[var(--primary)] font-bold uppercase tracking-wider">Codinome</label><input type="text" id="char-name" class="input-minimal w-full p-2 text-2xl font-light brand-font" placeholder="Agente 00...quem?"></div>
-                            <div><label class="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider">Identidade</label><input type="text" id="char-identity" class="input-minimal w-full p-2 text-sm" placeholder="Seu nome real (se lembrar)"></div>
-                            <div><label class="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider">Patente</label><select id="char-rank" class="input-minimal w-full p-2 text-sm cursor-pointer h-[38px]"><option>Estudante</option><option>Herói Pro</option><option>Vilão</option><option>Vigilante</option></select></div>
-                            <div class="md:col-span-2"><label class="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider">Conceito</label><input type="text" id="char-concept" class="input-minimal w-full p-2 text-sm" placeholder="Ex: O cara que soca coisas muito forte."></div>
-                        </div>
-                    </div>
-                </div>
+                // --- WIZARD ---
+                wizardOpen: false,
+                wizardStep: 1,
+                wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+                wizardPoints: 8,
+                wizardFocusAttr: '',
 
-                <div id="block-status" class="draggable-block">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        <div class="p-4 rounded border border-[var(--border)] bg-[var(--input-bg)] relative group">
-                            <button onclick="toggleStatLock('pv')" class="absolute top-2 right-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--primary)] p-2"><i id="lock-icon-pv" class="fa-solid fa-lock-open"></i></button>
-                            <div class="flex justify-between items-end mb-2"><span class="text-xs font-bold text-rose-400">PV (Vida)</span><div class="text-xs font-mono flex items-center gap-1"><input type="number" id="pv-current" class="w-10 bg-transparent text-right outline-none text-base font-bold" onchange="updateBar('pv')"> / <input type="number" id="pv-max" class="w-10 outline-none input-locked text-base" readonly value="20" onchange="updateBar('pv')"></div></div><div class="h-1.5 bg-[var(--border)] rounded-full overflow-hidden"><div id="bar-pv" class="h-full bg-rose-500 transition-all duration-300" style="width: 100%"></div></div>
-                        </div>
-                        <div class="p-4 rounded border border-[var(--border)] bg-[var(--input-bg)] relative group">
-                            <button onclick="toggleStatLock('pf')" class="absolute top-2 right-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--primary)] p-2"><i id="lock-icon-pf" class="fa-solid fa-lock-open"></i></button>
-                            <div class="flex justify-between items-end mb-2"><span class="text-xs font-bold text-amber-400">PF (Esforço)</span><div class="text-xs font-mono flex items-center gap-1"><input type="number" id="pf-current" class="w-10 bg-transparent text-right outline-none text-base font-bold" onchange="updateBar('pf')"> / <input type="number" id="pf-max" class="w-10 outline-none input-locked text-base" readonly value="10" onchange="updateBar('pf')"></div></div><div class="h-1.5 bg-[var(--border)] rounded-full overflow-hidden"><div id="bar-pf" class="h-full bg-amber-500 transition-all duration-300" style="width: 100%"></div></div>
-                        </div>
-                        <div class="p-4 rounded border border-[var(--border)] bg-[var(--input-bg)] relative group">
-                            <button onclick="toggleStatLock('pdf')" class="absolute top-2 right-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--primary)] p-2"><i id="lock-icon-pdf" class="fa-solid fa-lock-open"></i></button>
-                            <div class="flex justify-between items-end mb-2"><span class="text-xs font-bold text-violet-400">PDF (Mente)</span><div class="text-xs font-mono flex items-center gap-1"><input type="number" id="pdf-current" class="w-10 bg-transparent text-right outline-none text-base font-bold" onchange="updateBar('pdf')"> / <input type="number" id="pdf-max" class="w-10 outline-none input-locked text-base" readonly value="10" onchange="updateBar('pdf')"></div></div><div class="h-1.5 bg-[var(--border)] rounded-full overflow-hidden"><div id="bar-pdf" class="h-full bg-violet-500 transition-all duration-300" style="width: 100%"></div></div>
-                        </div>
-                    </div>
-                </div>
+                // --- CROPPER ---
+                cropperOpen: false,
+                cropperInstance: null,
 
-                <div id="block-attributes" class="draggable-block">
-                    <div class="flex flex-col lg:flex-row gap-6 md:gap-10 items-center">
-                        <div class="w-full lg:w-1/3 space-y-4">
-                            <h3 class="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest border-b border-[var(--border)] pb-2">Atributos (-1 a +6)</h3>
-                            <div class="space-y-3">
-                                <div class="flex justify-between items-center"><label class="text-sm font-bold text-rose-400">FORÇA</label><input type="number" id="attr-for" value="-1" min="-1" max="6" onchange="recalculateStats()" class="w-14 text-center bg-[var(--input-bg)] border border-[var(--border)] rounded py-2 text-lg focus:border-rose-400 outline-none"></div>
-                                <div class="flex justify-between items-center"><label class="text-sm font-bold text-emerald-400">AGILIDADE</label><input type="number" id="attr-agi" value="-1" min="-1" max="6" onchange="recalculateStats()" class="w-14 text-center bg-[var(--input-bg)] border border-[var(--border)] rounded py-2 text-lg focus:border-emerald-400 outline-none"></div>
-                                <div class="flex justify-between items-center"><label class="text-sm font-bold text-sky-400">INTELECTO</label><input type="number" id="attr-int" value="-1" min="-1" max="6" onchange="recalculateStats()" class="w-14 text-center bg-[var(--input-bg)] border border-[var(--border)] rounded py-2 text-lg focus:border-sky-400 outline-none"></div>
-                                <div class="flex justify-between items-center"><label class="text-sm font-bold text-amber-400">VONTADE</label><input type="number" id="attr-von" value="-1" min="-1" max="6" onchange="recalculateStats()" class="w-14 text-center bg-[var(--input-bg)] border border-[var(--border)] rounded py-2 text-lg focus:border-amber-400 outline-none"></div>
-                                <div class="flex justify-between items-center"><label class="text-sm font-bold text-violet-400">PODER</label><input type="number" id="attr-pod" value="-1" min="-1" max="6" onchange="recalculateStats()" class="w-14 text-center bg-[var(--input-bg)] border border-[var(--border)] rounded py-2 text-lg focus:border-violet-400 outline-none"></div>
-                            </div>
-                        </div>
-                        <div class="w-full lg:w-2/3 h-[250px] md:h-[300px] flex justify-center items-center"><canvas id="radarChart"></canvas></div>
-                    </div>
-                </div>
+                // --- META ---
+                agentCount: 0,
 
-                <div id="block-skills" class="draggable-block">
-                    <div class="flex justify-between items-center mb-6"><h3 class="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Perícias</h3><button onclick="openSkillModal()" class="text-xs btn-ghost px-2 py-1 rounded w-8 h-8 flex items-center justify-center"><i class="fa-solid fa-plus"></i></button></div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" id="skills-list"></div>
-                </div>
+                // --- ARCHETYPES ---
+                archetypes: [
+                    { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
+                    { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
+                    { class: 'Infiltrador', desc: 'Furtividade e precisão.', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500' },
+                    { class: 'Controlador', desc: 'Manipulação de energia.', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500' },
+                    { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
+                ],
+
+                initSystem() {
+                    this.loadData();
+                    this.$watch('char', (val) => {
+                        if (val && this.currentView === 'sheet') {
+                            clearTimeout(this._saveTimer);
+                            this._saveTimer = setTimeout(() => {
+                                this.saveData();
+                                if(this.activeTab === 'profile') this.updateRadarChart();
+                            }, 500);
+                        }
+                    });
+                },
+
+                // --- DATA CORE ---
+                loadData() {
+                    const data = localStorage.getItem('zenite_db_v12');
+                    if (data) {
+                        try {
+                            this.chars = JSON.parse(data);
+                            this.updateAgentCount();
+                        } catch(e) { this.notify('Erro ao carregar dados.', 'error'); }
+                    }
+                },
+
+                saveData() {
+                    try {
+                        if (this.char && this.activeCharId) {
+                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                        }
+                        localStorage.setItem('zenite_db_v12', JSON.stringify(this.chars));
+                        this.updateAgentCount();
+                    } catch(e) {
+                        this.notify('Limite de armazenamento atingido!', 'error');
+                    }
+                },
+
+                updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+
+                loadCharacter(id) {
+                    this.activeCharId = id;
+                    this.char = JSON.parse(JSON.stringify(this.chars[id]));
+                    
+                    // Migrations
+                    if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
+                    if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
+                    if(!this.char.skills) this.char.skills = [];
+                    if(!this.char.powers.techniques) this.char.powers.techniques = [];
+                    if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
+
+                    this.currentView = 'sheet';
+                    this.activeTab = 'profile';
+                    setTimeout(() => this.updateRadarChart(), 100);
+                },
+
+                deleteCharacter(id) {
+                    if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
+                        delete this.chars[id];
+                        this.saveData();
+                        this.updateAgentCount();
+                        this.notify('Agente eliminado.', 'success');
+                    }
+                },
+
+                // --- LOGIC KERNEL (Level & Stats) ---
+                recalcDerivedStats() {
+                    if(!this.char) return;
+                    const c = this.char;
+                    const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
+                    c.level = lvl;
+
+                    const getV = (v) => parseInt(v) || 0;
+                    const FOR = getV(c.attrs.for);
+                    const AGI = getV(c.attrs.agi);
+                    const INT = getV(c.attrs.int);
+                    const VON = getV(c.attrs.von);
+                    const POD = getV(c.attrs.pod);
+
+                    let maxPV = 0, maxPF = 0, maxPDF = 0;
+
+                    if (c.class === 'Titã') {
+                        maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Estrategista') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Infiltrador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
+                    } else if (c.class === 'Controlador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
+                    } else if (c.class === 'Psíquico') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
+                        maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
+                    } else {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    }
+
+                    c.stats.pv.max = Math.max(5, maxPV);
+                    c.stats.pf.max = Math.max(5, maxPF);
+                    c.stats.pdf.max = Math.max(5, maxPDF);
+                },
+
+                modStat(type, val) {
+                    const stat = this.char.stats[type];
+                    const oldVal = stat.current;
+                    stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
+                    
+                    if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
+                    if (stat.current > oldVal) this.triggerFX('heal');
+                    this.saveData();
+                },
+
+                modAttr(key, val) {
+                    const current = this.char.attrs[key];
+                    if (val > 0 && current < 6) this.char.attrs[key]++;
+                    if (val < 0 && current > -1) this.char.attrs[key]--;
+                    
+                    this.recalcDerivedStats();
+                    this.updateRadarChart();
+                },
+
+                updateClassLogic() {
+                    const arch = this.archetypes.find(a => a.class === this.char.class);
+                    if (arch && this.char.attrs[arch.focus] < 0) {
+                        this.char.attrs[arch.focus] = 0;
+                        this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
+                    }
+                    this.recalcDerivedStats();
+                    this.updateRadarChart();
+                },
+
+                triggerFX(type) {
+                    const el = document.getElementById(type + '-overlay');
+                    if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
+                },
+
+                // --- WIZARD ---
+                openWizard() {
+                    if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+                    this.wizardOpen = true;
+                    this.wizardStep = 1;
+                    this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+                    this.wizardPoints = 8;
+                },
+
+                selectArchetype(arch) {
+                    this.wizardData.class = arch.class;
+                    this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
+                    this.wizardFocusAttr = arch.focus;
+                    this.wizardData.attrs[arch.focus] = 0;
+                    this.wizardStep = 2;
+                    this.wizardPoints = 8;
+                    setTimeout(() => this.updateWizardChart(), 50);
+                },
+
+                modWizardAttr(key, val) {
+                    const current = this.wizardData.attrs[key];
+                    const isFocus = key === this.wizardFocusAttr;
+                    const min = isFocus ? 0 : -1;
+                    
+                    if (val > 0) {
+                        if (this.wizardPoints > 0 && current < 3) {
+                            this.wizardData.attrs[key]++;
+                            this.wizardPoints--;
+                        }
+                    } else {
+                        if (current > min) {
+                            this.wizardData.attrs[key]--;
+                            this.wizardPoints++;
+                        }
+                    }
+                    this.updateWizardChart();
+                },
+
+                finishWizard() {
+                    const id = 'z_' + Date.now();
+                    const tempChar = { 
+                        class: this.wizardData.class, 
+                        level: 1, 
+                        attrs: this.wizardData.attrs,
+                        stats: { pv:{}, pf:{}, pdf:{} }
+                    };
+                    
+                    const oldChar = this.char;
+                    this.char = tempChar;
+                    this.recalcDerivedStats();
+                    this.char = oldChar; 
+
+                    const newChar = {
+                        id: id,
+                        name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
+                        stats: {
+                            pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
+                            pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
+                            pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
+                        },
+                        attrs: {...this.wizardData.attrs},
+                        inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
+                        skills: [],
+                        powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
+                    };
+                    
+                    this.chars[id] = newChar;
+                    this.saveData();
+                    this.wizardOpen = false;
+                    this.loadCharacter(id);
+                    this.notify('Agente Inicializado.', 'success');
+                },
+
+                // --- INVENTORY & LISTS ---
+                addItem(cat) {
+                    const defs = {
+                        weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
+                        armor: { name: 'Traje', def: '1', pen: '0' },
+                        gear: { name: 'Item', desc: '', qty: 1 },
+                        social_people: { name: 'Nome', role: 'Relação' },
+                        social_objects: { name: 'Objeto', desc: 'Detalhes' }
+                    };
+                    if(cat.startsWith('social_')) {
+                        this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
+                    } else {
+                        this.char.inventory[cat].push({...defs[cat]});
+                    }
+                    this.saveData();
+                },
+                deleteItem(cat, idx, subcat=null) {
+                    if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
+                    else this.char.inventory[cat].splice(idx, 1);
+                    this.saveData();
+                },
+
+                // --- SKILLS ---
+                addSkill() {
+                    this.char.skills.push({ name: 'Nova Perícia', level: 1 });
+                    this.saveData();
+                },
+                deleteSkill(idx) {
+                    this.char.skills.splice(idx, 1);
+                    this.saveData();
+                },
+                setSkillLevel(idx, lvl) {
+                    this.char.skills[idx].level = lvl;
+                    this.saveData();
+                },
+
+                // --- TECHNIQUES ---
+                addTechnique() {
+                    this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
+                    this.saveData();
+                },
+                deleteTechnique(idx) {
+                    this.char.powers.techniques.splice(idx, 1);
+                    this.saveData();
+                },
+
+                // --- CHARTS ---
+                renderChart(id, attrs, color) {
+                    const ctx = document.getElementById(id);
+                    if (!ctx) return;
+                    const data = [attrs.for, attrs.agi, attrs.int, attrs.von, attrs.pod];
+                    if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.update(); return; }
+                    ctx.chart = new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
+                            datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                },
+                updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
+                updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
+
+                // --- RNG ---
+                roll(sides) {
+                    const arr = new Uint32Array(1);
+                    window.crypto.getRandomValues(arr);
+                    const natural = (arr[0] % sides) + 1;
+                    this.lastNatural = natural; this.lastFaces = sides;
+                    this.lastRoll = natural + parseInt(this.diceMod || 0);
+                    const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
+                    if(this.diceLog.length>8) this.diceLog.pop();
+                },
+
+                // --- CROPPER ---
+                openImageEditor() { document.getElementById('file-input').click(); },
+                initCropper(e) {
+                    const file = e.target.files[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        document.getElementById('crop-target').src = evt.target.result;
+                        this.cropperOpen = true;
+                        this.$nextTick(() => {
+                            if(this.cropperInstance) this.cropperInstance.destroy();
+                            this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                },
+                applyCrop() {
+                    if(!this.cropperInstance) return;
+                    this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
+                    this.cropperOpen = false;
+                    this.saveData();
+                    this.notify('Foto atualizada.', 'success');
+                },
+
+                // --- SYSTEM UTILS ---
+                notify(msg, type='info') {
+                    const id = Date.now();
+                    this.notifications.push({id, message: msg, type, dismissed: false});
+                    setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
+                },
+                exportData() {
+                    const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
+                    const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
+                },
+                importData(e) {
+                    const file = e.target.files[0]; if(!file) return;
+                    const r = new FileReader();
+                    r.onload = (evt) => {
+                        try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
+                        catch(err) { this.notify('Arquivo inválido.', 'error'); }
+                    };
+                    r.readAsText(file);
+                },
+                hardReset() {
+                    if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO? TODOS OS DADOS SERÃO PERDIDOS.')) {
+                        localStorage.removeItem('zenite_db_v12');
+                        window.location.reload();
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
+
+    <!-- FX OVERLAYS -->
+    <div id="damage-overlay"></div>
+    <div id="heal-overlay"></div>
+
+    <!-- TOASTS -->
+    <div class="fixed top-5 right-5 z-[100] space-y-2 pointer-events-none">
+        <template x-for="n in notifications" :key="n.id">
+            <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0"
+                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info'}">
+                <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
             </div>
-        </div>
-
-        <!-- TAB 2: LOGISTICA -->
-        <div id="page2" class="tab-content p-4 md:p-10">
-            <div id="layout-container-page2" class="flex flex-col gap-6">
-                <div id="block-equipment" class="draggable-block p-4 rounded border border-[var(--border)] bg-[var(--bg-card)]">
-                    <div class="flex justify-between items-center mb-4"><h4 class="text-xs font-bold text-[var(--primary)] uppercase tracking-wider">Equipamento</h4><button onclick="addInvItem()" class="text-[10px] btn-ghost px-2 py-1 rounded w-8 h-8 md:w-auto md:h-auto">ADD</button></div>
-                    <div class="space-y-2">
-                         <div class="grid grid-cols-[80px_1fr_20px] gap-3 items-center p-2 rounded bg-[var(--input-bg)] border border-transparent hover:border-[var(--border)]"><span class="text-[10px] text-right text-[var(--text-muted)] uppercase font-bold">Traje</span><input type="text" id="inv-suit" class="bg-transparent text-sm text-[var(--text-main)] outline-none" placeholder="O que você está vestindo?" onchange="saveData()"></div>
-                        <div id="inventory-list" class="space-y-2"></div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div id="block-credits" class="draggable-block p-4 rounded border border-[var(--border)] bg-[var(--bg-card)] flex items-center justify-between"><div><h4 class="text-xs font-bold text-[var(--text-muted)] uppercase">Créditos</h4></div><div class="flex items-center"><span class="text-xl text-amber-500 mr-2">₵</span><input type="number" id="inv-credits" class="bg-transparent border-b border-[var(--border)] w-24 text-right text-lg font-mono outline-none" value="0"></div></div>
-                    <div id="block-backpack" class="draggable-block p-4 rounded border border-[var(--border)] bg-[var(--bg-card)] h-full"><h4 class="text-xs font-bold text-[var(--text-muted)] uppercase mb-2">Mochila</h4><textarea id="inv-backpack" class="w-full h-32 bg-[var(--input-bg)] border border-transparent focus:border-[var(--border)] rounded p-3 text-sm font-mono resize-none outline-none" placeholder="Um sanduíche velho, foto da família, corda..."></textarea></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 3: PODERES -->
-        <div id="page3" class="tab-content p-4 md:p-10">
-            <div id="layout-container-page3" class="flex flex-col gap-8">
-                <div id="block-powers-header" class="draggable-block flex flex-col md:flex-row gap-4">
-                    <div class="flex-1"><label class="text-[10px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Classe</label><div class="relative"><select id="class-name" class="input-minimal w-full p-2 text-lg font-bold text-[var(--primary)] cursor-pointer appearance-none" onchange="recalculateStats()"><option value="Titã">Titã</option><option value="Infiltrador">Infiltrador</option><option value="Estrategista">Estrategista</option><option value="Controlador">Controlador</option><option value="Psíquico">Psíquico</option></select><i id="class-icon-display" class="fa-solid fa-circle-question absolute right-2 top-3 text-[var(--text-muted)] pointer-events-none"></i></div></div>
-                    <div class="flex-1"><label class="text-[10px] text-[var(--text-muted)] uppercase font-bold tracking-wider">Origem</label><input type="text" id="origin-desc" class="input-minimal w-full p-2 text-sm" placeholder="Como você ganhou seus poderes?"></div>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div id="block-foundation" class="draggable-block space-y-4">
-                        <h3 class="text-xs font-bold text-[var(--primary)] uppercase tracking-widest border-b border-[var(--border)] pb-2">Fundação (Nv 1)</h3>
-                        <div class="power-slot"><span class="text-xs font-bold">Passiva</span><textarea id="core-passive" class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:text-[var(--text-main)] focus:outline-none resize-none h-20" placeholder="Sua habilidade constante..."></textarea></div>
-                        <div class="power-slot"><span class="text-xs font-bold">Ativa</span><textarea id="core-active" class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:text-[var(--text-main)] focus:outline-none resize-none h-20" placeholder="Seu poder principal..."></textarea></div>
-                    </div>
-                    <div id="block-specialization" class="draggable-block space-y-4">
-                         <div class="flex justify-between items-end border-b border-[var(--border)] pb-2"><h3 class="text-xs font-bold text-violet-400 uppercase tracking-widest">Trilha</h3><input type="text" id="spec-name" class="bg-transparent border-none text-right text-xs text-violet-300 w-32 focus:outline-none" placeholder="Nome da Trilha"></div>
-                        <div class="power-slot relative"><span class="absolute top-2 right-2 text-[8px] font-bold bg-violet-900/50 text-violet-200 px-1 rounded">NV 3</span><textarea id="spec-lvl3" class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:outline-none resize-none h-16 pt-4" placeholder="Habilidade Nv 3"></textarea></div>
-                        <div class="power-slot relative"><span class="absolute top-2 right-2 text-[8px] font-bold bg-violet-900/50 text-violet-200 px-1 rounded">NV 6</span><textarea id="spec-lvl6" class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:outline-none resize-none h-16 pt-4" placeholder="Habilidade Nv 6"></textarea></div>
-                        <div class="power-slot relative"><span class="absolute top-2 right-2 text-[8px] font-bold bg-violet-900/50 text-violet-200 px-1 rounded">NV 9</span><textarea id="spec-lvl9" class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:outline-none resize-none h-16 pt-4" placeholder="Habilidade Nv 9"></textarea></div>
-                        <div class="power-slot relative border-amber-500/30"><span class="absolute top-2 right-2 text-[8px] font-bold bg-amber-900/50 text-amber-200 px-1 rounded">LEGADO (NV 10)</span><textarea id="spec-lvl10" class="w-full bg-transparent border-none text-xs text-amber-100/80 focus:outline-none resize-none h-16 pt-4" placeholder="Seu poder supremo"></textarea></div>
-                    </div>
-                    <div id="block-techniques" class="draggable-block space-y-4">
-                        <div class="flex justify-between items-center border-b border-[var(--border)] pb-2"><h3 class="text-xs font-bold text-emerald-400 uppercase tracking-widest">Técnicas</h3><button onclick="addTech()" class="text-[10px] btn-ghost px-2 py-0.5 rounded w-8 h-8 md:w-auto md:h-auto"><i class="fa-solid fa-plus"></i></button></div>
-                        <div id="techniques-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </template>
     </div>
 
-    <!-- DICE -->
-    <div id="dice-tray" class="dice-tray hidden">
-        <div id="dice-log" class="dice-log-popup">
-            <span class="text-[10px] text-[var(--text-muted)] font-bold uppercase border-b border-[var(--border)] mb-1">Log de Dados</span>
-            <!-- logs -->
-        </div>
-        <div class="flex items-center gap-2 border-r border-[var(--border)] pr-2 mr-1 flex-shrink-0">
-            <button onclick="toggleDiceLog()" class="text-[var(--text-muted)] hover:text-[var(--primary)] text-xs p-2"><i class="fa-solid fa-clock-rotate-left"></i></button>
-            <input type="number" id="dice-mod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--primary)] outline-none" value="0"><span class="text-[10px] font-bold text-[var(--text-muted)] uppercase">MOD</span>
-        </div>
-        <div class="flex gap-1 flex-nowrap overflow-x-auto">
-            <button onclick="rollDice(3)" class="dice-btn text-sky-300 border-sky-500/30">D3</button>
-            <button onclick="rollDice(4)" class="dice-btn">D4</button><button onclick="rollDice(6)" class="dice-btn">D6</button><button onclick="rollDice(8)" class="dice-btn">D8</button><button onclick="rollDice(10)" class="dice-btn">D10</button><button onclick="rollDice(12)" class="dice-btn text-[var(--primary)] border-[var(--primary)]">D12</button><button onclick="rollDice(20)" class="dice-btn">D20</button><button onclick="rollDice(100)" class="dice-btn text-amber-400 border-amber-500/30">D100</button>
-        </div>
-        <div class="w-px h-6 bg-[var(--border)] mx-2 flex-shrink-0"></div><div id="dice-display" class="text-lg font-bold brand-font text-[var(--text-muted)] min-w-[30px] text-center flex-shrink-0">--</div>
-    </div>
-
-    <!-- IMAGE EDITOR MODAL -->
-    <div id="image-modal" class="modal-overlay">
-        <div class="bg-[var(--bg-card)] border border-[var(--border)] p-6 rounded-xl w-full max-w-sm shadow-2xl relative">
-            <h3 class="text-lg font-bold text-[var(--text-main)] mb-4">Editor de Foto</h3>
-            <div class="flex justify-center mb-4"><div class="cropper-area" id="crop-area"><img id="editor-img" class="cropper-img" src="" draggable="false"></div></div>
-            <div class="space-y-4 mb-4"><input type="range" id="zoom-slider" min="0.5" max="3" step="0.1" value="1" class="w-full accent-[var(--primary)] h-8"></div>
-            <div class="flex justify-between gap-2">
-                <input type="file" id="new-photo-upload" class="hidden" accept="image/*" onchange="handleNewPhoto(event)">
-                <button onclick="document.getElementById('new-photo-upload').click()" class="btn-ghost px-4 py-3 rounded text-sm flex-1">Trocar</button>
-                <button onclick="saveCroppedImage()" class="btn-solid px-4 py-3 rounded text-sm flex-1">Salvar</button>
+    <!-- HEADER -->
+    <header class="relative z-20 max-w-7xl mx-auto p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5">
+        <div class="flex items-center gap-4 mb-4 md:mb-0">
+            <div class="w-14 h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.2)]">
+                <span class="font-brand text-3xl font-bold text-white">Z</span>
             </div>
-            <button onclick="closeImageModal()" class="absolute top-4 right-4 text-[var(--text-muted)] hover:text-red-500 p-2"><i class="fa-solid fa-xmark fa-lg"></i></button>
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
+                <p class="text-[10px] text-gray-500 font-code">V12.0 WARLORD REDUX</p>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
+            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
+        </div>
+    </header>
+
+    <!-- DASHBOARD -->
+    <main x-show="currentView === 'dashboard'" class="relative z-10 max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
+        <div class="mb-8 flex justify-between items-end border-b border-white/5 pb-2">
+            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest">Banco de Dados</h2>
+            <div class="text-[10px] font-code text-gray-600">SLOTS: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
+        </div>
+
+        <div x-show="agentCount === 0" class="py-32 text-center opacity-30">
+            <i class="fa-solid fa-network-wired text-6xl mb-4"></i>
+            <p class="font-brand">SISTEMA VAZIO</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <template x-for="(c, id) in chars" :key="id">
+                <div @click="loadCharacter(id)" class="glass p-5 rounded-xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden">
+                    <div class="flex items-center gap-5 relative z-10">
+                        <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black">
+                        <div>
+                            <h3 class="text-white font-bold truncate font-brand text-lg group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
+                            <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
+                        </div>
+                    </div>
+                    <!-- DELETE BUTTON WITH FIXED EVENT HANDLER -->
+                    <button @click.stop="deleteCharacter(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </template>
+        </div>
+    </main>
+
+    <!-- SHEET -->
+    <template x-if="currentView === 'sheet' && char">
+        <main class="relative z-10 max-w-7xl mx-auto p-4 pb-40" x-transition.opacity>
+            <!-- NAV -->
+            <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10">
+                <div class="flex items-center gap-3 px-2">
+                    <button @click="currentView = 'dashboard'; activeCharId = null;" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                    <div class="w-px h-4 bg-white/10"></div>
+                    <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
+                </div>
+                <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
+                    <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Perfil</button>
+                    <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Poderes</button>
+                    <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Logística</button>
+                </div>
+            </div>
+
+            <!-- TAB PROFILE -->
+            <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+                <!-- LEFT: VITALS -->
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="glass p-6 rounded-xl text-center relative group">
+                        <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative">
+                            <img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo">
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-camera text-white"></i></div>
+                        </div>
+                        
+                        <div class="mt-4 flex justify-center">
+                            <div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2">
+                                <label class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
+                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats(); saveData()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
+                            </div>
+                        </div>
+                        
+                        <!-- VITALS CONTROLS -->
+                        <div class="mt-6 space-y-3 text-left">
+                            <!-- PV -->
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-red-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-red-500">PV (VIDA)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <span x-text="char.stats.pv.current"></span> / 
+                                        <input type="number" x-model="char.stats.pv.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-red-500">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2">
+                                    <button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded hover:bg-red-500 hover:text-black font-bold">-5</button>
+                                    <button @click="modStat('pv', -1)" class="flex-1 bg-red-900/20 text-red-500 text-xs py-1 hover:bg-red-500 hover:text-black rounded">-1</button>
+                                    <button @click="modStat('pv', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
+                                    <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
+                                </div>
+                            </div>
+                            <!-- PF -->
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-amber-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-amber-500">PF (ESFORÇO)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <span x-text="char.stats.pf.current"></span> / 
+                                        <input type="number" x-model="char.stats.pf.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-amber-500">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2">
+                                    <button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded hover:bg-amber-500 hover:text-black font-bold">-5</button>
+                                    <button @click="modStat('pf', -1)" class="flex-1 bg-amber-900/20 text-amber-500 text-xs py-1 hover:bg-amber-500 hover:text-black rounded">-1</button>
+                                    <button @click="modStat('pf', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
+                                    <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
+                                </div>
+                            </div>
+                            <!-- PDF -->
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-violet-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-violet-500">PDF (MENTE)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <span x-text="char.stats.pdf.current"></span> / 
+                                        <input type="number" x-model="char.stats.pdf.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-violet-500">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2">
+                                    <button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded hover:bg-violet-500 hover:text-black font-bold">-5</button>
+                                    <button @click="modStat('pdf', -1)" class="flex-1 bg-violet-900/20 text-violet-500 text-xs py-1 hover:bg-violet-500 hover:text-black rounded">-1</button>
+                                    <button @click="modStat('pdf', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
+                                    <button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: INFO & ATTRS -->
+                <div class="lg:col-span-8 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div>
+                        <div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
+                        <div><select x-model="char.class" @change="updateClassLogic()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div>
+                    </div>
+
+                    <!-- ATTR MATRIX -->
+                    <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
+                        <div class="w-full md:w-1/2 space-y-2">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
+                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
+                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span>
+                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
+                    </div>
+
+                    <!-- NEW: SKILLS (Perícias) -->
+                    <div class="glass p-6 rounded-xl border-l-2 border-yellow-500">
+                        <div class="flex justify-between mb-4 items-center">
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
+                            <button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="(s, idx) in char.skills" :key="idx">
+                                <div class="bg-black/40 p-3 rounded flex justify-between items-center">
+                                    <input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome da Perícia">
+                                    <div class="flex gap-1">
+                                        <template x-for="i in 5">
+                                            <div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div>
+                                        </template>
+                                    </div>
+                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 hover:text-red-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- HISTORY -->
+                    <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Arquivos Confidenciais</label>
+                        <textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Registro de trauma..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB LOGISTICS -->
+            <div x-show="activeTab === 'logistics'" class="space-y-6">
+                <div class="flex justify-between items-center"><h3 class="text-white font-brand">LOGÍSTICA</h3><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><span class="text-amber-500">₵</span><input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code"></div></div>
+
+                <!-- SUB TABS -->
+                <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
+                    <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
+                    <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
+                    <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social & Importantes</button>
+                </div>
+
+                <!-- INVENTORY VIEW -->
+                <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(w, i) in char.inventory.weapons" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="w.name" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="Nome">
+                                    <input x-model="w.dmg" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Dano">
+                                    <input x-model="w.range" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Alcance">
+                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"><span>Proteção</span><button @click="addItem('armor')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(a, i) in char.inventory.armor" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="a.name" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="Nome">
+                                    <input x-model="a.def" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Def">
+                                    <input x-model="a.pen" class="col-span-2 bg-transparent outline-none text-center text-gray-400" placeholder="Pen">
+                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BACKPACK VIEW -->
+                <div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4">
+                            <template x-for="(g, i) in char.inventory.gear" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
+                                    <div class="flex-grow flex gap-2">
+                                        <input x-model="g.name" class="bg-transparent outline-none font-bold text-white w-1/3" placeholder="Item">
+                                        <input x-model="g.desc" class="bg-transparent outline-none text-gray-500 w-2/3" placeholder="Descrição">
+                                    </div>
+                                    <input x-model="g.qty" type="number" class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]">
+                                    <button @click="deleteItem('gear', i)" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="border-t border-white/10 pt-4">
+                            <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Outros Itens (Texto Livre)</label>
+                            <textarea x-model="char.inventory.backpack" class="w-full h-32 bg-black/40 text-sm text-gray-300 p-3 rounded border border-white/5 focus:border-[var(--neon-core)] resize-none outline-none" placeholder="Cordas, rações, ferramentas..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SOCIAL VIEW -->
+                <div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas Importantes</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2">
+                            <template x-for="(p, i) in char.inventory.social.people" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
+                                    <input x-model="p.name" class="bg-transparent outline-none font-bold text-white w-1/2" placeholder="Nome">
+                                    <input x-model="p.role" class="bg-transparent outline-none text-gray-500 w-1/2" placeholder="Relação">
+                                    <button @click="deleteItem('social', i, 'people')" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"><span>Objetos Importantes</span><button @click="addItem('social_objects')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2">
+                            <template x-for="(o, i) in char.inventory.social.objects" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
+                                    <input x-model="o.name" class="bg-transparent outline-none font-bold text-white w-1/2" placeholder="Objeto">
+                                    <input x-model="o.desc" class="bg-transparent outline-none text-gray-500 w-1/2" placeholder="Detalhe">
+                                    <button @click="deleteItem('social', i, 'objects')" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB POWERS -->
+            <div x-show="activeTab === 'powers'" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
+                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
+                </div>
+                
+                <!-- TECHNIQUES (CUSTOMIZABLE) -->
+                <div class="glass p-6 rounded-xl border-l-2 border-emerald-500">
+                    <div class="flex justify-between mb-4 items-center">
+                        <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas de Combate</h3>
+                        <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
+                    </div>
+                    <div class="space-y-3">
+                        <template x-for="(t, idx) in char.powers.techniques" :key="idx">
+                            <div class="bg-black/40 p-3 rounded">
+                                <div class="flex justify-between mb-2">
+                                    <input x-model="t.name" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome da Técnica">
+                                    <button @click="deleteTechnique(idx)" class="text-red-500 hover:text-red-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <textarea x-model="t.desc" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Descrição do efeito..."></textarea>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="glass p-6 rounded-xl">
+                    <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Trilha de Evolução</h3>
+                    <div class="space-y-4">
+                        <template x-for="lvl in [3,6,9,10]">
+                            <div class="bg-black/20 p-3 rounded border border-white/5">
+                                <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500"><span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span></div>
+                                <textarea x-model="char.powers['lvl'+lvl]" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </template>
+
+    <!-- DICE TRAY (ALWAYS FIXED) -->
+    <div class="fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur border-t border-[var(--neon-core)] p-3 z-50" x-show="currentView === 'sheet'">
+        <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
+            <div class="relative">
+                <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white"><i class="fa-solid fa-list-ol"></i></button>
+                <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-white/20 rounded-lg p-3 shadow-2xl max-h-48 overflow-y-auto">
+                    <template x-for="log in diceLog">
+                        <div class="flex justify-between text-[10px] py-1 border-b border-white/5 text-gray-400 font-code">
+                            <span x-text="log.time"></span>
+                            <span x-text="log.formula"></span>
+                            <span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-white'" x-text="log.result"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                <div class="flex items-center bg-white/5 rounded px-2 mr-2 border border-white/10">
+                    <span class="text-[8px] font-bold text-gray-500 mr-1">MOD</span>
+                    <input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none">
+                </div>
+                <template x-for="d in [4,6,8,10,12,20,100]">
+                    <button @click="roll(d)" class="w-9 h-9 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all" x-text="'D'+d"></button>
+                </template>
+            </div>
+            <div class="min-w-[60px] text-center border-l border-white/10 pl-4">
+                <div x-text="lastRoll" class="text-3xl font-bold font-brand" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'">--</div>
+            </div>
         </div>
     </div>
 
     <!-- WIZARD MODAL -->
-    <div id="wizard-modal" class="modal-overlay">
-        <div class="bg-[var(--bg-card)] border border-[var(--border)] p-0 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[95vh] h-full md:h-auto overflow-hidden relative">
-            
-            <!-- STEP 1 -->
-            <div id="wizard-step-1" class="flex flex-col h-full p-6 md:p-8 overflow-y-auto">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl md:text-2xl brand-font text-[var(--primary)]">Escolha Designação</h2>
-                    <button onclick="closeWizard()" class="text-red-500 hover:text-red-400 p-2"><i class="fa-solid fa-xmark fa-lg"></i></button>
+    <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4">
+        <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                <h2 class="text-2xl font-brand text-white">NOVO AGENTE <span class="text-[var(--neon-core)] text-sm ml-2">INICIANDO...</span></h2>
+                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-6">
+                <div x-show="wizardStep === 1">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <template x-for="arch in archetypes">
+                            <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center">
+                                <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
+                                <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
+                                <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
+                                <div class="mt-4 pt-4 border-t border-white/5 text-[10px] font-code uppercase text-gray-400">FOCO: <span class="text-white" x-text="arch.focus"></span></div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
-                
-                <h3 class="text-xs font-bold text-[var(--text-muted)] uppercase mb-4">Classes</h3>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 content-center mb-8">
-                    <div class="class-card" onclick="selectClass('Titã')"><i class="fa-solid fa-shield-halved mb-2"></i><span class="font-bold text-lg">Titã</span><span class="text-xs text-rose-400 font-mono">Foco: Força</span></div>
-                    <div class="class-card" onclick="selectClass('Estrategista')"><i class="fa-solid fa-chess mb-2"></i><span class="font-bold text-lg">Estrategista</span><span class="text-xs text-sky-400 font-mono">Foco: Intelecto</span></div>
-                    <div class="class-card" onclick="selectClass('Infiltrador')"><i class="fa-solid fa-user-ninja mb-2"></i><span class="font-bold text-lg">Infiltrador</span><span class="text-xs text-emerald-400 font-mono">Foco: Agilidade</span></div>
-                    <div class="class-card" onclick="selectClass('Controlador')"><i class="fa-solid fa-hand-spock mb-2"></i><span class="font-bold text-lg">Controlador</span><span class="text-xs text-violet-400 font-mono">Foco: Poder</span></div>
-                    <div class="class-card" onclick="selectClass('Psíquico')"><i class="fa-solid fa-brain mb-2"></i><span class="font-bold text-lg">Psíquico</span><span class="text-xs text-amber-400 font-mono">Foco: Vontade</span></div>
-                </div>
-
-                <div id="template-section" class="hidden">
-                     <h3 class="text-xs font-bold text-[var(--text-muted)] uppercase mb-4 border-t border-[var(--border)] pt-4">Meus Templates</h3>
-                     <div id="wizard-template-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                <div x-show="wizardStep === 2" class="flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg">
+                        <span class="text-2xl font-brand text-white" x-text="wizardData.class"></span>
+                        <div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="space-y-4">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5">
+                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
+                                        <span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span>
+                                        <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div>
+                    </div>
                 </div>
             </div>
+            <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between">
+                <button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button>
+                <div class="flex-grow"></div>
+                <button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button>
+            </div>
+        </div>
+    </div>
 
-            <!-- STEP 2: VISUAL ATTRIBUTES -->
-            <div id="wizard-step-2" class="hidden flex-col h-full w-full relative">
-                <div class="flex-none flex justify-between items-center px-4 md:px-6 py-4 border-b border-[var(--border)] bg-[var(--input-bg)]">
-                    <div>
-                        <h3 class="text-lg md:text-xl font-bold text-[var(--primary)]" id="wiz-class-name">Classe</h3>
-                        <p class="text-xs text-[var(--text-muted)]">Distribuição de Atributos</p>
-                    </div>
-                    <div class="bg-[var(--bg-card)] px-4 py-2 rounded font-mono text-lg border border-[var(--border)]">
-                        PTS: <span id="wiz-points" class="font-bold text-[var(--crit-success)]">8</span>
-                    </div>
-                </div>
-
-                <div class="flex-grow overflow-y-auto p-4 md:p-6">
-                    <div class="flex flex-col md:flex-row gap-6">
-                        <div class="w-full md:w-1/2 space-y-3" id="wiz-attr-list"></div>
-                        <div class="w-full md:w-1/2 flex items-center justify-center bg-[var(--input-bg)] rounded-xl border border-[var(--border)] relative h-48 md:h-[300px] flex-shrink-0">
-                            <div class="w-full h-full relative p-2 md:p-4">
-                                <canvas id="wizardChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="h-20 md:hidden"></div> 
-                </div>
-
-                <div class="flex-none flex gap-4 px-6 py-4 w-full justify-end border-t border-[var(--border)] bg-[var(--bg-card)] z-20">
-                    <button onclick="wizardBack()" class="btn-ghost px-6 py-2 rounded">Voltar</button>
-                    <button onclick="finishCreation()" class="btn-solid px-8 py-2 rounded shadow-lg">Concluir</button>
-                </div>
+    <!-- CROPPER MODAL -->
+    <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4">
+        <div class="w-full max-w-lg h-[70vh] flex flex-col">
+            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div>
+            <div class="flex gap-3">
+                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
+                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
+                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
+                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
     </div>
 
     <!-- CONFIG MODAL -->
-    <div id="config-modal" class="modal-overlay">
-        <div class="bg-[var(--bg-card)] border border-[var(--border)] p-6 rounded-xl w-full max-w-md relative">
-            <button onclick="closeConfigModal()" class="absolute top-4 right-4 text-[var(--text-muted)] hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-            <h3 class="text-lg font-bold text-[var(--text-main)] mb-6">Configurações</h3>
-            <div class="flex gap-4 mb-6 text-sm border-b border-[var(--border)] overflow-x-auto">
-                <button onclick="switchConfigTab('tab-theme')" id="btn-theme" class="pb-2 border-b-2 border-[var(--primary)] font-bold">Tema</button>
-                <button onclick="switchConfigTab('tab-templates')" id="btn-templates" class="pb-2 border-b-2 border-transparent text-[var(--text-muted)]">Templates</button>
-                <button onclick="switchConfigTab('tab-data')" id="btn-data" class="pb-2 border-b-2 border-transparent text-[var(--text-muted)]">Dados</button>
-            </div>
-            
-            <div id="tab-theme" class="config-content">
-                <div class="grid grid-cols-5 gap-4 justify-items-center mb-6">
-                    <div onclick="setTheme('default')" class="theme-dot bg-[#020617] active"></div>
-                    <div onclick="setTheme('crimson')" class="theme-dot bg-[#1a0505]"></div>
-                    <div onclick="setTheme('forest')" class="theme-dot bg-[#020904]"></div>
-                    <div onclick="setTheme('mist')" class="theme-dot bg-[#f1f5f9]"></div>
-                    <div onclick="setTheme('aether')" class="theme-dot bg-[#0f0518]"></div>
-                </div>
-                <div class="flex justify-between items-center mb-4 border-t border-[var(--border)] pt-4">
-                    <span class="text-sm font-bold">Modo Edição (PC)</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="edit-mode-toggle" class="sr-only peer" onchange="toggleEditMode()">
-                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-                    </label>
-                </div>
-            </div>
-
-            <div id="tab-templates" class="config-content hidden space-y-4">
-                <button onclick="saveTemplate()" id="btn-save-template" class="w-full py-2 bg-[var(--primary)] text-[var(--bg-body)] font-bold rounded text-sm hover:brightness-110 mb-4 hidden">Salvar Personagem Atual como Template</button>
-                <div id="template-list-config" class="space-y-2 max-h-60 overflow-y-auto"></div>
-                <p id="no-templates-msg" class="text-xs text-[var(--text-muted)] text-center hidden">Nenhum template salvo.</p>
-            </div>
-
-            <div id="tab-data" class="config-content hidden space-y-4">
-                <p class="text-xs text-[var(--text-muted)]">Backup completo (Fichas, Templates e Dados do Mestre).</p>
-                <button onclick="exportData()" class="w-full py-2 bg-[var(--input-bg)] border border-[var(--border)] rounded text-sm hover:border-[var(--primary)] flex items-center justify-center gap-2"><i class="fa-solid fa-download"></i> Baixar Backup (.json)</button>
+    <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center">
+        <div class="glass p-8 rounded-xl w-full max-w-md relative border border-white/10">
+            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-brand text-white mb-6">SISTEMA</h3>
+            <div class="space-y-4">
+                <button @click="exportData()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-download mr-3"></i>BACKUP (.JSON)</button>
                 <div class="relative">
-                    <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(this)">
-                    <button onclick="document.getElementById('import-file').click()" class="w-full py-2 bg-[var(--input-bg)] border border-[var(--border)] rounded text-sm hover:text-[var(--primary)] flex items-center justify-center gap-2"><i class="fa-solid fa-upload"></i> Carregar Backup</button>
+                    <input type="file" id="import-input" class="hidden" accept=".json" @change="importData($event)">
+                    <button @click="document.getElementById('import-input').click()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-upload mr-3"></i>RESTAURAR</button>
                 </div>
-                <hr class="border-[var(--border)]">
-                <button onclick="resetLayout()" class="w-full py-2 border border-red-500/30 text-red-400 rounded text-xs mt-4">Resetar Layout Padrão</button>
+                <div class="border-t border-white/10 my-4"></div>
+                <button @click="hardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs hover:bg-red-500/10">HARD RESET</button>
             </div>
         </div>
     </div>
 
-    <div id="skill-modal" class="modal-overlay"><div class="bg-[var(--bg-card)] border border-[var(--border)] p-6 rounded-xl w-full max-w-sm"><h3 class="text-lg font-bold mb-4">Perícia</h3><input type="hidden" id="skill-index"><input type="text" id="skill-name-input" class="input-minimal w-full p-3 mb-4 text-base" placeholder="Ex: Hackear"><div class="flex justify-between bg-[var(--input-bg)] p-3 rounded mb-4"><button onclick="setSkillLevel(1)" class="skill-dot w-8 h-8 rounded-full bg-gray-700" data-val="1"></button><button onclick="setSkillLevel(2)" class="skill-dot w-8 h-8 rounded-full bg-gray-700" data-val="2"></button><button onclick="setSkillLevel(3)" class="skill-dot w-8 h-8 rounded-full bg-gray-700" data-val="3"></button><button onclick="setSkillLevel(4)" class="skill-dot w-8 h-8 rounded-full bg-gray-700" data-val="4"></button><button onclick="setSkillLevel(5)" class="skill-dot w-8 h-8 rounded-full bg-gray-700" data-val="5"></button></div><input type="hidden" id="skill-level-input" value="1"><div class="flex justify-end gap-2"><button onclick="closeSkillModal()" class="btn-ghost px-4 py-2 rounded text-xs">Cancelar</button><button onclick="deleteSkill()" id="btn-delete-skill" class="hidden text-red-400 text-xs px-4">Excluir</button><button onclick="saveSkill()" class="btn-solid px-6 py-2 rounded text-xs">Salvar</button></div></div></div>
-
-    <script>
-        // CONFIG & GLOBALS
-        const CONFIG_KEY = 'zenite_config_v9_0';
-        const INDEX_KEY = 'zenite_chars_index_v9_0';
-        const TEMPLATE_KEY = 'zenite_templates_v9_0';
-        const GM_DATA_KEY = 'zenite_gm_data_v9_0';
-        const CHAR_PREFIX = 'zenite_char_v9_0_';
-        
-        let currentId = null;
-        let skills = [], inventory = [], techniques = [];
-        let gmData = { blocks: [] }; // GM Data
-        let diceLog = [];
-        let radarChart;
-        let wizardChart;
-        let config = { theme: 'default', layouts: { page1: ['block-profile','block-status','block-attributes','block-skills'], page2: ['block-equipment','block-credits','block-backpack'], page3: ['block-powers-header','block-foundation','block-specialization','block-techniques'] } };
-        
-        let editImgState = { x: 0, y: 0, scale: 1, isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
-        let statLocks = { pv: false, pf: false, pdf: false };
-        let wizardData = { class: '', focusAttr: '', points: 8, attrs: { 'for': -1, 'agi': -1, 'int': -1, 'von': -1, 'pod': -1 } };
-        
-        const classMap = { 'Titã': 'for', 'Estrategista': 'int', 'Infiltrador': 'agi', 'Controlador': 'pod', 'Psíquico': 'von' };
-        const classIcons = { 'Titã': 'fa-shield-halved', 'Estrategista': 'fa-chess', 'Infiltrador': 'fa-user-ninja', 'Controlador': 'fa-hand-spock', 'Psíquico': 'fa-brain' };
-        const inputIds = ['char-name', 'char-identity', 'char-rank', 'char-concept', 'char-level', 'pv-current', 'pv-max', 'pf-current', 'pf-max', 'pdf-current', 'pdf-max', 'attr-for', 'attr-agi', 'attr-int', 'attr-von', 'attr-pod', 'inv-suit', 'inv-credits', 'inv-backpack', 'class-name', 'origin-desc', 'core-passive', 'core-active', 'spec-name', 'spec-lvl3', 'spec-lvl6', 'spec-lvl9', 'spec-lvl10'];
-
-        window.onload = function() {
-            initChart(); loadGlobalConfig(); renderMenu(); checkStorage(); loadGMData();
-            inputIds.forEach(id => { const el = document.getElementById(id); if(el) { el.addEventListener('input', () => { if(currentId) saveData(); }); el.addEventListener('change', () => { if(currentId) saveData(); }); } });
-            setupDragAndDrop('layout-container-page1'); setupDragAndDrop('layout-container-page2'); setupDragAndDrop('layout-container-page3');
-            initImageEditorEvents();
-        };
-
-        // --- GM MODE LOGIC ---
-        function openGMMode() {
-            document.getElementById('menu-view').classList.remove('active');
-            document.getElementById('gm-view').classList.add('active');
-            document.getElementById('dice-tray').classList.remove('hidden');
-            renderGMBlocks();
-        }
-
-        function loadGMData() {
-            const d = localStorage.getItem(GM_DATA_KEY);
-            if(d) gmData = JSON.parse(d);
-            if(!gmData.blocks) gmData.blocks = [];
-        }
-
-        function saveGMData() {
-            // Gather data from DOM
-            const container = document.getElementById('gm-workspace');
-            if(!container) return;
-            const blocks = [];
-            container.querySelectorAll('.gm-widget').forEach(el => {
-                const id = el.dataset.id;
-                const type = el.dataset.type;
-                const title = el.querySelector('.gm-widget-title').value;
-                let content = "";
-                if(type === 'note' || type === 'tracker') content = el.querySelector('textarea').value;
-                if(type === 'counter') content = el.querySelector('.counter-val').innerText;
-                blocks.push({ id, type, title, content });
-            });
-            gmData.blocks = blocks;
-            localStorage.setItem(GM_DATA_KEY, JSON.stringify(gmData));
-        }
-
-        function addGMBlock(type) {
-            const id = 'gm_blk_' + Date.now();
-            gmData.blocks.push({ id, type, title: type === 'note' ? 'Nota' : type === 'counter' ? 'Contador' : 'Lista', content: type === 'counter' ? '0' : '' });
-            renderGMBlocks();
-            saveGMData();
-        }
-
-        function deleteGMBlock(id) {
-            gmData.blocks = gmData.blocks.filter(b => b.id !== id);
-            renderGMBlocks();
-            saveGMData();
-        }
-
-        function renderGMBlocks() {
-            const c = document.getElementById('gm-workspace');
-            const empty = document.getElementById('gm-empty');
-            c.innerHTML = '';
-            if(gmData.blocks.length === 0) { empty.style.display = 'flex'; } else { empty.style.display = 'none'; }
-
-            gmData.blocks.forEach(b => {
-                const el = document.createElement('div');
-                el.className = 'gm-widget';
-                el.dataset.id = b.id;
-                el.dataset.type = b.type;
-                
-                let innerHTML = `
-                    <div class="gm-widget-header">
-                        <input type="text" class="gm-widget-title" value="${b.title}" onchange="saveGMData()" placeholder="Título">
-                        <button onclick="deleteGMBlock('${b.id}')" class="gm-delete-btn"><i class="fa-solid fa-trash"></i></button>
-                    </div>`;
-                
-                if (b.type === 'note') {
-                    innerHTML += `<textarea class="w-full h-32 bg-transparent text-xs text-[var(--text-main)] outline-none resize-none" onchange="saveGMData()" placeholder="Escreva aqui...">${b.content}</textarea>`;
-                } else if (b.type === 'counter') {
-                    innerHTML += `
-                    <div class="flex justify-center items-center gap-4 py-2">
-                        <button onclick="modGMCount(this, -1)" class="w-8 h-8 rounded bg-[var(--bg-body)] border border-[var(--border)] hover:border-red-400">-</button>
-                        <span class="text-2xl font-bold counter-val">${b.content}</span>
-                        <button onclick="modGMCount(this, 1)" class="w-8 h-8 rounded bg-[var(--bg-body)] border border-[var(--border)] hover:border-green-400">+</button>
-                    </div>`;
-                } else if (b.type === 'tracker') {
-                     innerHTML += `<textarea class="w-full h-32 bg-transparent text-xs font-mono text-[var(--text-main)] outline-none resize-none" onchange="saveGMData()" placeholder="1. Jogador A&#10;2. Monstro B">${b.content}</textarea>`;
-                }
-
-                el.innerHTML = innerHTML;
-                c.appendChild(el);
-            });
-        }
-
-        function modGMCount(btn, val) {
-            const span = btn.parentElement.querySelector('.counter-val');
-            let current = parseInt(span.innerText) || 0;
-            span.innerText = current + val;
-            saveGMData();
-        }
-
-        // --- CORE & UTILS ---
-        function openImageEditor() { const curSrc=document.getElementById('char-photo').src; if(!curSrc||curSrc.includes(window.location.href)){document.getElementById('new-photo-upload').click();return} const img=document.getElementById('editor-img'); img.src=curSrc; editImgState={x:0,y:0,scale:1,isDragging:false,startX:0,startY:0,lastX:0,lastY:0}; const mainImg=document.getElementById('char-photo'); if(mainImg.dataset.tx){editImgState.lastX=parseFloat(mainImg.dataset.tx);editImgState.lastY=parseFloat(mainImg.dataset.ty);editImgState.scale=parseFloat(mainImg.dataset.ts)} updateEditorVisuals(); document.getElementById('zoom-slider').value=editImgState.scale; document.getElementById('image-modal').classList.add('open'); }
-        function initImageEditorEvents() { 
-            const area=document.getElementById('crop-area'), slider=document.getElementById('zoom-slider'); 
-            area.addEventListener('mousedown',e=>{editImgState.isDragging=true;editImgState.startX=e.clientX-editImgState.lastX;editImgState.startY=e.clientY-editImgState.lastY}); 
-            window.addEventListener('mousemove',e=>{if(!editImgState.isDragging)return;e.preventDefault();editImgState.lastX=e.clientX-editImgState.startX;editImgState.lastY=e.clientY-editImgState.startY;updateEditorVisuals()}); 
-            window.addEventListener('mouseup',()=>editImgState.isDragging=false); 
-            area.addEventListener('touchstart',e=>{if(e.touches.length===1){editImgState.isDragging=true;editImgState.startX=e.touches[0].clientX-editImgState.lastX;editImgState.startY=e.touches[0].clientY-editImgState.lastY;e.preventDefault()}});
-            window.addEventListener('touchmove',e=>{if(!editImgState.isDragging)return;e.preventDefault();editImgState.lastX=e.touches[0].clientX-editImgState.startX;editImgState.lastY=e.touches[0].clientY-editImgState.startY;updateEditorVisuals()});
-            window.addEventListener('touchend',()=>editImgState.isDragging=false);
-            slider.addEventListener('input',e=>{editImgState.scale=parseFloat(e.target.value);updateEditorVisuals()}); 
-        }
-        function updateEditorVisuals() { const img=document.getElementById('editor-img'); img.style.transform=`translate(-50%, -50%) translate(${editImgState.lastX}px, ${editImgState.lastY}px) scale(${editImgState.scale})`; img.style.left='50%'; img.style.top='50%'; }
-        function handleNewPhoto(e) { const r=new FileReader(); r.onload=function(){const img=new Image();img.src=r.result;img.onload=()=>{const cvs=document.createElement('canvas'),ctx=cvs.getContext('2d'),max=500;let w=img.width,h=img.height;if(w>h){if(w>max){h*=max/w;w=max}}else{if(h>max){w*=max/h;h=max}}cvs.width=w;cvs.height=h;ctx.drawImage(img,0,0,w,h);const comp=cvs.toDataURL('image/jpeg',0.8);document.getElementById('editor-img').src=comp;editImgState={x:0,y:0,scale:1,isDragging:false,startX:0,startY:0,lastX:0,lastY:0};updateEditorVisuals();document.getElementById('image-modal').classList.add('open')}};if(e.target.files[0])r.readAsDataURL(e.target.files[0]) }
-        function saveCroppedImage() { const mainImg=document.getElementById('char-photo'); mainImg.src=document.getElementById('editor-img').src; mainImg.style.transform=`translate(-50%, -50%) translate(${editImgState.lastX}px, ${editImgState.lastY}px) scale(${editImgState.scale})`; mainImg.dataset.tx=editImgState.lastX; mainImg.dataset.ty=editImgState.lastY; mainImg.dataset.ts=editImgState.scale; closeImageModal(); saveData(); }
-        function closeImageModal() { document.getElementById('image-modal').classList.remove('open') }
-        function toggleStatLock(stat) {
-            statLocks[stat] = !statLocks[stat]; 
-            const btn = document.getElementById(`lock-icon-${stat}`);
-            const input = document.getElementById(`${stat}-max`);
-            if (statLocks[stat]) {
-                btn.className = "fa-solid fa-lock text-red-400";
-                input.readOnly = false; input.classList.remove("input-locked"); input.classList.add("input-unlocked");
-            } else {
-                btn.className = "fa-solid fa-lock-open text-[var(--text-muted)]";
-                input.readOnly = true; input.classList.add("input-locked"); input.classList.remove("input-unlocked");
-                recalculateStats();
-            }
-            saveData();
-        }
-
-        // --- TEMPLATES ---
-        function getTemplates() { const t = localStorage.getItem(TEMPLATE_KEY); return t ? JSON.parse(t) : []; }
-        function saveTemplate() {
-            if(!currentId) return;
-            const name = prompt("Nome do Template:", document.getElementById('char-name').value);
-            if(!name) return;
-            const currentData = JSON.parse(localStorage.getItem(CHAR_PREFIX + currentId));
-            const template = { id: 'tmpl_' + Date.now(), name: name, class: document.getElementById('class-name').value, data: currentData };
-            const list = getTemplates(); list.push(template); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(list)); renderTemplateList(); alert("Template salvo!");
-        }
-        function renderTemplateList() {
-            const list = getTemplates(); const container = document.getElementById('template-list-config'); container.innerHTML = '';
-            if(list.length === 0) { document.getElementById('no-templates-msg').classList.remove('hidden'); } else {
-                document.getElementById('no-templates-msg').classList.add('hidden');
-                list.forEach((t, index) => {
-                    const el = document.createElement('div'); el.className = 'template-card';
-                    el.innerHTML = `<div class="info"><span class="text-sm font-bold">${t.name}</span><span class="text-[10px] text-[var(--text-muted)]">${t.class}</span></div><button onclick="deleteTemplate(${index})" class="text-red-400 hover:text-red-300 p-2"><i class="fa-solid fa-trash"></i></button>`; container.appendChild(el);
-                });
-            }
-        }
-        function renderWizardTemplates() {
-            const list = getTemplates(); const container = document.getElementById('wizard-template-list'); const section = document.getElementById('template-section'); container.innerHTML = '';
-            if(list.length > 0) { section.classList.remove('hidden'); list.forEach(t => { const el = document.createElement('div'); el.className = 'template-card'; el.onclick = () => loadTemplateToWizard(t); el.innerHTML = `<div class="info"><span class="text-sm font-bold text-[var(--primary)]">${t.name}</span><span class="text-[10px] text-[var(--text-muted)] uppercase">${t.class}</span></div><i class="fa-solid fa-file-import text-[var(--text-muted)]"></i>`; container.appendChild(el); }); } else { section.classList.add('hidden'); }
-        }
-        function deleteTemplate(index) { if(!confirm("Apagar template?")) return; const list = getTemplates(); list.splice(index, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(list)); renderTemplateList(); }
-        function loadTemplateToWizard(template) {
-            const newId = 'z_' + Date.now(); currentId = newId;
-            const newData = JSON.parse(JSON.stringify(template.data)); newData.id = newId;
-            localStorage.setItem(CHAR_PREFIX + newId, JSON.stringify(newData));
-            let idx = getIndex(); const sum = { id: newId, name: template.name, level: newData.fields['char-level'] || 1, class: newData.fields['class-name'] || "?", photo: newData.photo }; idx.push(sum); localStorage.setItem(INDEX_KEY, JSON.stringify(idx));
-            closeWizard(); loadChar(newId);
-        }
-
-        // --- WIZARD ---
-        function startCharWizard() { document.getElementById('wizard-modal').classList.add('open'); document.getElementById('wizard-step-1').classList.remove('hidden'); document.getElementById('wizard-step-2').classList.add('hidden'); wizardData = { class: '', focusAttr: '', points: 8, attrs: { 'for': -1, 'agi': -1, 'int': -1, 'von': -1, 'pod': -1 } }; renderWizardTemplates(); }
-        function closeWizard() { document.getElementById('wizard-modal').classList.remove('open'); }
-        function selectClass(c) { wizardData.class = c; wizardData.focusAttr = classMap[c]; for (let k in wizardData.attrs) wizardData.attrs[k] = -1; wizardData.attrs[wizardData.focusAttr] = 0; wizardData.points = 8; document.getElementById('wizard-step-1').classList.add('hidden'); document.getElementById('wizard-step-2').classList.remove('hidden'); document.getElementById('wizard-step-2').classList.add('flex'); document.getElementById('wiz-class-name').innerText = c; renderWizardAttrs(); setTimeout(initWizardChart, 100); }
-        function wizardBack() { document.getElementById('wizard-step-1').classList.remove('hidden'); document.getElementById('wizard-step-2').classList.add('hidden'); document.getElementById('wizard-step-2').classList.remove('flex'); }
-        function initWizardChart() { const ctx = document.getElementById('wizardChart').getContext('2d'); if(wizardChart) wizardChart.destroy(); const primaryColor = getComputedStyle(document.body).getPropertyValue('--primary').trim(); wizardChart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'], datasets: [{ label: 'Potencial', data: [0,0,0,0,0], backgroundColor: primaryColor + '33', borderColor: primaryColor, borderWidth: 2, pointBackgroundColor: '#fff' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: 3, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' }, angleLines: { color: 'rgba(255,255,255,0.1)' }, pointLabels: { color: '#94a3b8', font: { size: 11, family: 'Orbitron' } } } }, plugins: { legend: { display: false } } } }); updateWizardChartData(); }
-        function updateWizardChartData() { if(!wizardChart) return; const d = wizardData.attrs; wizardChart.data.datasets[0].data = [d['for'], d['agi'], d['int'], d['von'], d['pod']]; wizardChart.update(); }
-        function renderWizardAttrs() { const c = document.getElementById('wiz-attr-list'); c.innerHTML = ''; const ptsEl = document.getElementById('wiz-points'); ptsEl.innerText = wizardData.points; ptsEl.style.color = wizardData.points > 0 ? 'var(--crit-success)' : 'var(--text-muted)'; const lbl = { 'for': 'Força', 'agi': 'Agilidade', 'int': 'Intelecto', 'von': 'Vontade', 'pod': 'Poder' }; const clr = { 'for': 'text-rose-400', 'agi': 'text-emerald-400', 'int': 'text-sky-400', 'von': 'text-amber-400', 'pod': 'text-violet-400' }; for (let k in wizardData.attrs) { const isFocus = k === wizardData.focusAttr; const val = wizardData.attrs[k]; const row = document.createElement('div'); row.className = 'stat-control'; const minVal = isFocus ? 0 : -1; const disableMinus = val <= minVal ? 'disabled' : ''; const disablePlus = val >= 3 ? 'disabled' : ''; const widthPct = ((val + 1) / 4) * 100; const barColor = disablePlus ? 'bg-[var(--primary)]' : 'bg-[var(--text-muted)]'; row.innerHTML = `<div class="flex flex-col w-full"><div class="flex justify-between items-center mb-1"><div class="flex items-center gap-2"><span class="text-sm font-bold uppercase ${clr[k]} w-24">${lbl[k]}</span>${isFocus?'<i class="fa-solid fa-star text-[10px] text-yellow-500" title="Foco"></i>':''}</div><div class="flex items-center gap-2"><button class="stat-btn" onclick="modWizardAttr('${k}', -1)" ${disableMinus}>-</button><div class="stat-val w-6 text-center font-bold">${val > 0 ? '+' + val : val}</div><button class="stat-btn" onclick="modWizardAttr('${k}', 1)" ${disablePlus}>+</button></div></div><div class="w-full h-1 bg-[var(--border)] rounded-full overflow-hidden"><div class="h-full ${barColor} transition-all" style="width: ${widthPct}%"></div></div></div>`; c.appendChild(row); } updateWizardChartData(); }
-        function modWizardAttr(k, chg) { const n = wizardData.attrs[k] + chg; const isFocus = k === wizardData.focusAttr; if (isFocus && n < 0) return; if (n < -1 || n > 3) return; if (chg > 0 && wizardData.points > 0) { wizardData.attrs[k] = n; wizardData.points--; } else if (chg < 0) { wizardData.attrs[k] = n; wizardData.points++; } renderWizardAttrs(); }
-        function finishCreation() { currentId = 'z_' + Date.now(); skills = []; inventory = []; techniques = []; inputIds.forEach(id => { const el = document.getElementById(id); if(el) el.value = ""; }); statLocks = { pv:false, pf:false, pdf:false }; document.getElementById('attr-for').value = wizardData.attrs['for']; document.getElementById('attr-agi').value = wizardData.attrs['agi']; document.getElementById('attr-int').value = wizardData.attrs['int']; document.getElementById('attr-von').value = wizardData.attrs['von']; document.getElementById('attr-pod').value = wizardData.attrs['pod']; document.getElementById('class-name').value = wizardData.class; document.getElementById('char-level').value = 1; document.getElementById('char-photo').src = ""; document.getElementById('char-photo').style.transform = ""; delete document.getElementById('char-photo').dataset.tx; updateClassIcon(); recalculateStats(); document.getElementById('pv-current').value = document.getElementById('pv-max').value; document.getElementById('pf-current').value = document.getElementById('pf-max').value; document.getElementById('pdf-current').value = document.getElementById('pdf-max').value; updateBar('pv'); updateBar('pf'); updateBar('pdf'); document.getElementById('wizard-modal').classList.remove('open'); saveData(); openSheetView(); }
-
-        // --- STATS ---
-        function recalculateStats() {
-            const level = parseInt(document.getElementById('char-level').value) || 1;
-            const enforceLimit = (id) => { const el = document.getElementById(id); let val = parseInt(el.value); if (isNaN(val)) val = -1; if (val > 6) { val = 6; } if (val < -1) { val = -1; } el.value = val; return val; };
-            const FOR = enforceLimit('attr-for'); const AGI = enforceLimit('attr-agi'); const INT = enforceLimit('attr-int'); const VON = enforceLimit('attr-von'); const POD = enforceLimit('attr-pod');
-            const cName = document.getElementById('class-name').value;
-            updateClassIcon();
-            const updateIfSynced = (type, newVal) => { const curEl = document.getElementById(type+'-current'); const maxEl = document.getElementById(type+'-max'); const oldMax = parseInt(maxEl.value) || 0; const curVal = parseInt(curEl.value) || 0; maxEl.value = newVal; if (curVal >= oldMax * 0.9 && curVal !== 0) { curEl.value = newVal; } };
-            if (!statLocks.pv) { let pv = 20; if (cName === 'Titã') pv = (15 + FOR) + ((4 + FOR) * (level - 1)); else if (cName && cName !== '') pv = (12 + FOR) + ((2 + FOR) * (level - 1)); updateIfSynced('pv', pv); }
-            if (!statLocks.pf) { let pf = 10; if (cName === 'Estrategista' || cName === 'Infiltrador') pf = (15 + POD) + ((4 + FOR) * (level - 1)); else if (cName === 'Psíquico') pf = (13 + POD) + ((3 + FOR) * (level - 1)); else if (cName === 'Titã' || cName === 'Controlador') pf = (12 + POD) + ((2 + FOR) * (level - 1)); updateIfSynced('pf', pf); }
-            if (!statLocks.pdf) { let pdf = 10; if (cName === 'Controlador') pdf = (15 + VON) + ((4 + FOR) * (level - 1)); else if (cName === 'Psíquico') pdf = (14 + VON) + ((3 + FOR) * (level - 1)); else if (cName === 'Infiltrador') pdf = (12 + VON) + ((3 + FOR) * (level - 1)); else if (cName) pdf = (12 + VON) + ((2 + FOR) * (level - 1)); updateIfSynced('pdf', pdf); }
-            ['pv','pf','pdf'].forEach(s => { const btn = document.getElementById(`lock-icon-${s}`); const inp = document.getElementById(`${s}-max`); if(statLocks[s]){ btn.className = "fa-solid fa-lock text-red-400"; inp.readOnly = false; inp.classList.remove("input-locked"); inp.classList.add("input-unlocked"); } else { btn.className = "fa-solid fa-lock-open text-[var(--text-muted)]"; inp.readOnly = true; inp.classList.add("input-locked"); inp.classList.remove("input-unlocked"); } });
-            updateChart(); updateBar('pv'); updateBar('pf'); updateBar('pdf'); if(currentId) saveData();
-        }
-
-        function checkStorage() { let t=0;for(let x in localStorage)t+=((localStorage[x].length*2)/1024/1024);const p=Math.min(100,(t/4.5)*100);document.getElementById('storage-bar').style.width=p+'%';if(p>90)alert("Memória cheia!");}
-
-        // --- BACKUP ---
-        function exportData() { try { const data = { app: 'ZENITE_V9', date: new Date().toISOString(), config: localStorage.getItem(CONFIG_KEY), index: localStorage.getItem(INDEX_KEY), templates: localStorage.getItem(TEMPLATE_KEY), gm: localStorage.getItem(GM_DATA_KEY), chars: {} }; const idx = getIndex(); idx.forEach(c => { const d = localStorage.getItem(CHAR_PREFIX + c.id); if (d) data.chars[c.id] = d; }); const blob = new Blob([JSON.stringify(data)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); const dateStr = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-'); a.href = url; a.download = `zenite_backup_${dateStr}.json`; a.click(); } catch (e) { alert("Erro ao exportar: " + e.message); } }
-        function importData(input) { const file = input.files[0]; if (!file) return; const r = new FileReader(); r.onload = (e) => { try { const d = JSON.parse(e.target.result); if(d.app !== 'ZENITE_V9' && d.app !== 'ZENITE_V8') { if(!confirm("Versão diferente. Importar mesmo assim?")) return; } if (d.config) localStorage.setItem(CONFIG_KEY, d.config); if (d.index) localStorage.setItem(INDEX_KEY, d.index); if (d.templates) localStorage.setItem(TEMPLATE_KEY, d.templates); if (d.gm) localStorage.setItem(GM_DATA_KEY, d.gm); if (d.chars) for (let k in d.chars) localStorage.setItem(CHAR_PREFIX + k, d.chars[k]); alert("Sucesso! Recarregando..."); location.reload(); } catch (x) { alert("Erro Crítico: Arquivo inválido."); } }; r.readAsText(file); }
-
-        function fullRest() {
-            if(!confirm("Realizar Descanso Completo?\nIsso recuperará toda Vida e Esforço.")) return;
-            const maxPV = document.getElementById('pv-max').value || 20; const maxPF = document.getElementById('pf-max').value || 10; const maxPDF = document.getElementById('pdf-max').value || 10;
-            document.getElementById('pv-current').value = maxPV; document.getElementById('pf-current').value = maxPF; document.getElementById('pdf-current').value = maxPDF;
-            updateBar('pv'); updateBar('pf'); updateBar('pdf'); saveData(); flashScreen('heal'); showToast('<i class="fa-solid fa-moon mr-2"></i>DESCANSADO');
-        }
-
-        function flashScreen(type) { const overlay = document.getElementById('flash-overlay'); overlay.className = type === 'damage' ? 'flash-damage' : 'flash-heal'; overlay.style.opacity = '0.3'; setTimeout(() => { overlay.style.opacity = '0'; }, 200); }
-
-        function saveData(){
-            if(!currentId)return;
-            try { const p = document.getElementById('char-photo'); const tx = p.dataset.tx || 0, ty = p.dataset.ty || 0, ts = p.dataset.ts || 1; const photoSrc = p.src.length > 500 ? p.src : ""; const data={id:currentId,skills,inventory,techniques,statLocks,photoTransform:{x:tx, y:ty, scale:ts},photo:photoSrc,fields:{}}; inputIds.forEach(id=>{const el=document.getElementById(id);if(el)data.fields[id]=el.value}); localStorage.setItem(CHAR_PREFIX+currentId,JSON.stringify(data)); let idx=getIndex(), i=idx.findIndex(c=>c.id===currentId); const sum={id:currentId,name:document.getElementById('char-name').value||"?",level:document.getElementById('char-level').value,class:document.getElementById('class-name').value||"?",photo:data.photo}; if(i>=0) idx[i]=sum; else idx.push(sum); localStorage.setItem(INDEX_KEY,JSON.stringify(idx)); const t=document.getElementById('save-toast');t.innerHTML='<i class="fa-solid fa-check mr-2"></i>SALVO';t.style.opacity="1";setTimeout(()=>t.style.opacity="0",2000); } catch(e) { console.error("Auto-save failed", e); }
-        }
-        function showToast(msg) { const t = document.getElementById('save-toast'); t.innerHTML = msg; t.style.opacity = "1"; setTimeout(() => t.style.opacity = "0", 2000); }
-        function loadChar(id){ currentId=id; const json=localStorage.getItem(CHAR_PREFIX+id); if(!json)return; try{const d=JSON.parse(json); if(d.fields)for(const[k,v]of Object.entries(d.fields)){const e=document.getElementById(k);if(e)e.value=v} skills=d.skills||[]; inventory=d.inventory||[]; techniques=d.techniques||[]; statLocks = d.statLocks || {pv:false,pf:false,pdf:false}; const img = document.getElementById('char-photo'); img.src = d.photo || ""; if(d.photoTransform) { img.dataset.tx = d.photoTransform.x; img.dataset.ty = d.photoTransform.y; img.dataset.ts = d.photoTransform.scale; img.style.transform = `translate(-50%, -50%) translate(${d.photoTransform.x}px, ${d.photoTransform.y}px) scale(${d.photoTransform.scale})`; } else { img.style.transform = `translate(-50%, -50%) scale(1)`; } updateClassIcon(); recalculateStats(); renderSkills(); renderInventory(); renderTechniques(); openSheetView(); }catch(e){console.error(e);alert("Ficha corrompida.");} }
-
-        function loadGlobalConfig() { const s=localStorage.getItem(CONFIG_KEY); if(s){const c=JSON.parse(s);config.theme=c.theme||'default';if(c.layouts)config.layouts=c.layouts;} applyTheme(config.theme); applyLayout('layout-container-page1',config.layouts.page1); applyLayout('layout-container-page2',config.layouts.page2); applyLayout('layout-container-page3',config.layouts.page3); }
-        function saveGlobalConfig() { localStorage.setItem(CONFIG_KEY,JSON.stringify(config)); }
-        function setTheme(t) { config.theme=t; applyTheme(t); saveGlobalConfig(); }
-        function applyTheme(t) { document.documentElement.setAttribute('data-theme',t); document.querySelectorAll('.theme-dot').forEach(d=>d.classList.remove('active')); }
-        function setupDragAndDrop(cid){ const c=document.getElementById(cid); if(!c)return; c.addEventListener('dragover',e=>{ e.preventDefault(); const after=getDragAfterElement(c,e.clientY); const drag=document.querySelector('.dragging'); if(!drag) return; if(after==null)c.appendChild(drag);else c.insertBefore(drag,after) }) }
-        function getDragAfterElement(c,y){const drs=[...c.querySelectorAll('.draggable-block:not(.dragging)')];return drs.reduce((closest,child)=>{const box=child.getBoundingClientRect();const offset=y-box.top-box.height/2;if(offset<0&&offset>closest.offset)return{offset:offset,element:child};else return closest},{offset:Number.NEGATIVE_INFINITY}).element}
-        function toggleEditMode(){ const is=document.getElementById('edit-mode-toggle').checked; document.body.classList.toggle('is-editing',is); document.querySelectorAll('.draggable-block').forEach(el=>{ el.setAttribute('draggable',is); if(is) { el.ondragstart = () => el.classList.add('dragging'); el.ondragend = () => { el.classList.remove('dragging'); saveAllLayouts(); updateChart(); }; } else { el.ondragstart = null; el.ondragend = null; } }); if(is) closeConfigModal(); }
-        function saveAllLayouts(){const get=(id)=>{const c=document.getElementById(id),a=[];if(c)c.querySelectorAll('.draggable-block').forEach(el=>a.push(el.id));return a};config.layouts.page1=get('layout-container-page1');config.layouts.page2=get('layout-container-page2');config.layouts.page3=get('layout-container-page3');saveGlobalConfig()}
-        function applyLayout(cid,ord){const c=document.getElementById(cid);if(!c||!ord)return;ord.forEach(id=>{const el=document.getElementById(id);if(el)c.appendChild(el)})}
-        function resetLayout(){config.layouts={page1:['block-profile','block-status','block-attributes','block-skills'],page2:['block-equipment','block-credits','block-backpack'],page3:['block-powers-header','block-foundation','block-specialization','block-techniques']};saveGlobalConfig();location.reload()}
-        function getIndex(){const j=localStorage.getItem(INDEX_KEY);return j?JSON.parse(j):[]}
-        function renderMenu(){document.getElementById('menu-view').classList.add('active');document.getElementById('sheet-view').classList.remove('active');document.getElementById('gm-view').classList.remove('active');document.getElementById('dice-tray').classList.add('hidden');const idx=getIndex(),g=document.getElementById('char-grid');g.innerHTML='';if(idx.length===0)document.getElementById('empty-state').classList.remove('hidden');else document.getElementById('empty-state').classList.add('hidden');idx.forEach(c=>{const d=document.createElement('div');d.className="glass-panel p-4 rounded-xl flex items-center gap-4 cursor-pointer hover:border-[var(--primary)] transition-all group";d.onclick=(e)=>{if(!e.target.closest('button'))loadChar(c.id)};const img=c.photo&&c.photo.length>50?c.photo:"";const h=img?`<img src="${img}" class="w-full h-full object-cover">`:`<div class="w-full h-full bg-[var(--border)]"></div>`;d.innerHTML=`<div class="w-14 h-14 rounded-full border-2 border-[var(--border)] group-hover:border-[var(--primary)] overflow-hidden transition-colors flex-shrink-0">${h}</div><div class="flex-grow min-w-0"><h3 class="text-[var(--text-main)] font-bold truncate brand-font">${c.name||'Desconhecido'}</h3><p class="text-[var(--primary)] text-[10px] font-bold uppercase tracking-wider">Nv ${c.level} // ${c.class||'N/A'}</p></div><button onclick="deleteCharFromMenu('${c.id}',event)" class="w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-500 transition-colors flex-shrink-0"><i class="fa-solid fa-trash"></i></button>`;g.appendChild(d)}); checkStorage();}
-        function openSheetView(){document.getElementById('menu-view').classList.remove('active');document.getElementById('gm-view').classList.remove('active');document.getElementById('sheet-view').classList.add('active');document.getElementById('dice-tray').classList.remove('hidden');document.getElementById('current-char-id').innerText='ID: '+currentId.substr(-6);switchTab('page1'); document.getElementById('btn-save-template').classList.remove('hidden');}
-        function exitToMenu(){ try { if(currentId) saveData(); saveGMData(); } catch(e){} currentId=null; renderMenu(); document.getElementById('btn-save-template').classList.add('hidden');}
-        function deleteCurrentChar(){if(confirm("Apagar?")){localStorage.removeItem(CHAR_PREFIX+currentId);let idx=getIndex().filter(c=>c.id!==currentId);localStorage.setItem(INDEX_KEY,JSON.stringify(idx));exitToMenu()}}
-        function deleteCharFromMenu(id,e){e.stopPropagation();if(confirm("Apagar?")){localStorage.removeItem(CHAR_PREFIX+id);let idx=getIndex().filter(c=>c.id!==id);localStorage.setItem(INDEX_KEY,JSON.stringify(idx));renderMenu()}}
-        
-        let previousPV = null;
-        function updateBar(t){
-            const curEl = document.getElementById(t+'-current');
-            const maxEl = document.getElementById(t+'-max');
-            if(!curEl || !maxEl) return;
-            const c=parseFloat(curEl.value)||0; const m=parseFloat(maxEl.value)||1;
-            const p = Math.min(100,Math.max(0,(c/m)*100));
-            document.getElementById('bar-'+t).style.width=p+'%';
-            if(t === 'pv') { if(previousPV !== null && c < previousPV) { flashScreen('damage'); } previousPV = c; }
-        }
-
-        function switchTab(t){document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));document.querySelectorAll('nav button').forEach(b=>{b.classList.remove('btn-solid');b.classList.add('text-[var(--text-muted)]')});document.getElementById(t).classList.add('active');document.getElementById('tab-'+t).classList.remove('text-[var(--text-muted)]');document.getElementById('tab-'+t).classList.add('btn-solid')}
-        function loadPhoto(e){const r=new FileReader();r.onload=function(){document.getElementById('char-photo').src=r.result; tempImg={src:r.result,x:0,y:0,scale:1}; saveData();};if(e.target.files[0])r.readAsDataURL(e.target.files[0])}
-        function openConfigModal(){document.getElementById('config-modal').classList.add('open'); renderTemplateList();}
-        function closeConfigModal(){document.getElementById('config-modal').classList.remove('open')}
-        function switchConfigTab(t){document.querySelectorAll('.config-content').forEach(c=>c.classList.add('hidden'));document.getElementById(t).classList.remove('hidden');document.getElementById('btn-theme').className="pb-2 border-b-2 border-transparent text-[var(--text-muted)]";document.getElementById('btn-data').className="pb-2 border-b-2 border-transparent text-[var(--text-muted)]";document.getElementById('btn-templates').className="pb-2 border-b-2 border-transparent text-[var(--text-muted)]";document.getElementById(t==='tab-theme'?'btn-theme':t==='tab-data'?'btn-data':'btn-templates').className="pb-2 border-b-2 border-[var(--primary)] font-bold"}
-        function renderSkills(){const c=document.getElementById('skills-list');c.innerHTML='';skills.forEach((s,i)=>{let h='';for(let j=1;j<=5;j++)h+=`<div class="w-2 h-2 rounded-full ${j<=s.level?'bg-[var(--primary)]':'bg-[var(--border)]'}"></div>`;const d=document.createElement('div');d.className="glass-panel p-3 rounded flex items-center justify-between cursor-pointer hover:border-[var(--primary)] transition-colors";d.onclick=()=>openSkillModal(i);d.innerHTML=`<span class="text-xs font-bold truncate mr-2">${s.name}</span><div class="flex gap-1">${h}</div>`;c.appendChild(d)})}
-        function openSkillModal(i=null){document.getElementById('skill-modal').classList.add('open');document.getElementById('skill-index').value=i!==null?i:"";document.getElementById('skill-name-input').value=i!==null?skills[i].name:"";setSkillLevel(i!==null?skills[i].level:1);document.getElementById('btn-delete-skill').classList.toggle('hidden',i===null)}
-        function closeSkillModal(){document.getElementById('skill-modal').classList.remove('open')}
-        function setSkillLevel(l){document.getElementById('skill-level-input').value=l;document.querySelectorAll('.skill-dot').forEach(d=>{const v=d.getAttribute('data-val');d.className=`skill-dot w-6 h-6 md:w-8 md:h-8 rounded-full transition-colors ${v<=l?'bg-[var(--primary)]':'bg-[var(--border)]'}`})}
-        function saveSkill(){const n=document.getElementById('skill-name-input').value,l=document.getElementById('skill-level-input').value,i=document.getElementById('skill-index').value;if(!n)return;if(i!=="")skills[i]={name:n,level:l};else skills.push({name:n,level:l});renderSkills();saveData();closeSkillModal()}
-        function deleteSkill(){const i=document.getElementById('skill-index').value;if(i!==""){skills.splice(i,1);renderSkills();saveData();closeSkillModal()}}
-        function renderInventory(){const c=document.getElementById('inventory-list');c.innerHTML='';inventory.forEach((it,i)=>{const d=document.createElement('div');d.className='grid grid-cols-[80px_1fr_20px] gap-3 items-center p-2 rounded bg-[var(--input-bg)] border border-transparent hover:border-[var(--border)] transition-colors';d.innerHTML=`<input type="text" class="text-[10px] text-right text-[var(--text-muted)] uppercase font-bold bg-transparent outline-none" value="${it.type}" onchange="inventory[${i}].type=this.value;saveData()"><input type="text" class="bg-transparent text-sm outline-none" value="${it.name}" onchange="inventory[${i}].name=this.value;saveData()"><button onclick="inventory.splice(${i},1);renderInventory();saveData()" class="text-red-400 text-xs opacity-50 hover:opacity-100 p-2"><i class="fa-solid fa-xmark"></i></button>`;c.appendChild(d)})}
-        function addInvItem(){inventory.push({type:'Slot',name:''});renderInventory();saveData()}
-        function renderTechniques(){const c=document.getElementById('techniques-list');c.innerHTML='';techniques.forEach((t,i)=>{const d=document.createElement('div');d.className='power-slot relative group';d.innerHTML=`<button onclick="techniques.splice(${i},1);renderTechniques();saveData()" class="absolute top-2 right-2 text-red-400 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-2 z-10"><i class="fa-solid fa-xmark"></i></button><input type="text" class="bg-transparent border-none font-bold text-sm text-[var(--primary)] w-[90%] focus:outline-none mb-1" value="${t.name}" placeholder="Nome" onchange="techniques[${i}].name=this.value;saveData()"><textarea class="w-full bg-transparent border-none text-xs text-[var(--text-muted)] focus:text-[var(--text-main)] focus:outline-none resize-none h-12" placeholder="Descrição..." onchange="techniques[${i}].desc=this.value;saveData()">${t.desc}</textarea>`;c.appendChild(d)})}
-        function addTech(){techniques.push({name:'',desc:''});renderTechniques();saveData()}
-        function initChart(){const ctx=document.getElementById('radarChart').getContext('2d');radarChart=new Chart(ctx,{type:'radar',data:{labels:['FOR','AGI','INT','VON','POD'],datasets:[{data:[0,0,0,0,0],backgroundColor:'rgba(255, 255, 255, 0.1)',borderColor:'#94a3b8',pointBackgroundColor:'#fff',borderWidth:1,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,scales:{r:{min:-1,max:6,ticks:{display:false,stepSize:1},grid:{color:'rgba(255,255,255,0.05)'},angleLines:{color:'rgba(255,255,255,0.05)'},pointLabels:{color:'#94a3b8',font:{size:10,family:'Orbitron'}}}},plugins:{legend:{display:false}}}})}
-        function updateChart(){const s=getComputedStyle(document.body),p=s.getPropertyValue('--primary').trim();if(radarChart){radarChart.data.datasets[0].borderColor=p;radarChart.data.datasets[0].pointBackgroundColor=p;radarChart.data.datasets[0].backgroundColor=p+'33';radarChart.data.datasets[0].data=[document.getElementById('attr-for').value,document.getElementById('attr-agi').value,document.getElementById('attr-int').value,document.getElementById('attr-von').value,document.getElementById('attr-pod').value];radarChart.update()}}
-        function rollDice(s){
-            const d=document.getElementById('dice-display'),m=parseInt(document.getElementById('dice-mod').value)||0;
-            d.innerText='...';
-            setTimeout(()=>{
-                const r=Math.floor(Math.random()*s)+1;
-                const total = r+m;
-                d.innerText=total;
-                d.className="text-lg font-bold brand-font "+(r===s?"crit-anim-success":r===1?"crit-anim-fail":"text-[var(--text-main)]");
-                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const logEntry = `<div class="log-entry"><span>D${s}${m>=0?'+':''}${m}</span><span class="${r===s?'text-emerald-400':r===1?'text-red-400':''} font-bold">${total}</span></div>`;
-                const log = document.getElementById('dice-log'); log.insertAdjacentHTML('afterbegin', logEntry); if(log.children.length > 6) log.lastElementChild.remove();
-            },200);
-        }
-        function toggleDiceLog() { document.getElementById('dice-log').classList.toggle('open'); }
-        function updateClassIcon(){ const c=document.getElementById('class-name').value; document.getElementById('class-icon-display').className=`fa-solid ${classIcons[c]||'fa-circle-question'} absolute right-2 top-3 text-[var(--text-muted)] pointer-events-none`;}
-        new MutationObserver(updateChart).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-    </script>
 </body>
 </html>
