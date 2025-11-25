@@ -851,7 +851,7 @@
                     <span class="text-[8px] font-bold text-gray-500 mr-1">MOD</span>
                     <input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none">
                 </div>
-                <template x-for="d in [4,6,8,10,12,20,100]">
+                <template x-for="d in [3,4,6,8,10,12,20,100]">
                     <button @click="roll(d)" class="w-9 h-9 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all" x-text="'D'+d"></button>
                 </template>
             </div>
