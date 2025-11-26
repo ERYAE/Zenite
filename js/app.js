@@ -1,52 +1,45 @@
+// ==========================================
+// CONFIGURAÇÃO DO SUPABASE
+// ==========================================
+const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
+const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v17.2-Modular';
+const APP_VERSION = 'v18.0-Supabase';
 
 function zeniteSystem() {
     return {
-        // --- AUTH STATE ---
-        authToken: localStorage.getItem('zenite_token') || null,
+        // --- ESTADO DE AUTENTICAÇÃO ---
+        user: null,
         isGuest: localStorage.getItem('zenite_is_guest') === 'true',
-        authInput: { user: '', pass: '', key: '', newPass: '' }, 
-        authMode: 'login', 
+        authInput: { email: '', pass: '' },
+        authMode: 'login',
         authLoading: false,
         authMsg: '',
         authMsgType: '',
 
-        // --- APP STATE ---
+        // --- ESTADO DO SISTEMA ---
+        unsavedChanges: false,
+        isSyncing: false,
         currentView: 'dashboard',
+        
+        // --- DADOS ---
         chars: {},
         activeCharId: null,
-        char: null, 
-        
-        // --- UI ---
+        char: null,
+        agentCount: 0,
+
+        // --- UI & CONFIGURAÇÕES ---
         activeTab: 'profile',
         logisticsTab: 'inventory',
         notifications: [],
         configModal: false,
         
-        // --- DICE ---
-        showDiceLog: false,
-        diceLog: [],
-        lastRoll: '--',
-        lastNatural: 0,
-        lastFaces: 0,
-        diceMod: 0,
-
-        // --- WIZARD ---
-        wizardOpen: false,
-        wizardStep: 1,
-        wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
-        wizardPoints: 8,
-        wizardFocusAttr: '',
-
-        // --- CROPPER ---
-        cropperOpen: false,
-        cropperInstance: null,
-
-        // --- META ---
-        agentCount: 0,
-
-        // --- ARCHETYPES ---
+        // --- DADOS DE JOGO (Mantidos do original) ---
+        showDiceLog: false, diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 0, diceMod: 0,
+        wizardOpen: false, wizardStep: 1, wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardPoints: 8, wizardFocusAttr: '',
+        cropperOpen: false, cropperInstance: null,
         archetypes: [
             { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
             { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
@@ -55,107 +48,100 @@ function zeniteSystem() {
             { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
         ],
 
-        initSystem() {
+        // ==========================================
+        // INICIALIZAÇÃO E AUTH
+        // ==========================================
+        async initSystem() {
+            // Verifica sessão existente ou retorno do Google
+            const { data: { session } } = await supabase.auth.getSession();
+
             if (this.isGuest) {
                 this.loadLocalData('zenite_guest_db');
                 this.notify('Modo Offline Ativo', 'warn');
-            } else if (this.authToken) {
-                this.fetchData().catch(() => this.loadLocalData('zenite_cached_db'));
+            } else if (session) {
+                this.user = session.user;
+                await this.fetchData();
             }
 
-            this.sanitizeData();
+            // Monitora Login/Logout em tempo real
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    this.user = session.user;
+                    this.isGuest = false;
+                    localStorage.removeItem('zenite_is_guest');
+                    this.fetchData();
+                    this.notify('Conectado: ' + this.user.email, 'success');
+                } else if (event === 'SIGNED_OUT') {
+                    this.user = null;
+                    this.chars = {};
+                }
+            });
 
+            // Auto-Save Local (Cache)
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
+                    if (!this.isGuest) this.unsavedChanges = true;
                     if(this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, { deep: true });
 
+            // Auto-Sync Nuvem (A cada 30s)
             setInterval(() => {
-                if (!this.isGuest && this.authToken) {
-                    this.notify('⚠ Lembrete: Salve na Nuvem!', 'warn');
-                }
-            }, 300000);
+                if (this.user && this.unsavedChanges) this.syncCloud(true);
+            }, 30000);
         },
 
-        sanitizeData() {
-            if (!this.chars || typeof this.chars !== 'object') this.chars = {};
-            Object.keys(this.chars).forEach(key => {
-                if (!this.chars[key] || !this.chars[key].id) delete this.chars[key];
-            });
-            this.updateAgentCount();
-        },
-
-        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-
-        loadLocalData(key) {
-            const local = localStorage.getItem(key);
-            if(local) {
-                try { 
-                    const parsed = JSON.parse(local);
-                    if (Array.isArray(parsed)) {
-                        this.chars = {};
-                        parsed.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
-                    } else {
-                        this.chars = parsed || {};
-                    }
-                    this.sanitizeData();
-                } catch(e) { this.chars = {}; }
+        async doGoogleAuth() {
+            try {
+                this.authLoading = true;
+                const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo: window.location.origin }
+                });
+                if (error) throw error;
+            } catch (e) {
+                this.notify('Erro Google: ' + e.message, 'error');
+                this.authLoading = false;
             }
         },
 
-        enterGuest() {
-            this.isGuest = true;
-            this.authToken = 'guest';
-            localStorage.setItem('zenite_is_guest', 'true');
-            localStorage.setItem('zenite_token', 'guest');
-            this.loadLocalData('zenite_guest_db');
-            this.notify('Modo Offline.', 'success');
-        },
-
         async doAuth(action) {
-            if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
+            let email = this.authInput.email;
+            // Fallback para quem tenta logar só com username
+            if (!email.includes('@')) email = email + '@zenite.os';
+
+            if(!email || !this.authInput.pass) return this.authMsg = 'Preencha dados.';
+            
             this.authLoading = true;
             this.authMsg = 'Processando...';
-            
-            let payload = { action, username: this.authInput.user };
-            if (action === 'login') payload.password = this.authInput.pass;
-            else if (action === 'register') { payload.password = this.authInput.pass; payload.recovery_key = this.authInput.key; }
-            else if (action === 'reset') { payload.recovery_key = this.authInput.key; payload.new_password = this.authInput.newPass; }
 
             try {
-                const req = await fetch('/api/auth', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload) 
-                });
-                const res = await req.json();
-                
-                if (req.status !== 200) throw new Error(res.error || 'Erro.');
-
-                if (action === 'register' || action === 'reset') {
-                    this.authMsg = action === 'reset' ? 'Senha alterada!' : 'Conta criada!';
-                    this.authMsgType = 'success';
-                    this.authMode = 'login';
-                } else {
-                    this.isGuest = false;
-                    localStorage.removeItem('zenite_is_guest');
-                    this.authToken = res.token;
-                    localStorage.setItem('zenite_token', res.token);
-                    
-                    this.chars = res.data || {};
-                    if(Array.isArray(this.chars)) {
-                        let temp = {}; this.chars.forEach(c => temp[c.id] = c); this.chars = temp;
+                let error;
+                if (action === 'login') {
+                    const { error: err } = await supabase.auth.signInWithPassword({ email, password: this.authInput.pass });
+                    error = err;
+                } else if (action === 'register') {
+                    const { error: err } = await supabase.auth.signUp({ email, password: this.authInput.pass });
+                    error = err;
+                    if(!error) {
+                        this.authMsg = 'Conta criada! Faça login.';
+                        this.authMsgType = 'success';
+                        this.authMode = 'login';
+                        this.authLoading = false;
+                        return;
                     }
-                    
-                    localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
-                    this.sanitizeData();
-                    this.authMsg = '';
-                    this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                } else if (action === 'reset') {
+                    const { error: err } = await supabase.auth.resetPasswordForEmail(email);
+                    error = err;
+                    if(!error) this.authMsg = 'Email de recuperação enviado!';
                 }
+
+                if (error) throw error;
+                if (action === 'login') { this.authMsg = ''; this.authInput = { email: '', pass: '' }; }
+
             } catch (e) {
                 this.authMsg = e.message;
                 this.authMsgType = 'error';
@@ -165,60 +151,99 @@ function zeniteSystem() {
         },
 
         logout() {
-            if (confirm("Sair do sistema?")) {
-                this.authToken = null;
+            if (confirm("Desconectar da Neural Link?")) {
+                if(this.unsavedChanges) this.syncCloud(true);
+                supabase.auth.signOut();
+                this.user = null;
                 this.isGuest = false;
-                localStorage.removeItem('zenite_token');
-                localStorage.removeItem('zenite_is_guest');
                 this.chars = {};
                 this.char = null;
                 this.activeCharId = null;
                 this.currentView = 'dashboard';
+                localStorage.removeItem('zenite_cached_db');
+                localStorage.removeItem('zenite_is_guest');
             }
         },
 
+        enterGuest() {
+            this.isGuest = true;
+            localStorage.setItem('zenite_is_guest', 'true');
+            this.loadLocalData('zenite_guest_db');
+            this.notify('Modo Offline.', 'success');
+        },
+
+        // ==========================================
+        // SINCRONIZAÇÃO DE DADOS (SUPABASE)
+        // ==========================================
         async fetchData() {
-            try {
-                const req = await fetch('/api/data', { headers: { 'Authorization': `Bearer ${this.authToken}` } });
-                if(req.status === 401) return this.logout();
-                const data = await req.json();
+            if (!this.user) return;
+            // Busca perfil na tabela 'profiles'
+            let { data, error } = await supabase
+                .from('profiles')
+                .select('data')
+                .eq('id', this.user.id)
+                .single();
+
+            // Se não existe, cria (primeiro login)
+            if (error && error.code === 'PGRST116') {
+                const { error: insertError } = await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]);
+                if (!insertError) data = { data: {} };
+            }
+
+            if (data) {
+                this.chars = Array.isArray(data.data) ? {} : (data.data || {});
+                if(Array.isArray(data.data)) data.data.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
                 
-                if(Array.isArray(data)) {
-                    this.chars = {};
-                    data.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
-                } else {
-                    this.chars = data || {};
-                }
                 localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
                 this.sanitizeData();
-            } catch(e) { console.error(e); }
-        },
-
-        async syncCloud() {
-            if (this.isGuest) return this.notify('Modo Offline: Salvo localmente.', 'info');
-            if (!this.authToken) return;
-
-            this.notify('Sincronizando...', 'info');
-            try {
-                if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
-                
-                await fetch('/api/data', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${this.authToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: this.chars })
-                });
-                this.notify('Salvo na Nuvem.', 'success');
-            } catch(e) {
-                this.notify('Erro de conexão.', 'error');
             }
         },
 
+        async syncCloud(silent = false) {
+            if (!this.user || this.isGuest) return;
+            this.isSyncing = true;
+            if(!silent) this.notify('Sincronizando...', 'info');
+
+            if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
+
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({ id: this.user.id, data: this.chars });
+
+            this.isSyncing = false;
+            if (error) {
+                if(!silent) this.notify('Erro ao salvar: ' + error.message, 'error');
+            } else {
+                this.unsavedChanges = false;
+                if(!silent) this.notify('Salvo na Nuvem.', 'success');
+            }
+        },
+
+        // ==========================================
+        // LÓGICA DO SISTEMA (MANTIDA DO ORIGINAL)
+        // ==========================================
+        sanitizeData() {
+            if (!this.chars || typeof this.chars !== 'object') this.chars = {};
+            Object.keys(this.chars).forEach(key => { if (!this.chars[key] || !this.chars[key].id) delete this.chars[key]; });
+            this.updateAgentCount();
+        },
+        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+        loadLocalData(key) {
+            const local = localStorage.getItem(key);
+            if(local) {
+                try { 
+                    const parsed = JSON.parse(local);
+                    this.chars = Array.isArray(parsed) ? {} : parsed || {};
+                    if(Array.isArray(parsed)) parsed.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
+                    this.sanitizeData();
+                } catch(e) { this.chars = {}; }
+            }
+        },
         loadCharacter(id) {
             if (!this.chars[id]) return this.notify('Erro: Ficha corrompida.', 'error');
             this.activeCharId = id;
             this.char = JSON.parse(JSON.stringify(this.chars[id]));
-            
-            // Migrations
+            // Garante estrutura
             if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
             if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
             if(!this.char.inventory.armor) this.char.inventory.armor = [];
@@ -226,37 +251,29 @@ function zeniteSystem() {
             if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
             if(!this.char.skills) this.char.skills = [];
             if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] };
-            if(!this.char.powers.techniques) this.char.powers.techniques = [];
             if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} };
-            if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
-
+            
             this.currentView = 'sheet';
             this.activeTab = 'profile';
             setTimeout(() => this.updateRadarChart(), 100);
         },
-
         deleteCharacter(id) {
             if (window.confirm('Excluir agente permanentemente?')) {
                 delete this.chars[id];
                 this.sanitizeData();
                 const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                 localStorage.setItem(key, JSON.stringify(this.chars));
-                if(!this.isGuest) this.syncCloud();
+                if(!this.isGuest) this.unsavedChanges = true;
                 this.notify('Agente eliminado.', 'success');
             }
         },
-
         recalcDerivedStats() {
             if(!this.char) return;
             const c = this.char;
             const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
             c.level = lvl;
             const getV = (v) => parseInt(v) || 0;
-            const FOR = getV(c.attrs.for);
-            const AGI = getV(c.attrs.agi);
-            const INT = getV(c.attrs.int);
-            const VON = getV(c.attrs.von);
-            const POD = getV(c.attrs.pod);
+            const FOR = getV(c.attrs.for), AGI = getV(c.attrs.agi), INT = getV(c.attrs.int), VON = getV(c.attrs.von), POD = getV(c.attrs.pod);
             let maxPV = 0, maxPF = 0, maxPDF = 0;
 
             if (c.class === 'Titã') { maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1)); maxPF = (12 + POD) + ((2 + POD) * (lvl - 1)); maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1)); } 
@@ -270,7 +287,6 @@ function zeniteSystem() {
             c.stats.pf.max = Math.max(5, maxPF);
             c.stats.pdf.max = Math.max(5, maxPDF);
         },
-
         modStat(type, val) {
             const stat = this.char.stats[type];
             const oldVal = stat.current;
@@ -278,7 +294,6 @@ function zeniteSystem() {
             if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
             if (stat.current > oldVal) this.triggerFX('heal');
         },
-
         modAttr(key, val) {
             const current = this.char.attrs[key];
             if (val > 0 && current < 6) this.char.attrs[key]++;
@@ -286,19 +301,16 @@ function zeniteSystem() {
             this.recalcDerivedStats();
             this.updateRadarChart();
         },
-
         updateClassLogic() {
             const arch = this.archetypes.find(a => a.class === this.char.class);
             if (arch && this.char.attrs[arch.focus] < 0) this.char.attrs[arch.focus] = 0;
             this.recalcDerivedStats();
             this.updateRadarChart();
         },
-
         triggerFX(type) {
             const el = document.getElementById(type + '-overlay');
             if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
         },
-
         openWizard() {
             if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
             this.wizardOpen = true;
@@ -336,18 +348,18 @@ function zeniteSystem() {
                 },
                 attrs: {...this.wizardData.attrs},
                 inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
+                skills: [], powers: { passive: '', active: '', trackName: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
             };
             
             this.chars[id] = newChar;
             this.sanitizeData();
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
             localStorage.setItem(key, JSON.stringify(this.chars));
+            if(!this.isGuest) this.syncCloud();
             this.wizardOpen = false;
             this.loadCharacter(id);
             this.notify('Agente Inicializado.', 'success');
         },
-
         addItem(cat) {
             const defs = {
                 weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
@@ -356,23 +368,18 @@ function zeniteSystem() {
                 social_people: { name: 'Nome', role: 'Relação' },
                 social_objects: { name: 'Objeto', desc: 'Detalhes' }
             };
-            if(cat.startsWith('social_')) {
-                this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
-            } else {
-                this.char.inventory[cat].push({...defs[cat]});
-            }
+            if(cat.startsWith('social_')) { this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); } 
+            else { this.char.inventory[cat].push({...defs[cat]}); }
         },
         deleteItem(cat, idx, subcat=null) {
             if(subcat) this.char.inventory.social[subcat].splice(idx, 1);
             else this.char.inventory[cat].splice(idx, 1);
         },
-
         addSkill() { this.char.skills.push({ name: 'Nova Perícia', level: 1 }); },
         deleteSkill(idx) { this.char.skills.splice(idx, 1); },
         setSkillLevel(idx, lvl) { this.char.skills[idx].level = lvl; },
         addTechnique() { this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' }); },
         deleteTechnique(idx) { this.char.powers.techniques.splice(idx, 1); },
-
         renderChart(id, attrs, color) {
             const ctx = document.getElementById(id);
             if (!ctx) return;
@@ -393,7 +400,6 @@ function zeniteSystem() {
         },
         updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
         updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
-
         roll(sides) {
             const arr = new Uint32Array(1);
             window.crypto.getRandomValues(arr);
@@ -404,7 +410,6 @@ function zeniteSystem() {
             this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
             if(this.diceLog.length>8) this.diceLog.pop();
         },
-
         openImageEditor() { document.getElementById('file-input').click(); },
         initCropper(e) {
             const file = e.target.files[0]; if (!file) return;
@@ -425,7 +430,6 @@ function zeniteSystem() {
             this.cropperOpen = false;
             this.notify('Foto atualizada.', 'success');
         },
-
         notify(msg, type='info') {
             const id = Date.now();
             this.notifications.push({id, message: msg, type, dismissed: false});
@@ -443,6 +447,7 @@ function zeniteSystem() {
                     this.chars = JSON.parse(evt.target.result); 
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
+                    if(!this.isGuest) this.unsavedChanges = true;
                     this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
                 catch(err) { this.notify('Arquivo inválido.', 'error'); }
             };
