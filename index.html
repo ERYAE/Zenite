@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ZENITE OS // V18 SUPABASE</title>
+    <title>ZENITE OS // V19 OPTIMIZED</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,64 +16,138 @@
     
     <script src="js/app.js"></script>
     <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
+
+        :root {
+            --bg-void: #050507;
+            --glass-panel: rgba(20, 20, 25, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --neon-core: #0ea5e9;
+            --neon-alert: #ef4444;
+            --neon-success: #10b981;
+            --neon-warn: #f59e0b;
+            --neon-purple: #d946ef;
+        }
+
+        [x-cloak] { display: none !important; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: var(--bg-void);
+            color: #e2e8f0;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.05), transparent 70%),
+                linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* FX LAYERS */
+        #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
+        #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
+        #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
+
+        /* UI COMPONENTS */
+        .glass {
+            background: var(--glass-panel);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-cyber {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--glass-border);
+            color: white;
+            transition: all 0.3s ease;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); outline: none; }
+
+        .btn-action {
+            position: relative; overflow: hidden; transition: all 0.3s;
+            font-family: 'Orbitron', sans-serif; letter-spacing: 1px; text-transform: uppercase;
+        }
+        .btn-action:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        .btn-action:active { transform: translateY(0); }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
+
+        /* ANIMATIONS */
+        .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
+        .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
+        @keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+        
+        /* EXTRAS */
+        .cropper-view-box, .cropper-face { border-radius: 50%; }
+        .cropper-container { width: 100% !important; height: 100% !important; }
+        .skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
+        .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
+    </style>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div x-show="!user && !isGuest" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
-        <div class="mb-6">
-            <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-            <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V18 SUPABASE</p>
-        </div>
-
-        <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
-            <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
-            <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
-            <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
-        </div>
-        
-        <div class="space-y-4">
-            <button @click="doGoogleAuth()" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors mb-4">
-                <i class="fa-brands fa-google text-red-600"></i> ENTRAR COM GOOGLE
-            </button>
-
-            <div class="relative flex items-center py-2">
-                <div class="flex-grow border-t border-gray-800"></div>
-                <span class="flex-shrink-0 mx-4 text-gray-600 text-[10px]">OU EMAIL</span>
-                <div class="flex-grow border-t border-gray-800"></div>
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
+            <div class="mb-6">
+                <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
+                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V19.0</p>
             </div>
 
-            <input x-model="authInput.email" type="text" placeholder="EMAIL" class="input-cyber w-full p-3 text-center uppercase">
+            <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
+                <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
+                <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
+            </div>
             
-            <template x-if="authMode === 'login' || authMode === 'register'">
+            <div class="space-y-4">
+                <button @click="doGoogleAuth()" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors mb-4 relative overflow-hidden">
+                    <div x-show="!authLoading" class="flex items-center gap-2">
+                        <i class="fa-brands fa-google text-red-600"></i> ENTRAR COM GOOGLE
+                    </div>
+                    <div x-show="authLoading" class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> CONECTANDO...
+                    </div>
+                </button>
+
+                <div class="relative flex items-center py-2">
+                    <div class="flex-grow border-t border-gray-800"></div>
+                    <span class="flex-shrink-0 mx-4 text-gray-600 text-[10px]">OU EMAIL</span>
+                    <div class="flex-grow border-t border-gray-800"></div>
+                </div>
+
+                <input x-model="authInput.email" type="text" placeholder="EMAIL" class="input-cyber w-full p-3 text-center uppercase">
                 <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
-            </template>
 
-            <div class="mt-6">
-                <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
-                    <span x-show="!authLoading">ENTRAR</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
+                <div class="mt-6">
+                    <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
+                        <span x-show="!authLoading">ACESSAR SISTEMA</span>
+                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
 
-                <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
-                    <span x-show="!authLoading">CRIAR CONTA</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
+                    <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
+                        <span x-show="!authLoading">CRIAR CREDENCIAL</span>
+                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
 
-                <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
-                    <span x-show="!authLoading">ENVIAR EMAIL DE RESHEET</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
-
-                <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
-                    ENTRAR COMO CONVIDADO (OFFLINE)
-                </button>
+                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
+                        MODO CONVIDADO (OFFLINE)
+                    </button>
+                </div>
+                
+                <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
             </div>
-            
-            <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
         </div>
     </div>
-</div>
 
     <div id="damage-overlay"></div>
     <div id="heal-overlay"></div>
@@ -94,11 +168,13 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V17.2</p>
+                <p class="text-[10px] text-gray-500 font-code">V19.0 CONNECTED</p>
             </div>
         </div>
         <div class="flex gap-3">
-            <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">MODO OFFLINE</div>
+            <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">OFFLINE</div>
+            <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SALVANDO...</div>
+            
             <button x-show="user" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair"><i class="fa-solid fa-power-off"></i></button>
             <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
             <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
@@ -395,8 +471,8 @@
     </template>
 
     <div x-show="!isGuest && currentView === 'sheet'" class="fixed bottom-20 right-6 z-50">
-        <button @click="syncCloud()" class="w-14 h-14 rounded-full bg-[var(--neon-core)] text-black shadow-lg shadow-cyan-500/50 flex items-center justify-center hover:scale-110 transition-transform" :class="{'sync-spinner': isSyncing}">
-            <i class="fa-solid" :class="isSyncing ? 'fa-spinner' : 'fa-cloud-arrow-up text-xl'"></i>
+        <button @click="syncCloud()" class="w-14 h-14 rounded-full bg-[var(--neon-core)] text-black shadow-lg shadow-cyan-500/50 flex items-center justify-center hover:scale-110 transition-transform">
+            <i class="fa-solid fa-cloud-arrow-up text-xl" :class="{'fa-bounce': isSyncing}"></i>
         </button>
     </div>
 

@@ -1,12 +1,13 @@
 // ==========================================
 // CONFIGURAÇÃO DO SUPABASE
 // ==========================================
-const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
-const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Substitua pelas suas chaves reais
+const SUPABASE_URL = 'SUA_URL_DO_SUPABASE_AQUI'; 
+const SUPABASE_KEY = 'SUA_CHAVE_ANON_AQUI';
 
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v18.0-Supabase';
+const APP_VERSION = 'v19.1-EcoMode';
 
 function zeniteSystem() {
     return {
@@ -36,7 +37,7 @@ function zeniteSystem() {
         notifications: [],
         configModal: false,
         
-        // --- DADOS DE JOGO (Mantidos do original) ---
+        // --- DADOS DE JOGO ---
         showDiceLog: false, diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 0, diceMod: 0,
         wizardOpen: false, wizardStep: 1, wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardPoints: 8, wizardFocusAttr: '',
         cropperOpen: false, cropperInstance: null,
@@ -51,89 +52,87 @@ function zeniteSystem() {
         // ==========================================
         // INICIALIZAÇÃO E AUTH
         // ==========================================
-// ... (mantenha as variáveis lá de cima iguais)
-
-// Dentro de zeniteSystem() { ...
-
-    async initSystem() {
-        // 1. Ouve mudanças de estado (Login/Logout) EM TEMPO REAL
-        // Isso precisa ser configurado ANTES de checar a sessão
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_IN' && session) {
-                this.user = session.user;
-                this.isGuest = false;
-                localStorage.removeItem('zenite_is_guest');
-                
-                // Limpa a URL feia (#access_token=...) sem recarregar a página
-                window.history.replaceState({}, document.title, window.location.pathname);
-                
-                await this.fetchData();
-                this.notify('Conectado: ' + this.user.email, 'success');
-            } else if (event === 'SIGNED_OUT') {
-                this.user = null;
-                this.chars = {};
-                this.char = null;
-            }
-        });
-
-        // 2. Verifica se já existe uma sessão ativa ou se veio do Google
-        // O supabase.auth.getSession() pega o token da URL automaticamente
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (this.isGuest) {
-            this.loadLocalData('zenite_guest_db');
-            this.notify('Modo Offline Ativo', 'warn');
-        } else if (session) {
-            // Se o getSession achou algo (seja no cache ou na URL), define o user
-            this.user = session.user;
-            await this.fetchData();
-            
-            // Limpa URL se tiver hash sobrando
-            if(window.location.hash && window.location.hash.includes('access_token')) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        }
-
-        // 3. Auto-Save e Auto-Sync (Mantido)
-        this.$watch('char', (val) => {
-            if (val && this.activeCharId) {
-                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                localStorage.setItem(key, JSON.stringify(this.chars));
-                if (!this.isGuest) this.unsavedChanges = true;
-                if(this.activeTab === 'profile') this.updateRadarChart();
-            }
-        }, { deep: true });
-
-        setInterval(() => {
-            if (this.user && this.unsavedChanges) this.syncCloud(true);
-        }, 30000);
-    },
-
-    async doGoogleAuth() {
-        try {
-            this.authLoading = true;
-            // Pega a URL exata onde você está (localhost ou vercel)
-            const redirectUrl = window.location.origin; 
-            
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: redirectUrl // Garante que volta para o lugar certo
+        async initSystem() {
+            // 1. Ouve mudanças de estado (Login/Logout) EM TEMPO REAL
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    this.user = session.user;
+                    this.isGuest = false;
+                    localStorage.removeItem('zenite_is_guest');
+                    
+                    // Limpa URL suja do OAuth
+                    if(window.location.hash && window.location.hash.includes('access_token')) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                    
+                    await this.fetchData();
+                    this.notify('Conectado: ' + this.user.email, 'success');
+                } else if (event === 'SIGNED_OUT') {
+                    this.user = null;
+                    this.chars = {};
+                    this.char = null;
                 }
             });
-            if (error) throw error;
-        } catch (e) {
-            this.notify('Erro Google: ' + e.message, 'error');
-            this.authLoading = false;
-        }
-    },
 
-// ... (resto do código igual)
+            // 2. Verifica sessão existente
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (this.isGuest) {
+                this.loadLocalData('zenite_guest_db');
+                this.notify('Modo Offline Ativo', 'warn');
+            } else if (session) {
+                this.user = session.user;
+                await this.fetchData();
+            }
+
+            // 3. Auto-Save Local (Cache imediato no navegador - Custo Zero)
+            this.$watch('char', (val) => {
+                if (val && this.activeCharId) {
+                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
+                    const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                    localStorage.setItem(key, JSON.stringify(this.chars));
+                    if (!this.isGuest) this.unsavedChanges = true;
+                    if(this.activeTab === 'profile') this.updateRadarChart();
+                }
+            }, { deep: true });
+
+            // 4. ESTRATÉGIA DE SALVAMENTO ECONÔMICA
+
+            // A. Intervalo de 5 minutos (Poucas requisições por hora)
+            setInterval(() => {
+                // Só salva se houver mudanças não salvas
+                if (this.user && this.unsavedChanges && !this.isSyncing) {
+                    this.syncCloud(true);
+                }
+            }, 300000); // 300.000 ms = 5 minutos
+
+            // B. Salvar APENAS ao fechar a página (Proteção Final)
+            // Removemos o 'visibilitychange' (Alt+Tab) para economizar
+            window.addEventListener('beforeunload', (e) => {
+                if (this.user && this.unsavedChanges) {
+                    this.syncCloud(true);
+                    // O navegador pode não esperar, mas tentamos enviar
+                }
+            });
+        },
+
+        async doGoogleAuth() {
+            try {
+                this.authLoading = true;
+                const redirectUrl = window.location.origin; 
+                const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo: redirectUrl }
+                });
+                if (error) throw error;
+            } catch (e) {
+                this.notify('Erro Google: ' + e.message, 'error');
+                this.authLoading = false;
+            }
+        },
 
         async doAuth(action) {
             let email = this.authInput.email;
-            // Fallback para quem tenta logar só com username
             if (!email.includes('@')) email = email + '@zenite.os';
 
             if(!email || !this.authInput.pass) return this.authMsg = 'Preencha dados.';
@@ -156,10 +155,6 @@ function zeniteSystem() {
                         this.authLoading = false;
                         return;
                     }
-                } else if (action === 'reset') {
-                    const { error: err } = await supabase.auth.resetPasswordForEmail(email);
-                    error = err;
-                    if(!error) this.authMsg = 'Email de recuperação enviado!';
                 }
 
                 if (error) throw error;
@@ -196,18 +191,13 @@ function zeniteSystem() {
         },
 
         // ==========================================
-        // SINCRONIZAÇÃO DE DADOS (SUPABASE)
+        // SINCRONIZAÇÃO DE DADOS (CRUD)
         // ==========================================
         async fetchData() {
             if (!this.user) return;
-            // Busca perfil na tabela 'profiles'
-            let { data, error } = await supabase
-                .from('profiles')
-                .select('data')
-                .eq('id', this.user.id)
-                .single();
+            // Busca apenas 1 linha. Muito leve para o banco.
+            let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single();
 
-            // Se não existe, cria (primeiro login)
             if (error && error.code === 'PGRST116') {
                 const { error: insertError } = await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]);
                 if (!insertError) data = { data: {} };
@@ -216,24 +206,28 @@ function zeniteSystem() {
             if (data) {
                 this.chars = Array.isArray(data.data) ? {} : (data.data || {});
                 if(Array.isArray(data.data)) data.data.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
-                
                 localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
                 this.sanitizeData();
             }
         },
 
         async syncCloud(silent = false) {
-            if (!this.user || this.isGuest) return;
+            // Proteção contra chamadas duplas ou desnecessárias
+            if (!this.user || this.isGuest || this.isSyncing) return;
+            
             this.isSyncing = true;
             if(!silent) this.notify('Sincronizando...', 'info');
 
+            // Garante que o char atual está no objeto principal
             if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
 
+            // UPSERT: Atualiza se existe, cria se não. Conta como 1 Write.
             const { error } = await supabase
                 .from('profiles')
                 .upsert({ id: this.user.id, data: this.chars });
 
             this.isSyncing = false;
+            
             if (error) {
                 if(!silent) this.notify('Erro ao salvar: ' + error.message, 'error');
             } else {
@@ -243,7 +237,7 @@ function zeniteSystem() {
         },
 
         // ==========================================
-        // LÓGICA DO SISTEMA (MANTIDA DO ORIGINAL)
+        // LÓGICA DO SISTEMA (MANTIDA)
         // ==========================================
         sanitizeData() {
             if (!this.chars || typeof this.chars !== 'object') this.chars = {};
@@ -266,7 +260,8 @@ function zeniteSystem() {
             if (!this.chars[id]) return this.notify('Erro: Ficha corrompida.', 'error');
             this.activeCharId = id;
             this.char = JSON.parse(JSON.stringify(this.chars[id]));
-            // Garante estrutura
+            
+            // Migrations de segurança para campos novos
             if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
             if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
             if(!this.char.inventory.armor) this.char.inventory.armor = [];
