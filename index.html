@@ -193,12 +193,21 @@ function zeniteSystem() {
             }
         },
 
-        logout() {
-            this.authToken = null;
-            this.chars = {};
-            localStorage.removeItem('zenite_token');
-            this.currentView = 'dashboard';
-        },
+logout() {
+    if (confirm("Desconectar do sistema?")) {
+        // 1. Limpa o token da memória e do navegador
+        this.authToken = null;
+        localStorage.removeItem('zenite_token');
+        
+        // 2. Limpa os dados visuais para segurança
+        this.chars = {};
+        this.char = null;
+        this.activeCharId = null;
+        
+        // 3. Reseta a vista
+        this.currentView = 'dashboard';
+        this.notify('Sessão encerrada.', 'info');
+},
 
         // --- DATA CORE (API) ---
         async fetchData() {
@@ -605,10 +614,19 @@ function zeniteSystem() {
                 <p class="text-[10px] text-gray-500 font-code">V12.0</p>
             </div>
         </div>
-        <div class="flex gap-3">
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
-            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
-        </div>
+<div class="flex gap-3">
+    <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
+        <i class="fa-solid fa-power-off"></i>
+    </button>
+
+    <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center">
+        <i class="fa-solid fa-gear"></i>
+    </button>
+    
+    <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span>
+    </button>
+</div>
     </header>
 
     <!-- DASHBOARD -->
