@@ -2,8 +2,8 @@
 // CONFIGURAÇÃO DO SUPABASE
 // ==========================================
 // Substitua pelas suas chaves reais
-const SUPABASE_URL = 'SUA_URL_DO_SUPABASE_AQUI'; 
-const SUPABASE_KEY = 'SUA_CHAVE_ANON_AQUI';
+const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
+const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
