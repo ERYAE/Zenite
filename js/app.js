@@ -5,14 +5,13 @@
 const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
 const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
-
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v21.0-FixedUI';
+const APP_VERSION = 'v21.2-SmartSyncFixed';
 
 function zeniteSystem() {
     return {
-        // --- AUTH ---
+        // --- AUTH STATE ---
         user: null,
         isGuest: localStorage.getItem('zenite_is_guest') === 'true',
         authInput: { email: '', pass: '' },
@@ -21,12 +20,12 @@ function zeniteSystem() {
         authMsg: '',
         authMsgType: '',
 
-        // --- SYSTEM STATE ---
+        // --- SYNC STATE ---
         unsavedChanges: false,
         isSyncing: false,
+
+        // --- APP STATE ---
         currentView: 'dashboard',
-        
-        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -55,12 +54,14 @@ function zeniteSystem() {
         // ==========================================
         async initSystem() {
             this.loadLocalData('zenite_cached_db');
+            this.sanitizeData();
 
             const lastId = localStorage.getItem('zenite_last_char_id');
             if (lastId && this.chars[lastId]) {
                 this.loadCharacter(lastId);
             }
 
+            // Listener de Auth
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN' && session) {
                     this.user = session.user;
@@ -79,6 +80,7 @@ function zeniteSystem() {
                 }
             });
 
+            // Verifica sessão inicial
             const { data: { session } } = await supabase.auth.getSession();
             if (this.isGuest) {
                 this.loadLocalData('zenite_guest_db');
@@ -88,6 +90,7 @@ function zeniteSystem() {
                 await this.fetchData();
             }
 
+            // Auto-Save Local (Backup instantâneo)
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
@@ -98,31 +101,29 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
+            // Smart Auto-Sync (1 minuto)
             setInterval(() => {
                 if (this.user && this.unsavedChanges && !this.isSyncing) {
                     this.syncCloud(true);
                 }
-            }, 300000);
+            }, 60000);
 
+            // Salva ao fechar/trocar de aba
             window.addEventListener('beforeunload', () => {
                 if (this.user && this.unsavedChanges) this.syncCloud(true);
             });
         },
 
         // --- CORREÇÃO 2: Salvar ao Voltar ---
-        // Força a atualização do objeto 'chars' com o estado atual de 'char' antes de sair
         saveAndExit() {
             if (this.char && this.activeCharId) {
-                // Força cópia profunda para garantir atualização da lista
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
                 this.updateAgentCount();
             }
             
-            // Salva cache local
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
             localStorage.setItem(key, JSON.stringify(this.chars));
 
-            // Tenta salvar na nuvem se tiver mudanças
             if (!this.isGuest && this.unsavedChanges) {
                 this.syncCloud(true);
             }
@@ -134,7 +135,7 @@ function zeniteSystem() {
         },
 
         // ==========================================
-        // SYNC
+        // SYNC (Corrigido com bloco finally)
         // ==========================================
         async fetchData() {
             if (!this.user) return;
@@ -157,9 +158,9 @@ function zeniteSystem() {
                 const localCount = Object.keys(this.chars).length;
                 const cloudCount = Object.keys(cloudData).length;
 
+                // Se local tem mais dados, força o envio para a nuvem
                 if (cloudCount === 0 && localCount > 0) {
-                    console.log("⚠️ Nuvem vazia. Usando backup local.");
-                    await this.syncCloud(true);
+                    await this.syncCloud(true); 
                 } else {
                     this.chars = cloudData;
                     localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
@@ -169,13 +170,13 @@ function zeniteSystem() {
             }
         },
 
-        // --- CORREÇÃO 1: Fim do "Salvamento Infinito" ---
         async syncCloud(silent = false) {
             if (!this.user || this.isGuest || this.isSyncing) return;
             
             this.isSyncing = true;
             if(!silent) this.notify('Salvando na Nuvem...', 'info');
 
+            // Garante estado atual
             if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
 
             try {
@@ -191,7 +192,7 @@ function zeniteSystem() {
             } catch (e) {
                 if(!silent) this.notify('Erro no Save: ' + e.message, 'error');
             } finally {
-                // GARANTIA: Isso roda sempre, mesmo se der erro, destravando o "Salvando..."
+                // CORREÇÃO CRÍTICA: Desliga o estado de salvamento para liberar a UI
                 this.isSyncing = false; 
             }
         },
@@ -204,7 +205,10 @@ function zeniteSystem() {
                 this.authLoading = true;
                 const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
-                    options: { redirectTo: window.location.origin }
+                    options: {
+                        redirectTo: window.location.origin,
+                        skipBrowserRedirect: false
+                    }
                 });
                 if (error) throw error;
             } catch (e) {
@@ -334,7 +338,11 @@ function zeniteSystem() {
             const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
             c.level = lvl;
             const getV = (v) => parseInt(v) || 0;
-            const FOR = getV(c.attrs.for), AGI = getV(c.attrs.agi), INT = getV(c.attrs.int), VON = getV(c.attrs.von), POD = getV(c.attrs.pod);
+            const FOR = getV(c.attrs.for);
+            const AGI = getV(c.attrs.agi);
+            const INT = getV(c.attrs.int);
+            const VON = getV(c.attrs.von);
+            const POD = getV(c.attrs.pod);
             let maxPV = 0, maxPF = 0, maxPDF = 0;
 
             if (c.class === 'Titã') { maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1)); maxPF = (12 + POD) + ((2 + POD) * (lvl - 1)); maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1)); } 
@@ -348,6 +356,7 @@ function zeniteSystem() {
             c.stats.pf.max = Math.max(5, maxPF);
             c.stats.pdf.max = Math.max(5, maxPDF);
         },
+
         modStat(type, val) {
             const stat = this.char.stats[type];
             const oldVal = stat.current;
@@ -355,6 +364,7 @@ function zeniteSystem() {
             if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
             if (stat.current > oldVal) this.triggerFX('heal');
         },
+
         modAttr(key, val) {
             const current = this.char.attrs[key];
             if (val > 0 && current < 6) this.char.attrs[key]++;
@@ -362,16 +372,19 @@ function zeniteSystem() {
             this.recalcDerivedStats();
             this.updateRadarChart();
         },
+
         updateClassLogic() {
             const arch = this.archetypes.find(a => a.class === this.char.class);
             if (arch && this.char.attrs[arch.focus] < 0) this.char.attrs[arch.focus] = 0;
             this.recalcDerivedStats();
             this.updateRadarChart();
         },
+
         triggerFX(type) {
             const el = document.getElementById(type + '-overlay');
             if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
         },
+
         openWizard() {
             if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
             this.wizardOpen = true;
@@ -424,6 +437,7 @@ function zeniteSystem() {
             this.loadCharacter(id);
             this.notify('Agente Inicializado.', 'success');
         },
+
         addItem(cat) {
             const defs = {
                 weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
@@ -432,18 +446,23 @@ function zeniteSystem() {
                 social_people: { name: 'Nome', role: 'Relação' },
                 social_objects: { name: 'Objeto', desc: 'Detalhes' }
             };
-            if(cat.startsWith('social_')) { this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); } 
-            else { this.char.inventory[cat].push({...defs[cat]}); }
+            if(cat.startsWith('social_')) {
+                this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
+            } else {
+                this.char.inventory[cat].push({...defs[cat]});
+            }
         },
         deleteItem(cat, idx, subcat=null) {
             if(subcat) this.char.inventory.social[subcat].splice(idx, 1);
             else this.char.inventory[cat].splice(idx, 1);
         },
+
         addSkill() { this.char.skills.push({ name: 'Nova Perícia', level: 1 }); },
         deleteSkill(idx) { this.char.skills.splice(idx, 1); },
         setSkillLevel(idx, lvl) { this.char.skills[idx].level = lvl; },
         addTechnique() { this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' }); },
         deleteTechnique(idx) { this.char.powers.techniques.splice(idx, 1); },
+
         renderChart(id, attrs, color) {
             const ctx = document.getElementById(id);
             if (!ctx) return;
@@ -464,6 +483,7 @@ function zeniteSystem() {
         },
         updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
         updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
+
         roll(sides) {
             const arr = new Uint32Array(1);
             window.crypto.getRandomValues(arr);
@@ -474,6 +494,7 @@ function zeniteSystem() {
             this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
             if(this.diceLog.length>8) this.diceLog.pop();
         },
+
         openImageEditor() { document.getElementById('file-input').click(); },
         initCropper(e) {
             const file = e.target.files[0]; if (!file) return;
@@ -494,6 +515,7 @@ function zeniteSystem() {
             this.cropperOpen = false;
             this.notify('Foto atualizada.', 'success');
         },
+
         notify(msg, type='info') {
             const id = Date.now();
             this.notifications.push({id, message: msg, type, dismissed: false});
