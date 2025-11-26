@@ -24,6 +24,19 @@ body {
     background-size: 100% 100%, 40px 40px, 40px 40px;
     min-height: 100vh;
     overflow-x: hidden;
+    padding-bottom: 120px; /* Espaço extra para o menu suspenso */
+}
+
+/* LOADER SYSTEM */
+#app-loader {
+    position: fixed; inset: 0; background: var(--bg-void); z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: opacity 0.5s ease;
+}
+.loader-spinner {
+    width: 50px; height: 50px; border: 3px solid rgba(14,165,233,0.1);
+    border-radius: 50%; border-top-color: var(--neon-core);
+    animation: spin 1s ease-in-out infinite; margin-bottom: 15px;
 }
 
 /* FX LAYERS */
@@ -39,6 +52,22 @@ body {
     border: 1px solid var(--glass-border);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
+
+/* BANDEJA DE DADOS SUSPENSA (NOVO) */
+.dice-tray-suspended {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(10, 10, 15, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    z-index: 50;
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 16px;
+    max-width: 95vw;
+    transition: all 0.3s ease;
+}
+.dice-tray-suspended:hover { border-color: var(--neon-core); box-shadow: 0 0 20px rgba(14,165,233,0.15); }
 
 .input-cyber {
     background: rgba(0,0,0,0.5);
@@ -56,19 +85,18 @@ body {
 .btn-action:hover { filter: brightness(1.2); transform: translateY(-1px); }
 .btn-action:active { transform: translateY(0); }
 
-/* SCROLLBAR */
+/* SCROLLBAR & ANIMATIONS */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #0a0a0a; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
 
-/* ANIMATIONS */
 .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
 .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
 @keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* EXTRAS */
 .cropper-view-box, .cropper-face { border-radius: 50%; }
 .cropper-container { width: 100% !important; height: 100% !important; }
 .skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
