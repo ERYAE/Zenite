@@ -161,5 +161,16 @@
     <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4"><div class="w-full max-w-lg h-[70vh] flex flex-col"><div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div><div class="flex gap-3"><input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)"><button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button><button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button><button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button></div></div></div>
     <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center"><div class="glass p-8 rounded-xl w-full max-w-md relative border border-white/10"><button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button><h3 class="text-xl font-brand text-white mb-6">SISTEMA</h3><div class="space-y-4"><p class="text-xs text-gray-400">O sistema de backup é automático. Use apenas em emergências.</p><div class="border-t border-white/10 my-4"></div><button @click="askHardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs font-bold hover:bg-red-500/10">DELETAR TUDO (LIMPAR CACHE)</button></div></div></div>
 
+    <div x-show="secretModalOpen" class="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4">
+        <div class="glass p-8 rounded-xl w-full max-w-md text-center border border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+            <div class="text-yellow-500 text-4xl mb-4"><i class="fa-solid fa-shield-halved"></i></div>
+            <h3 class="text-xl font-brand text-white mb-2">SEGURANÇA EXTRA</h3>
+            <p class="text-sm text-gray-400 mb-6">Para sua segurança, defina uma <b>Palavra Secreta</b>. Ela será usada para recuperar sua conta caso perca o acesso.</p>
+            
+            <input x-model="newSecretWord" type="text" placeholder="Sua Palavra Secreta" class="input-cyber w-full p-3 text-center mb-4 uppercase border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
+            
+            <button @click="saveSecretWord()" class="w-full py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 font-bold rounded hover:bg-yellow-600/40 transition-colors">SALVAR PROTEÇÃO</button>
+        </div>
+    </div>
 </body>
 </html>
