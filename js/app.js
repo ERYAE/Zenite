@@ -6,17 +6,17 @@ const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v27.0-LogicFix';
+const APP_VERSION = 'v27.0-LockoutFix';
 
 function zeniteSystem() {
     return {
-        // --- CORE STATE ---
+        // --- AUTH & LOAD ---
         systemLoading: true,
         user: null,
         isGuest: false,
         userMenuOpen: false,
         
-        // --- LOGIN ---
+        // --- LOGIN FORM ---
         authInput: { email: '', pass: '', key: '', newPass: '' }, 
         authMode: 'login', authLoading: false, authMsg: '', authMsgType: '',
 
@@ -46,30 +46,48 @@ function zeniteSystem() {
         ],
 
         // ============================================================
-        // 1. INICIALIZAÇÃO BLINDADA (FIX LOOP)
+        // 1. INICIALIZAÇÃO BLINDADA
         // ============================================================
         async initSystem() {
-            // Cão de Guarda: Força o destravamento em 3s se algo falhar silenciosamente
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 3000);
-
-            const isGuestStore = localStorage.getItem('zenite_is_guest') === 'true';
-            
-            if (isGuestStore) {
-                this.isGuest = true;
-                this.loadLocalData('zenite_guest_db');
-                this.sanitizeData();
-                this.systemLoading = false;
-            } else {
-                // Verifica Sessão
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    this.user = session.user;
-                    await this.fetchData();
+            // TIMEOUT DE SEGURANÇA: Se travar por 7s, libera a tela
+            const safetyTimer = setTimeout(() => {
+                if (this.systemLoading) {
+                    this.systemLoading = false;
+                    this.notify('Conexão lenta. Verifique sua internet.', 'warn');
                 }
-                // CORREÇÃO CRÍTICA: Desliga o loader mesmo se não tiver sessão
+            }, 7000);
+
+            try {
+                // 1. Verificar erros de OAuth no URL (Se o usuário cancelou)
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                if (hashParams.has('error')) {
+                    const errorDesc = hashParams.get('error_description') || 'Erro de Login Social (Cancelado ou Negado).';
+                    this.notify(errorDesc.replace(/\+/g, ' '), 'error');
+                    history.replaceState(null, null, ' '); // Limpa URL
+                }
+
+                // 2. Verificar estado inicial
+                const isGuestStore = localStorage.getItem('zenite_is_guest') === 'true';
+                
+                if (isGuestStore) {
+                    this.isGuest = true;
+                    this.loadLocalData('zenite_guest_db');
+                } else {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        this.user = session.user;
+                        await this.fetchData();
+                    }
+                }
+            } catch (e) {
+                console.error("Init Error:", e);
+                this.notify('Erro ao iniciar o sistema.', 'error');
+            } finally {
+                clearTimeout(safetyTimer);
                 this.systemLoading = false;
             }
 
+            // 3. Listeners
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN' && session) {
                     this.user = session.user;
@@ -82,17 +100,14 @@ function zeniteSystem() {
                     this.chars = {};
                     this.currentView = 'dashboard';
                 }
-                // Garante que o loader saia em eventos de auth tardios
-                this.systemLoading = false;
             });
 
-            // Watcher: Auto-Save Local
+            // 4. Rotinas de Fundo (Auto-Save, etc)
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
-                    
                     if (!this.isGuest) {
                         this.unsavedChanges = true;
                         if (this.saveStatus !== 'error') this.saveStatus = 'idle';
@@ -101,12 +116,7 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // Auto-Sync: A cada 60s tenta salvar se tiver mudanças
-            setInterval(() => {
-                if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true);
-            }, 60000);
-
-            // Lembrete Amigável (10 min)
+            setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, 60000);
             setInterval(() => {
                 if (this.currentView === 'sheet') {
                     if (!this.isGuest) this.notify('✨ Lembrete Mágico: Tudo salvo na nuvem?', 'info');
@@ -114,66 +124,16 @@ function zeniteSystem() {
                 }
             }, 600000); 
         },
-
-        // ============================================================
-        // 2. SYNC ENGINE
-        // ============================================================
-        async syncCloud(silent = false) {
-            if (!this.user || this.isGuest || this.isSyncing) return;
-            
-            this.isSyncing = true;
-            if(!silent) this.notify('Sincronizando...', 'info');
-
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido')), 10000));
-
-            try {
-                const payload = JSON.parse(JSON.stringify(this.chars));
-                
-                const { error } = await Promise.race([
-                    supabase.from('profiles').upsert({ id: this.user.id, data: payload }),
-                    timeout
-                ]);
-
-                if (error) throw error;
-
-                this.unsavedChanges = false;
-                this.saveStatus = 'success';
-                if(!silent) this.notify('Salvo com Sucesso!', 'success');
-                
-                setTimeout(() => { if(this.saveStatus === 'success') this.saveStatus = 'idle'; }, 2000);
-
-            } catch (e) {
-                this.saveStatus = 'error';
-                if(!silent) this.notify('Erro ao Salvar: ' + (e.message || 'Conexão'), 'error');
-            } finally {
-                this.isSyncing = false; 
-            }
-        },
-
-        async fetchData() {
-            if (!this.user) return;
-            let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single();
-
-            if (error && error.code === 'PGRST116') { 
-                await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]);
-                data = { data: {} };
-            }
-
-            if (data) {
-                let cloudData = data.data || {};
-                if (Array.isArray(cloudData)) {
-                    let converted = {};
-                    cloudData.forEach(c => { if(c && c.id) converted[c.id] = c; });
-                    cloudData = converted;
-                }
-                this.chars = cloudData;
-                this.sanitizeData();
-                localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
-            }
+        
+        // --- NOVO MÉTODO PARA LIMPAR ESTADO DE CARREGAMENTO NO MODAL ---
+        resetFormStates() {
+            this.authLoading = false;
+            this.authMsg = '';
+            this.authMsgType = '';
         },
 
         // ============================================================
-        // 3. AUTH & FLOWS
+        // 4. AUTHENTICATION & FLOWS
         // ============================================================
         async doSocialAuth(provider) {
             this.authLoading = true;
@@ -198,6 +158,27 @@ function zeniteSystem() {
             } catch (e) { this.notify(e.message, 'error'); } finally { this.authLoading = false; }
         },
 
+        // ... (resto das funções de gameplay e utilitários) ...
+        async syncCloud(silent = false) {
+            if (!this.user || this.isGuest || this.isSyncing) return;
+            this.isSyncing = true; if(!silent) this.notify('Sincronizando...', 'info');
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido')), 10000));
+            try {
+                const payload = JSON.parse(JSON.stringify(this.chars));
+                const { error } = await Promise.race([supabase.from('profiles').upsert({ id: this.user.id, data: payload }), timeout]);
+                if (error) throw error;
+                this.unsavedChanges = false; this.saveStatus = 'success';
+                if(!silent) this.notify('Salvo com Sucesso!', 'success');
+                setTimeout(() => { if(this.saveStatus === 'success') this.saveStatus = 'idle'; }, 2000);
+            } catch (e) {
+                this.saveStatus = 'error';
+                if(!silent) this.notify('Erro ao Salvar: ' + (e.message || 'Conexão'), 'error');
+            } finally {
+                this.isSyncing = false;
+            }
+        },
+        async fetchData() { if (!this.user) return; let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); if (error && error.code === 'PGRST116') { await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); data = { data: {} }; } if (data) { let cloudData = data.data || {}; if (Array.isArray(cloudData)) { let converted = {}; cloudData.forEach(c => { if(c && c.id) converted[c.id] = c; }); cloudData = converted; } this.chars = cloudData; this.sanitizeData(); localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); } },
+        
         async logout() {
             if(this.unsavedChanges && !this.isGuest) await this.syncCloud(true);
             await supabase.auth.signOut();
@@ -211,49 +192,13 @@ function zeniteSystem() {
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login. Dados offline ficam neste PC.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocalData('zenite_guest_db'); this.notify('Modo Offline.', 'success'); },
         askHardReset() { this.askConfirm('DELETAR TUDO?', 'Apaga dados do navegador.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
-
-        // ============================================================
-        // 4. CORE LOGIC
-        // ============================================================
+        
         sanitizeData() { if (!this.chars || typeof this.chars !== 'object') this.chars = {}; Object.keys(this.chars).forEach(k => { if (!this.chars[k] || !this.chars[k].id) delete this.chars[k]; }); this.updateAgentCount(); },
         loadLocalData(key) { const local = localStorage.getItem(key); if(local) { try { let parsed = JSON.parse(local); this.chars = Array.isArray(parsed) ? {} : (parsed || {}); if(Array.isArray(parsed)) parsed.forEach(c => {if(c?.id) this.chars[c.id]=c}); this.sanitizeData(); } catch(e) {} } },
         saveAndExit() { if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; },
         askDeleteChar(id) { this.askConfirm('ELIMINAR AGENTE?', 'Ação irreversível.', 'danger', () => { delete this.chars[id]; this.sanitizeData(); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Agente Eliminado.', 'success'); }); },
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-        
-        // --- LOAD CHARACTER (CORREÇÃO DE STATUS) ---
-        loadCharacter(id) { 
-            if (!this.chars[id]) return this.notify('Erro: Ficha inexistente.', 'error');
-            this.activeCharId = id; 
-            this.char = JSON.parse(JSON.stringify(this.chars[id]));
-            
-            if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
-            if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
-            if(!this.char.inventory.armor) this.char.inventory.armor = [];
-            if(!this.char.inventory.gear) this.char.inventory.gear = [];
-            if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
-
-            if(!this.char.skills) this.char.skills = [];
-            if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] };
-            if(!this.char.powers.techniques) this.char.powers.techniques = [];
-            
-            // FIX VITALIDADE INVISÍVEL
-            if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} };
-            if(this.char.stats.pv.current == null) this.char.stats.pv.current = this.char.stats.pv.max || 10;
-            if(this.char.stats.pf.current == null) this.char.stats.pf.current = this.char.stats.pf.max || 10;
-            if(this.char.stats.pdf.current == null) this.char.stats.pdf.current = this.char.stats.pdf.max || 10;
-
-            this.currentView = 'sheet'; 
-            this.activeTab = 'profile'; 
-            setTimeout(() => this.updateRadarChart(), 100);
-        },
-        
-        askConfirm(title, desc, type, action) { this.confirmTitle = title; this.confirmDesc = desc; this.confirmType = type; this.confirmAction = action; this.confirmOpen = true; },
-        confirmYes() { if (this.confirmAction) this.confirmAction(); this.confirmOpen = false; },
-
-        // ============================================================
-        // 5. GAMEPLAY & TOOLS
-        // ============================================================
+        loadCharacter(id) { if (!this.chars[id]) return this.notify('Erro: Ficha inexistente.', 'error'); this.activeCharId = id; this.char = JSON.parse(JSON.stringify(this.chars[id])); if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; if(!this.char.skills) this.char.skills = []; if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] }; if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} }; if(this.char.stats.pv.current == null) this.char.stats.pv.current = this.char.stats.pv.max || 10; if(this.char.stats.pf.current == null) this.char.stats.pf.current = this.char.stats.pf.max || 10; if(this.char.stats.pdf.current == null) this.char.stats.pdf.current = this.char.stats.pdf.max || 10; this.currentView = 'sheet'; this.activeTab = 'profile'; setTimeout(() => this.updateRadarChart(), 100); },
         recalcDerivedStats() { if(!this.char) return; const c = this.char; const lvl = Math.max(1, parseInt(c.level)||1); const getV = (v) => parseInt(v)||0; const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); c.stats.pv.max = Math.max(5, (12+FOR)+((2+FOR)*(lvl-1))); c.stats.pf.max = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); c.stats.pdf.max = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); },
         modStat(type, val) { if(!this.char) return; const s = this.char.stats[type]; const old = s.current; s.current = Math.min(Math.max(0, s.current + val), s.max); if(s.current < old && type==='pv') this.triggerFX('damage'); if(s.current > old) this.triggerFX('heal'); },
         modAttr(key, val) { const c = this.char.attrs[key]; if (val > 0 && c < 6) this.char.attrs[key]++; if (val < 0 && c > -1) this.char.attrs[key]--; this.recalcDerivedStats(); this.updateRadarChart(); },
@@ -269,35 +214,6 @@ function zeniteSystem() {
         openImageEditor() { document.getElementById('file-input').click(); }, initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); }, applyCrop() { if(!this.cropperInstance) return; this.char.photo = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); this.cropperOpen = false; this.notify('Foto salva.', 'success'); },
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type, dismissed: false}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
         exportData() { const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click(); },
-        importData(e) { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { try { this.chars = JSON.parse(evt.target.result); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } catch(err) { this.notify('Arquivo inválido.', 'error'); } }; r.readAsText(file); },
-        
-        openWizard() { if (this.agentCount >= MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardOpen = true; this.wizardStep = 1; this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardPoints = 8; },
-        selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardFocusAttr = a.focus; this.wizardData.attrs[a.focus] = 0; this.wizardStep = 2; this.wizardPoints = 8; setTimeout(()=>this.updateWizardChart(),50); },
-        modWizardAttr(key, val) { const c = this.wizardData.attrs[key]; const isFocus = key === this.wizardFocusAttr; if (val > 0 && this.wizardPoints > 0 && c < 3) { this.wizardData.attrs[key]++; this.wizardPoints--; } if (val < 0 && c > (isFocus ? 0 : -1)) { this.wizardData.attrs[key]--; this.wizardPoints++; } this.updateWizardChart(); },
-        finishWizard() { 
-            const id = 'z_' + Date.now(); 
-            const tempChar = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs, stats: { pv:{}, pf:{}, pdf:{} } }; 
-            const oldChar = this.char; this.char = tempChar; this.recalcDerivedStats(); this.char = oldChar; 
-            
-            const maxPV = tempChar.stats.pv.max;
-            const maxPF = tempChar.stats.pf.max;
-            const maxPDF = tempChar.stats.pdf.max;
-
-            const newChar = { 
-                id: id, name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0, 
-                stats: { pv: { current: maxPV, max: maxPV }, pf: { current: maxPF, max: maxPF }, pdf: { current: maxPDF, max: maxPDF } }, 
-                attrs: {...this.wizardData.attrs}, 
-                inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} }, 
-                skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } 
-            }; 
-            this.chars[id] = newChar; 
-            this.sanitizeData(); 
-            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; 
-            localStorage.setItem(key, JSON.stringify(this.chars)); 
-            if(!this.isGuest) this.syncCloud(true); 
-            this.wizardOpen = false; 
-            this.loadCharacter(id); 
-            this.notify('Agente Inicializado.', 'success'); 
-        }
+        importData(e) { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { try { this.chars = JSON.parse(evt.target.result); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } catch(err) { this.notify('Arquivo inválido.', 'error'); } }; r.readAsText(file); }
     }
 }
