@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ZENITE OS // FICHA DINÂMICA</title>
     
-    <!-- CORE STACK -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
@@ -91,564 +90,532 @@
         .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
     </style>
 
-<script>
-    const MAX_AGENTS = 30;
-    const APP_VERSION = 'v12.2';
+    <script>
+        const MAX_AGENTS = 30;
+        const APP_VERSION = 'v12.3'; // Versão Manual Save
 
-    // Define Global Function for Alpine x-data
-    function zeniteSystem() {
-        return {
-            // --- AUTH STATE (ATUALIZADO) ---
-            authToken: localStorage.getItem('zenite_token') || null,
-            
-            // Variáveis novas para o Login/Registro/Recuperação
-            authInput: { user: '', pass: '', key: '', newPass: '' }, 
-            authMode: 'login', // Controla a aba: 'login', 'register' ou 'reset'
+        function zeniteSystem() {
+            return {
+                // --- AUTH STATE ---
+                authToken: localStorage.getItem('zenite_token') || null,
+                authInput: { user: '', pass: '', key: '', newPass: '' }, 
+                authMode: 'login', // 'login', 'register', 'reset'
+                authLoading: false,
+                authMsg: '',
+                authMsgType: '',
 
-            authLoading: false,
-            authMsg: '',
-            authMsgType: '',
+                // --- APP STATE ---
+                currentView: 'dashboard',
+                chars: {},
+                activeCharId: null,
+                char: null, 
+                
+                // --- UI ---
+                activeTab: 'profile',
+                logisticsTab: 'inventory',
+                notifications: [],
+                configModal: false,
+                
+                // --- DICE ---
+                showDiceLog: false,
+                diceLog: [],
+                lastRoll: '--',
+                lastNatural: 0,
+                lastFaces: 0,
+                diceMod: 0,
 
-            // --- APP STATE ---
-            currentView: 'dashboard',
-            chars: {},
-            activeCharId: null,
-            char: null, 
-            
-            // --- UI ---
-            activeTab: 'profile',
-            logisticsTab: 'inventory',
-            notifications: [],
-            configModal: false,
-            
-            // --- DICE ---
-            showDiceLog: false,
-            diceLog: [],
-            lastRoll: '--',
-            lastNatural: 0,
-            lastFaces: 0,
-            diceMod: 0,
+                // --- WIZARD ---
+                wizardOpen: false,
+                wizardStep: 1,
+                wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+                wizardPoints: 8,
+                wizardFocusAttr: '',
 
-            // --- WIZARD ---
-            wizardOpen: false,
-            wizardStep: 1,
-            wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
-            wizardPoints: 8,
-            wizardFocusAttr: '',
+                // --- CROPPER ---
+                cropperOpen: false,
+                cropperInstance: null,
 
-            // --- CROPPER ---
-            cropperOpen: false,
-            cropperInstance: null,
+                // --- META ---
+                agentCount: 0,
 
-            // --- META ---
-            agentCount: 0,
-            _saveTimer: null,
+                // --- ARCHETYPES ---
+                archetypes: [
+                    { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
+                    { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
+                    { class: 'Infiltrador', desc: 'Furtividade e precisão.', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500' },
+                    { class: 'Controlador', desc: 'Manipulação de energia.', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500' },
+                    { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
+                ],
 
-            // --- ARCHETYPES ---
-            archetypes: [
-                { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
-                { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
-                { class: 'Infiltrador', desc: 'Furtividade e precisão.', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500' },
-                { class: 'Controlador', desc: 'Manipulação de energia.', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500' },
-                { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
-            ],
-
-            initSystem() {
-                if (this.authToken) {
-                    this.fetchData();
-                }
-                this.$watch('char', (val) => {
-                    if (val && this.currentView === 'sheet') {
-                        clearTimeout(this._saveTimer);
-                        this._saveTimer = setTimeout(() => {
-                            this.saveData();
-                            if(this.activeTab === 'profile') this.updateRadarChart();
-                        }, 1000);
+                initSystem() {
+                    // REMOVIDO: O Auto-Save watch para evitar limite de API
+                    if (this.authToken) {
+                        this.fetchData();
                     }
-                });
-            },
+                },
 
-            // --- AUTHENTICATION (ATUALIZADO) ---
-            async doAuth(action) {
-                // Validação simples
-                if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
-                
-                this.authLoading = true;
-                this.authMsg = 'Processando...';
-                
-                // Monta os dados para enviar ao servidor
-                let payload = { action, username: this.authInput.user };
-                
-                if (action === 'login') {
-                    payload.password = this.authInput.pass;
-                } else if (action === 'register') {
-                    payload.password = this.authInput.pass;
-                    payload.recovery_key = this.authInput.key;
-                } else if (action === 'reset') {
-                    payload.recovery_key = this.authInput.key;
-                    payload.new_password = this.authInput.newPass;
-                }
-
-                try {
-                    const req = await fetch('/api/auth', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
-                    const res = await req.json();
+                // --- AUTHENTICATION ---
+                async doAuth(action) {
+                    if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
                     
-                    if (req.status !== 200) throw new Error(res.error || 'Erro.');
-
-                    if (action === 'register') {
-                        this.authMsg = 'Conta criada! Faça login.';
-                        this.authMsgType = 'success';
-                        this.authMode = 'login';
+                    this.authLoading = true;
+                    this.authMsg = 'Processando...';
+                    
+                    let payload = { action, username: this.authInput.user };
+                    
+                    if (action === 'login') {
+                        payload.password = this.authInput.pass;
+                    } else if (action === 'register') {
+                        payload.password = this.authInput.pass;
+                        payload.recovery_key = this.authInput.key;
                     } else if (action === 'reset') {
-                        this.authMsg = 'Senha trocada! Entre com a nova senha.';
-                        this.authMsgType = 'success';
-                        this.authMode = 'login';
-                    } else {
-                        // Login com Sucesso
-                        this.authToken = res.token;
-                        localStorage.setItem('zenite_token', res.token);
-                        this.chars = res.data || {};
-                        this.updateAgentCount();
-                        this.authMsg = '';
-                        // Limpa campos
+                        payload.recovery_key = this.authInput.key;
+                        payload.new_password = this.authInput.newPass;
+                    }
+
+                    try {
+                        const req = await fetch('/api/auth', {
+                            method: 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                        const res = await req.json();
+                        
+                        if (req.status !== 200) throw new Error(res.error || 'Erro.');
+
+                        if (action === 'register') {
+                            this.authMsg = 'Conta criada! Faça login.';
+                            this.authMsgType = 'success';
+                            this.authMode = 'login';
+                        } else if (action === 'reset') {
+                            this.authMsg = 'Senha trocada! Entre com a nova senha.';
+                            this.authMsgType = 'success';
+                            this.authMode = 'login';
+                        } else {
+                            this.authToken = res.token;
+                            localStorage.setItem('zenite_token', res.token);
+                            this.chars = res.data || {};
+                            this.updateAgentCount();
+                            this.authMsg = '';
+                            this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                        }
+                    } catch (e) {
+                        this.authMsg = e.message;
+                        this.authMsgType = 'error';
+                    } finally {
+                        this.authLoading = false;
+                    }
+                },
+
+                logout() {
+                    if (confirm("Desconectar do sistema?")) {
+                        this.authToken = null;
+                        localStorage.removeItem('zenite_token');
                         this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                        this.chars = {};
+                        this.char = null;
+                        this.activeCharId = null;
+                        this.currentView = 'dashboard';
+                        this.notify('Sessão encerrada.', 'info');
                     }
-                } catch (e) {
-                    this.authMsg = e.message;
-                    this.authMsgType = 'error';
-                } finally {
-                    this.authLoading = false;
-                }
-            },
+                },
 
-            logout() {
-                if (confirm("Desconectar do sistema?")) {
-                    this.authToken = null;
-                    localStorage.removeItem('zenite_token');
-                    
-                    // Limpa variáveis de autenticação e dados
-                    this.authInput = { user: '', pass: '', key: '', newPass: '' };
-                    this.chars = {};
-                    this.char = null;
-                    this.activeCharId = null;
-                    
-                    this.currentView = 'dashboard';
-                    this.notify('Sessão encerrada.', 'info');
-                }
-            },
+                // --- DATA CORE ---
+                async fetchData() {
+                    try {
+                        const req = await fetch('/api/data', {
+                            headers: { 'Authorization': `Bearer ${this.authToken}` }
+                        });
+                        if(req.status === 401) return this.logout();
+                        const data = await req.json();
+                        this.chars = data || {};
+                        this.updateAgentCount();
+                    } catch(e) { console.error(e); this.notify('Erro de conexão', 'error'); }
+                },
 
-            // --- DATA CORE ---
-            async fetchData() {
-                try {
-                    const req = await fetch('/api/data', {
-                        headers: { 'Authorization': `Bearer ${this.authToken}` }
-                    });
-                    if(req.status === 401) return this.logout();
-                    const data = await req.json();
-                    this.chars = data || {};
-                    this.updateAgentCount();
-                } catch(e) { console.error(e); this.notify('Erro de conexão', 'error'); }
-            },
-
-            async saveData() {
-                if (!this.authToken) return;
-                try {
-                    if (this.char && this.activeCharId) {
-                        this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                async saveData() {
+                    if (!this.authToken) return;
+                    try {
+                        if (this.char && this.activeCharId) {
+                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                        }
+                        await fetch('/api/data', {
+                            method: 'POST',
+                            headers: { 
+                                'Authorization': `Bearer ${this.authToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ data: this.chars })
+                        });
+                        this.updateAgentCount();
+                        this.notify('Dados salvos na nuvem.', 'success');
+                    } catch(e) {
+                        this.notify('Falha ao salvar!', 'error');
                     }
-                    await fetch('/api/data', {
-                        method: 'POST',
-                        headers: { 
-                            'Authorization': `Bearer ${this.authToken}`,
-                            'Content-Type': 'application/json'
+                },
+
+                updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+
+                loadCharacter(id) {
+                    this.activeCharId = id;
+                    this.char = JSON.parse(JSON.stringify(this.chars[id]));
+                    
+                    if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
+                    if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
+                    if(!this.char.skills) this.char.skills = [];
+                    if(!this.char.powers.techniques) this.char.powers.techniques = [];
+                    if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
+
+                    this.currentView = 'sheet';
+                    this.activeTab = 'profile';
+                    setTimeout(() => this.updateRadarChart(), 100);
+                },
+
+                deleteCharacter(id) {
+                    if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
+                        delete this.chars[id];
+                        this.saveData();
+                        this.updateAgentCount();
+                        this.notify('Agente eliminado.', 'success');
+                    }
+                },
+
+                // --- LOGIC KERNEL ---
+                recalcDerivedStats() {
+                    if(!this.char) return;
+                    const c = this.char;
+                    const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
+                    c.level = lvl;
+
+                    const getV = (v) => parseInt(v) || 0;
+                    const FOR = getV(c.attrs.for);
+                    const AGI = getV(c.attrs.agi);
+                    const INT = getV(c.attrs.int);
+                    const VON = getV(c.attrs.von);
+                    const POD = getV(c.attrs.pod);
+
+                    let maxPV = 0, maxPF = 0, maxPDF = 0;
+
+                    if (c.class === 'Titã') {
+                        maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Estrategista') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Infiltrador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
+                    } else if (c.class === 'Controlador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
+                    } else if (c.class === 'Psíquico') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
+                        maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
+                    } else {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    }
+
+                    c.stats.pv.max = Math.max(5, maxPV);
+                    c.stats.pf.max = Math.max(5, maxPF);
+                    c.stats.pdf.max = Math.max(5, maxPDF);
+                },
+
+                modStat(type, val) {
+                    const stat = this.char.stats[type];
+                    const oldVal = stat.current;
+                    stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
+                    if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
+                    if (stat.current > oldVal) this.triggerFX('heal');
+                },
+
+                modAttr(key, val) {
+                    const current = this.char.attrs[key];
+                    if (val > 0 && current < 6) this.char.attrs[key]++;
+                    if (val < 0 && current > -1) this.char.attrs[key]--;
+                    
+                    this.recalcDerivedStats();
+                    this.updateRadarChart();
+                },
+
+                updateClassLogic() {
+                    const arch = this.archetypes.find(a => a.class === this.char.class);
+                    if (arch && this.char.attrs[arch.focus] < 0) {
+                        this.char.attrs[arch.focus] = 0;
+                        this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
+                    }
+                    this.recalcDerivedStats();
+                    this.updateRadarChart();
+                },
+
+                triggerFX(type) {
+                    const el = document.getElementById(type + '-overlay');
+                    if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
+                },
+
+                // --- WIZARD ---
+                openWizard() {
+                    if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+                    this.wizardOpen = true;
+                    this.wizardStep = 1;
+                    this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+                    this.wizardPoints = 8;
+                },
+
+                selectArchetype(arch) {
+                    this.wizardData.class = arch.class;
+                    this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
+                    this.wizardFocusAttr = arch.focus;
+                    this.wizardData.attrs[arch.focus] = 0;
+                    this.wizardStep = 2;
+                    this.wizardPoints = 8;
+                    setTimeout(() => this.updateWizardChart(), 50);
+                },
+
+                modWizardAttr(key, val) {
+                    const current = this.wizardData.attrs[key];
+                    const isFocus = key === this.wizardFocusAttr;
+                    const min = isFocus ? 0 : -1;
+                    
+                    if (val > 0) {
+                        if (this.wizardPoints > 0 && current < 3) {
+                            this.wizardData.attrs[key]++;
+                            this.wizardPoints--;
+                        }
+                    } else {
+                        if (current > min) {
+                            this.wizardData.attrs[key]--;
+                            this.wizardPoints++;
+                        }
+                    }
+                    this.updateWizardChart();
+                },
+
+                finishWizard() {
+                    const id = 'z_' + Date.now();
+                    const tempChar = { 
+                        class: this.wizardData.class, 
+                        level: 1, 
+                        attrs: this.wizardData.attrs,
+                        stats: { pv:{}, pf:{}, pdf:{} }
+                    };
+                    
+                    const oldChar = this.char;
+                    this.char = tempChar;
+                    this.recalcDerivedStats();
+                    this.char = oldChar; 
+
+                    const newChar = {
+                        id: id,
+                        name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
+                        stats: {
+                            pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
+                            pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
+                            pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
                         },
-                        body: JSON.stringify({ data: this.chars })
-                    });
-                    this.updateAgentCount();
-                } catch(e) {
-                    this.notify('Falha ao salvar na nuvem!', 'error');
-                }
-            },
-
-            updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-
-            loadCharacter(id) {
-                this.activeCharId = id;
-                this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                
-                // Migrations
-                if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
-                if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
-                if(!this.char.skills) this.char.skills = [];
-                if(!this.char.powers.techniques) this.char.powers.techniques = [];
-                if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
-
-                this.currentView = 'sheet';
-                this.activeTab = 'profile';
-                setTimeout(() => this.updateRadarChart(), 100);
-            },
-
-            deleteCharacter(id) {
-                if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
-                    delete this.chars[id];
+                        attrs: {...this.wizardData.attrs},
+                        inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
+                        skills: [],
+                        powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
+                    };
+                    
+                    this.chars[id] = newChar;
                     this.saveData();
-                    this.updateAgentCount();
-                    this.notify('Agente eliminado.', 'success');
-                }
-            },
+                    this.wizardOpen = false;
+                    this.loadCharacter(id);
+                    this.notify('Agente Inicializado.', 'success');
+                },
 
-            // --- LOGIC KERNEL (Level & Stats) ---
-            recalcDerivedStats() {
-                if(!this.char) return;
-                const c = this.char;
-                const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
-                c.level = lvl;
-
-                const getV = (v) => parseInt(v) || 0;
-                const FOR = getV(c.attrs.for);
-                const AGI = getV(c.attrs.agi);
-                const INT = getV(c.attrs.int);
-                const VON = getV(c.attrs.von);
-                const POD = getV(c.attrs.pod);
-
-                let maxPV = 0, maxPF = 0, maxPDF = 0;
-
-                if (c.class === 'Titã') {
-                    maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
-                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                    maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-                } else if (c.class === 'Estrategista') {
-                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                    maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
-                    maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
-                } else if (c.class === 'Infiltrador') {
-                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                    maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
-                } else if (c.class === 'Controlador') {
-                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                    maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
-                } else if (c.class === 'Psíquico') {
-                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                    maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
-                    maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
-                } else {
-                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                    maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
-                    maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-                }
-
-                c.stats.pv.max = Math.max(5, maxPV);
-                c.stats.pf.max = Math.max(5, maxPF);
-                c.stats.pdf.max = Math.max(5, maxPDF);
-            },
-
-            modStat(type, val) {
-                const stat = this.char.stats[type];
-                const oldVal = stat.current;
-                stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
-                
-                if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
-                if (stat.current > oldVal) this.triggerFX('heal');
-                this.saveData();
-            },
-
-            modAttr(key, val) {
-                const current = this.char.attrs[key];
-                if (val > 0 && current < 6) this.char.attrs[key]++;
-                if (val < 0 && current > -1) this.char.attrs[key]--;
-                
-                this.recalcDerivedStats();
-                this.updateRadarChart();
-            },
-
-            updateClassLogic() {
-                const arch = this.archetypes.find(a => a.class === this.char.class);
-                if (arch && this.char.attrs[arch.focus] < 0) {
-                    this.char.attrs[arch.focus] = 0;
-                    this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
-                }
-                this.recalcDerivedStats();
-                this.updateRadarChart();
-            },
-
-            triggerFX(type) {
-                const el = document.getElementById(type + '-overlay');
-                if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
-            },
-
-            // --- WIZARD ---
-            openWizard() {
-                if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
-                this.wizardOpen = true;
-                this.wizardStep = 1;
-                this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
-                this.wizardPoints = 8;
-            },
-
-            selectArchetype(arch) {
-                this.wizardData.class = arch.class;
-                this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
-                this.wizardFocusAttr = arch.focus;
-                this.wizardData.attrs[arch.focus] = 0;
-                this.wizardStep = 2;
-                this.wizardPoints = 8;
-                setTimeout(() => this.updateWizardChart(), 50);
-            },
-
-            modWizardAttr(key, val) {
-                const current = this.wizardData.attrs[key];
-                const isFocus = key === this.wizardFocusAttr;
-                const min = isFocus ? 0 : -1;
-                
-                if (val > 0) {
-                    if (this.wizardPoints > 0 && current < 3) {
-                        this.wizardData.attrs[key]++;
-                        this.wizardPoints--;
+                // --- INVENTORY ---
+                addItem(cat) {
+                    const defs = {
+                        weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
+                        armor: { name: 'Traje', def: '1', pen: '0' },
+                        gear: { name: 'Item', desc: '', qty: 1 },
+                        social_people: { name: 'Nome', role: 'Relação' },
+                        social_objects: { name: 'Objeto', desc: 'Detalhes' }
+                    };
+                    if(cat.startsWith('social_')) {
+                        this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
+                    } else {
+                        this.char.inventory[cat].push({...defs[cat]});
                     }
-                } else {
-                    if (current > min) {
-                        this.wizardData.attrs[key]--;
-                        this.wizardPoints++;
-                    }
-                }
-                this.updateWizardChart();
-            },
+                },
+                deleteItem(cat, idx, subcat=null) {
+                    if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
+                    else this.char.inventory[cat].splice(idx, 1);
+                },
 
-            finishWizard() {
-                const id = 'z_' + Date.now();
-                const tempChar = { 
-                    class: this.wizardData.class, 
-                    level: 1, 
-                    attrs: this.wizardData.attrs,
-                    stats: { pv:{}, pf:{}, pdf:{} }
-                };
-                
-                const oldChar = this.char;
-                this.char = tempChar;
-                this.recalcDerivedStats();
-                this.char = oldChar; 
+                // --- SKILLS ---
+                addSkill() {
+                    this.char.skills.push({ name: 'Nova Perícia', level: 1 });
+                },
+                deleteSkill(idx) {
+                    this.char.skills.splice(idx, 1);
+                },
+                setSkillLevel(idx, lvl) {
+                    this.char.skills[idx].level = lvl;
+                },
 
-                const newChar = {
-                    id: id,
-                    name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
-                    stats: {
-                        pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
-                        pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
-                        pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
-                    },
-                    attrs: {...this.wizardData.attrs},
-                    inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                    skills: [],
-                    powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
-                };
-                
-                this.chars[id] = newChar;
-                this.saveData();
-                this.wizardOpen = false;
-                this.loadCharacter(id);
-                this.notify('Agente Inicializado.', 'success');
-            },
+                // --- TECHNIQUES ---
+                addTechnique() {
+                    this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
+                },
+                deleteTechnique(idx) {
+                    this.char.powers.techniques.splice(idx, 1);
+                },
 
-            // --- INVENTORY & LISTS ---
-            addItem(cat) {
-                const defs = {
-                    weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
-                    armor: { name: 'Traje', def: '1', pen: '0' },
-                    gear: { name: 'Item', desc: '', qty: 1 },
-                    social_people: { name: 'Nome', role: 'Relação' },
-                    social_objects: { name: 'Objeto', desc: 'Detalhes' }
-                };
-                if(cat.startsWith('social_')) {
-                    this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
-                } else {
-                    this.char.inventory[cat].push({...defs[cat]});
-                }
-                this.saveData();
-            },
-            deleteItem(cat, idx, subcat=null) {
-                if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
-                else this.char.inventory[cat].splice(idx, 1);
-                this.saveData();
-            },
-
-            // --- SKILLS ---
-            addSkill() {
-                this.char.skills.push({ name: 'Nova Perícia', level: 1 });
-                this.saveData();
-            },
-            deleteSkill(idx) {
-                this.char.skills.splice(idx, 1);
-                this.saveData();
-            },
-            setSkillLevel(idx, lvl) {
-                this.char.skills[idx].level = lvl;
-                this.saveData();
-            },
-
-            // --- TECHNIQUES ---
-            addTechnique() {
-                this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
-                this.saveData();
-            },
-            deleteTechnique(idx) {
-                this.char.powers.techniques.splice(idx, 1);
-                this.saveData();
-            },
-
-            // --- CHARTS ---
-            renderChart(id, attrs, color) {
-                const ctx = document.getElementById(id);
-                if (!ctx) return;
-                const data = [attrs.for, attrs.agi, attrs.int, attrs.von, attrs.pod];
-                if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.update(); return; }
-                ctx.chart = new Chart(ctx, {
-                    type: 'radar',
-                    data: {
-                        labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
-                        datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
-                        plugins: { legend: { display: false } }
-                    }
-                });
-            },
-            updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
-            updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
-
-            // --- RNG ---
-            roll(sides) {
-                const arr = new Uint32Array(1);
-                window.crypto.getRandomValues(arr);
-                const natural = (arr[0] % sides) + 1;
-                this.lastNatural = natural; this.lastFaces = sides;
-                this.lastRoll = natural + parseInt(this.diceMod || 0);
-                const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
-                if(this.diceLog.length>8) this.diceLog.pop();
-            },
-
-            // --- CROPPER ---
-            openImageEditor() { document.getElementById('file-input').click(); },
-            initCropper(e) {
-                const file = e.target.files[0]; if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    document.getElementById('crop-target').src = evt.target.result;
-                    this.cropperOpen = true;
-                    this.$nextTick(() => {
-                        if(this.cropperInstance) this.cropperInstance.destroy();
-                        this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+                // --- CHARTS ---
+                renderChart(id, attrs, color) {
+                    const ctx = document.getElementById(id);
+                    if (!ctx) return;
+                    const data = [attrs.for, attrs.agi, attrs.int, attrs.von, attrs.pod];
+                    if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.update(); return; }
+                    ctx.chart = new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
+                            datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
+                            plugins: { legend: { display: false } }
+                        }
                     });
-                };
-                reader.readAsDataURL(file);
-            },
-            applyCrop() {
-                if(!this.cropperInstance) return;
-                this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
-                this.cropperOpen = false;
-                this.saveData();
-                this.notify('Foto atualizada.', 'success');
-            },
+                },
+                updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
+                updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
 
-            // --- SYSTEM UTILS ---
-            notify(msg, type='info') {
-                const id = Date.now();
-                this.notifications.push({id, message: msg, type, dismissed: false});
-                setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
-            },
-            exportData() {
-                const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
-                const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
-            },
-            importData(e) {
-                const file = e.target.files[0]; if(!file) return;
-                const r = new FileReader();
-                r.onload = (evt) => {
-                    try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
-                    catch(err) { this.notify('Arquivo inválido.', 'error'); }
-                };
-                r.readAsText(file);
-            },
-            hardReset() {
-                if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
-                   this.chars = {};
-                   this.saveData();
-                   this.notify('Dados limpos.', 'warn');
+                // --- RNG ---
+                roll(sides) {
+                    const arr = new Uint32Array(1);
+                    window.crypto.getRandomValues(arr);
+                    const natural = (arr[0] % sides) + 1;
+                    this.lastNatural = natural; this.lastFaces = sides;
+                    this.lastRoll = natural + parseInt(this.diceMod || 0);
+                    const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
+                    if(this.diceLog.length>8) this.diceLog.pop();
+                },
+
+                // --- CROPPER ---
+                openImageEditor() { document.getElementById('file-input').click(); },
+                initCropper(e) {
+                    const file = e.target.files[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        document.getElementById('crop-target').src = evt.target.result;
+                        this.cropperOpen = true;
+                        this.$nextTick(() => {
+                            if(this.cropperInstance) this.cropperInstance.destroy();
+                            this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                },
+                applyCrop() {
+                    if(!this.cropperInstance) return;
+                    this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
+                    this.cropperOpen = false;
+                    this.saveData(); // Fotos ainda salvam automático pois são raras
+                    this.notify('Foto atualizada.', 'success');
+                },
+
+                // --- SYSTEM UTILS ---
+                notify(msg, type='info') {
+                    const id = Date.now();
+                    this.notifications.push({id, message: msg, type, dismissed: false});
+                    setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
+                },
+                exportData() {
+                    const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
+                    const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
+                },
+                importData(e) {
+                    const file = e.target.files[0]; if(!file) return;
+                    const r = new FileReader();
+                    r.onload = (evt) => {
+                        try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
+                        catch(err) { this.notify('Arquivo inválido.', 'error'); }
+                    };
+                    r.readAsText(file);
+                },
+                hardReset() {
+                    if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
+                       this.chars = {};
+                       this.saveData();
+                       this.notify('Dados limpos.', 'warn');
+                    }
                 }
             }
         }
-    }
-</script>
+    </script>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
-    <!-- DATABASE -->
-<div x-show="!authToken" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center relative transition-all duration-300">
-        
-        <div class="mb-6">
-            <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-            <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // BANCO DE DADOS NEON</p>
-        </div>
-
-        <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
-            <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
-            <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
-            <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
-        </div>
-        
-        <div class="space-y-4">
-            <input x-model="authInput.user" type="text" placeholder="USUÁRIO" class="input-cyber w-full p-3 text-center uppercase">
+    <div x-show="!authToken" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center relative transition-all duration-300">
             
-            <template x-if="authMode === 'login' || authMode === 'register'">
-                <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
-            </template>
+            <div class="mb-6">
+                <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
+                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // BANCO DE DADOS NEON</p>
+            </div>
 
-            <template x-if="authMode === 'register'">
-                <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
-            </template>
-
-            <template x-if="authMode === 'reset'">
-                <div class="space-y-4">
-                    <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
-                    <input x-model="authInput.newPass" type="password" placeholder="NOVA SENHA" class="input-cyber w-full p-3 text-center">
-                </div>
-            </template>
-            
-            <div class="mt-6">
-                <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
-                    <span x-show="!authLoading">ENTRAR NO SISTEMA</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
-
-                <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
-                    <span x-show="!authLoading">CRIAR CREDENCIAL</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
-
-                <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
-                    <span x-show="!authLoading">REDEFINIR SENHA</span>
-                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                </button>
+            <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
+                <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
+                <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
+                <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
             </div>
             
-            <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
+            <div class="space-y-4">
+                <input x-model="authInput.user" type="text" placeholder="USUÁRIO" class="input-cyber w-full p-3 text-center uppercase">
+                
+                <template x-if="authMode === 'login' || authMode === 'register'">
+                    <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
+                </template>
+
+                <template x-if="authMode === 'register'">
+                    <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
+                </template>
+
+                <template x-if="authMode === 'reset'">
+                    <div class="space-y-4">
+                        <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
+                        <input x-model="authInput.newPass" type="password" placeholder="NOVA SENHA" class="input-cyber w-full p-3 text-center">
+                    </div>
+                </template>
+                
+                <div class="mt-6">
+                    <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
+                        <span x-show="!authLoading">ENTRAR NO SISTEMA</span>
+                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
+
+                    <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
+                        <span x-show="!authLoading">CRIAR CREDENCIAL</span>
+                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
+
+                    <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
+                        <span x-show="!authLoading">REDEFINIR SENHA</span>
+                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
+                </div>
+                
+                <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
+            </div>
         </div>
     </div>
-</div>
 
-    <!-- FX OVERLAYS -->
     <div id="damage-overlay"></div>
     <div id="heal-overlay"></div>
 
-    <!-- TOASTS -->
     <div class="fixed top-5 right-5 z-[100] space-y-2 pointer-events-none">
         <template x-for="n in notifications" :key="n.id">
             <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0"
@@ -658,7 +625,6 @@
         </template>
     </div>
 
-    <!-- HEADER -->
     <header class="relative z-20 max-w-7xl mx-auto p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5">
         <div class="flex items-center gap-4 mb-4 md:mb-0">
             <div class="w-14 h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.2)]">
@@ -669,22 +635,21 @@
                 <p class="text-[10px] text-gray-500 font-code">V12.0</p>
             </div>
         </div>
-<div class="flex gap-3">
-    <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
-        <i class="fa-solid fa-power-off"></i>
-    </button>
+        <div class="flex gap-3">
+            <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
+                <i class="fa-solid fa-power-off"></i>
+            </button>
 
-    <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center">
-        <i class="fa-solid fa-gear"></i>
-    </button>
-    
-    <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2">
-        <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span>
-    </button>
-</div>
+            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            
+            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span>
+            </button>
+        </div>
     </header>
 
-    <!-- DASHBOARD -->
     <main x-show="currentView === 'dashboard'" class="relative z-10 max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
         <div class="mb-8 flex justify-between items-end border-b border-white/5 pb-2">
             <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest">Banco de Dados</h2>
@@ -706,17 +671,14 @@
                             <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
                         </div>
                     </div>
-                    <!-- DELETE BUTTON WITH FIXED EVENT HANDLER -->
                     <button @click.stop="deleteCharacter(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             </template>
         </div>
     </main>
 
-    <!-- SHEET -->
     <template x-if="currentView === 'sheet' && char">
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-40" x-transition.opacity>
-            <!-- NAV -->
             <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10">
                 <div class="flex items-center gap-3 px-2">
                     <button @click="currentView = 'dashboard'; activeCharId = null;" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
@@ -730,9 +692,7 @@
                 </div>
             </div>
 
-            <!-- TAB PROFILE -->
             <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
-                <!-- LEFT: VITALS -->
                 <div class="lg:col-span-4 space-y-6">
                     <div class="glass p-6 rounded-xl text-center relative group">
                         <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative">
@@ -743,19 +703,17 @@
                         <div class="mt-4 flex justify-center">
                             <div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2">
                                 <label class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
-                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats(); saveData()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
+                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
                             </div>
                         </div>
                         
-                        <!-- VITALS CONTROLS -->
                         <div class="mt-6 space-y-3 text-left">
-                            <!-- PV -->
                             <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-red-500/30 transition-colors">
                                 <div class="flex justify-between text-[10px] font-bold mb-1">
                                     <span class="text-red-500">PV (VIDA)</span>
                                     <div class="flex gap-1 text-white font-code">
                                         <span x-text="char.stats.pv.current"></span> / 
-                                        <input type="number" x-model="char.stats.pv.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-red-500">
+                                        <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-red-500">
                                     </div>
                                 </div>
                                 <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
@@ -766,13 +724,12 @@
                                     <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
                                 </div>
                             </div>
-                            <!-- PF -->
                             <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-amber-500/30 transition-colors">
                                 <div class="flex justify-between text-[10px] font-bold mb-1">
                                     <span class="text-amber-500">PF (ESFORÇO)</span>
                                     <div class="flex gap-1 text-white font-code">
                                         <span x-text="char.stats.pf.current"></span> / 
-                                        <input type="number" x-model="char.stats.pf.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-amber-500">
+                                        <input type="number" x-model="char.stats.pf.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-amber-500">
                                     </div>
                                 </div>
                                 <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
@@ -783,13 +740,12 @@
                                     <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
                                 </div>
                             </div>
-                            <!-- PDF -->
                             <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-violet-500/30 transition-colors">
                                 <div class="flex justify-between text-[10px] font-bold mb-1">
                                     <span class="text-violet-500">PDF (MENTE)</span>
                                     <div class="flex gap-1 text-white font-code">
                                         <span x-text="char.stats.pdf.current"></span> / 
-                                        <input type="number" x-model="char.stats.pdf.max" @change="saveData()" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-violet-500">
+                                        <input type="number" x-model="char.stats.pdf.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-violet-500">
                                     </div>
                                 </div>
                                 <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
@@ -804,7 +760,6 @@
                     </div>
                 </div>
 
-                <!-- RIGHT: INFO & ATTRS -->
                 <div class="lg:col-span-8 space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div>
@@ -812,7 +767,6 @@
                         <div><select x-model="char.class" @change="updateClassLogic()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div>
                     </div>
 
-                    <!-- ATTR MATRIX -->
                     <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
                         <div class="w-full md:w-1/2 space-y-2">
                             <template x-for="key in ['for','agi','int','von','pod']">
@@ -829,7 +783,6 @@
                         <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
                     </div>
 
-                    <!-- NEW: SKILLS (Perícias) -->
                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500">
                         <div class="flex justify-between mb-4 items-center">
                             <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
@@ -850,7 +803,6 @@
                         </div>
                     </div>
 
-                    <!-- HISTORY -->
                     <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
                         <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Arquivos Confidenciais</label>
                         <textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Registro de trauma..."></textarea>
@@ -858,18 +810,15 @@
                 </div>
             </div>
 
-            <!-- TAB LOGISTICS -->
             <div x-show="activeTab === 'logistics'" class="space-y-6">
                 <div class="flex justify-between items-center"><h3 class="text-white font-brand">LOGÍSTICA</h3><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><span class="text-amber-500">₵</span><input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code"></div></div>
 
-                <!-- SUB TABS -->
                 <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
                     <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
                     <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
                     <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social & Importantes</button>
                 </div>
 
-                <!-- INVENTORY VIEW -->
                 <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
@@ -899,7 +848,6 @@
                     </div>
                 </div>
 
-                <!-- BACKPACK VIEW -->
                 <div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div>
@@ -922,7 +870,6 @@
                     </div>
                 </div>
 
-                <!-- SOCIAL VIEW -->
                 <div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas Importantes</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
@@ -951,14 +898,12 @@
                 </div>
             </div>
 
-            <!-- TAB POWERS -->
             <div x-show="activeTab === 'powers'" class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
                     <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
                 </div>
                 
-                <!-- TECHNIQUES (CUSTOMIZABLE) -->
                 <div class="glass p-6 rounded-xl border-l-2 border-emerald-500">
                     <div class="flex justify-between mb-4 items-center">
                         <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas de Combate</h3>
@@ -992,7 +937,12 @@
         </main>
     </template>
 
-    <!-- DICE TRAY (ALWAYS FIXED) -->
+    <div x-show="currentView === 'sheet'" class="fixed bottom-20 right-6 z-40">
+        <button @click="saveData();" class="w-14 h-14 rounded-full bg-[var(--neon-success)] text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 border border-white/20">
+            <i class="fa-solid fa-floppy-disk text-xl"></i>
+        </button>
+    </div>
+
     <div class="fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur border-t border-[var(--neon-core)] p-3 z-50" x-show="currentView === 'sheet'">
         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div class="relative">
@@ -1022,89 +972,7 @@
         </div>
     </div>
 
-    <!-- WIZARD MODAL -->
     <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4">
         <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
             <div class="p-6 border-b border-white/10 flex justify-between items-center">
-                <h2 class="text-2xl font-brand text-white">NOVO AGENTE <span class="text-[var(--neon-core)] text-sm ml-2">INICIANDO...</span></h2>
-                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
-            </div>
-            <div class="flex-grow overflow-y-auto p-6">
-                <div x-show="wizardStep === 1">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <template x-for="arch in archetypes">
-                            <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center">
-                                <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
-                                <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
-                                <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
-                                <div class="mt-4 pt-4 border-t border-white/5 text-[10px] font-code uppercase text-gray-400">FOCO: <span class="text-white" x-text="arch.focus"></span></div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-                <div x-show="wizardStep === 2" class="flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg">
-                        <span class="text-2xl font-brand text-white" x-text="wizardData.class"></span>
-                        <div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="space-y-4">
-                            <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5">
-                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
-                                        <span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span>
-                                        <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        <div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
-            <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between">
-                <button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button>
-                <div class="flex-grow"></div>
-                <button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CROPPER MODAL -->
-    <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4">
-        <div class="w-full max-w-lg h-[70vh] flex flex-col">
-            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div>
-            <div class="flex gap-3">
-                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
-                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
-                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
-                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CONFIG MODAL -->
-    <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center">
-        <div class="glass p-8 rounded-xl w-full max-w-md relative border border-white/10">
-            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            <h3 class="text-xl font-brand text-white mb-6">SISTEMA</h3>
-            <div class="space-y-4">
-                <button @click="exportData()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-download mr-3"></i>BACKUP (.JSON)</button>
-                <div class="relative">
-                    <input type="file" id="import-input" class="hidden" accept=".json" @change="importData($event)">
-                    <button @click="document.getElementById('import-input').click()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-upload mr-3"></i>RESTAURAR</button>
-                </div>
-                <div class="border-t border-white/10 my-4"></div>
-                <button @click="hardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs hover:bg-red-500/10">HARD RESET</button>
-            </div>
-        </div>
-    </div>
-
-</body>
-</html>
-
-
-
-
+                <h2 class="text-2xl font-brand text-white">NOVO AGENTE <span class="text-[var(--neon-core)] text-sm
