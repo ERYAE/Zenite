@@ -7,11 +7,11 @@ const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v21.2-SmartSyncFixed';
+const APP_VERSION = 'v21.3-SmartSyncFixed';
 
 function zeniteSystem() {
     return {
-        // --- AUTH STATE ---
+        // --- AUTH ---
         user: null,
         isGuest: localStorage.getItem('zenite_is_guest') === 'true',
         authInput: { email: '', pass: '' },
@@ -22,10 +22,12 @@ function zeniteSystem() {
 
         // --- SYNC STATE ---
         unsavedChanges: false,
-        isSyncing: false,
-
-        // --- APP STATE ---
+        isSyncing: false, // O flag que o seu código estava a prender
+        
+        // --- SYSTEM STATE ---
         currentView: 'dashboard',
+        
+        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -101,12 +103,12 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // Smart Auto-Sync (1 minuto)
+            // Smart Auto-Sync (60 segundos)
             setInterval(() => {
                 if (this.user && this.unsavedChanges && !this.isSyncing) {
                     this.syncCloud(true);
                 }
-            }, 60000);
+            }, 60000); // 60 segundos
 
             // Salva ao fechar/trocar de aba
             window.addEventListener('beforeunload', () => {
@@ -158,7 +160,6 @@ function zeniteSystem() {
                 const localCount = Object.keys(this.chars).length;
                 const cloudCount = Object.keys(cloudData).length;
 
-                // Se local tem mais dados, força o envio para a nuvem
                 if (cloudCount === 0 && localCount > 0) {
                     await this.syncCloud(true); 
                 } else {
