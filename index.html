@@ -198,6 +198,8 @@ logout() {
         // 1. Limpa o token da memória e do navegador
         this.authToken = null;
         localStorage.removeItem('zenite_token');
+
+        this.authInput = { user: '', pass: '', key: '', newPass: '' };
         
         // 2. Limpa os dados visuais para segurança
         this.chars = {};
@@ -1050,4 +1052,5 @@ logout() {
 
 </body>
 </html>
+
 
