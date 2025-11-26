@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ZENITE OS // COMPLETE</title>
+    <title>ZENITE OS // ULTIMATE</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -92,15 +92,16 @@
 
     <script>
         const MAX_AGENTS = 30;
-        const APP_VERSION = 'v15.0-Full';
+        const APP_VERSION = 'v16.0-Ultimate';
 
         function zeniteSystem() {
             return {
                 // --- AUTH STATE ---
                 authToken: localStorage.getItem('zenite_token') || null,
                 isGuest: localStorage.getItem('zenite_is_guest') === 'true',
+                
                 authInput: { user: '', pass: '', key: '', newPass: '' }, 
-                authMode: 'login',
+                authMode: 'login', // 'login', 'register', 'reset'
                 authLoading: false,
                 authMsg: '',
                 authMsgType: '',
@@ -138,7 +139,6 @@
 
                 // --- META ---
                 agentCount: 0,
-                _saveTimer: null,
 
                 // --- ARCHETYPES ---
                 archetypes: [
@@ -150,18 +150,21 @@
                 ],
 
                 initSystem() {
-                    // INIT: Verifica se é Guest ou Online
+                    // 1. Inicialização de Dados (Offline ou Online)
                     if (this.isGuest) {
                         this.loadLocalData('zenite_guest_db');
                         this.notify('Modo Offline Ativo', 'warn');
                     } else if (this.authToken) {
+                        // Tenta pegar do server, se falhar, pega do cache
                         this.fetchData().catch(() => this.loadLocalData('zenite_cached_db'));
                     }
 
-                    // AUTO-SAVE LOCAL: Garante que nada se perde ao mudar de tela
+                    // 2. AUTO-SAVE LOCAL (Watcher)
+                    // Isso garante que os dados não sumam ao trocar de tela ou dar refresh.
+                    // O salvamento na nuvem é manual para não estourar limites do Netlify.
                     this.$watch('char', (val) => {
                         if (val && this.activeCharId) {
-                            this.chars[this.activeCharId] = val;
+                            this.chars[this.activeCharId] = val; // Atualiza o objeto mestre
                             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                             localStorage.setItem(key, JSON.stringify(this.chars));
                             
@@ -169,10 +172,10 @@
                         }
                     }, { deep: true });
 
-                    // LEMBRETE CLOUD
+                    // 3. Lembrete de Sincronização (5 min)
                     setInterval(() => {
                         if (!this.isGuest && this.authToken) {
-                            this.notify('⚠ Lembrete: Clique no botão Salvar (Nuvem) para sincronizar.', 'warn');
+                            this.notify('⚠ Lembrete: Clique no botão flutuante para salvar na Nuvem.', 'warn');
                         }
                     }, 300000);
                 },
@@ -191,38 +194,52 @@
                     localStorage.setItem('zenite_is_guest', 'true');
                     localStorage.setItem('zenite_token', 'guest');
                     this.loadLocalData('zenite_guest_db');
-                    this.notify('Modo Offline.', 'success');
+                    this.notify('Entrando em Modo Offline...', 'success');
                 },
 
                 async doAuth(action) {
-                    if(!this.authInput.user) return this.authMsg = 'Preencha usuário.';
+                    if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
                     this.authLoading = true;
                     this.authMsg = 'Processando...';
                     
                     let payload = { action, username: this.authInput.user };
-                    if (action === 'login') payload.password = this.authInput.pass;
-                    else if (action === 'register') { payload.password = this.authInput.pass; payload.recovery_key = this.authInput.key; }
-                    else if (action === 'reset') { payload.recovery_key = this.authInput.key; payload.new_password = this.authInput.newPass; }
+                    
+                    if (action === 'login') {
+                        payload.password = this.authInput.pass;
+                    } else if (action === 'register') {
+                        payload.password = this.authInput.pass;
+                        payload.recovery_key = this.authInput.key;
+                    } else if (action === 'reset') {
+                        payload.recovery_key = this.authInput.key;
+                        payload.new_password = this.authInput.newPass;
+                    }
 
                     try {
                         const req = await fetch('/api/auth', { method: 'POST', body: JSON.stringify(payload) });
                         const res = await req.json();
+                        
                         if (req.status !== 200) throw new Error(res.error || 'Erro.');
 
-                        if (action === 'login') {
+                        if (action === 'register') {
+                            this.authMsg = 'Conta criada! Faça login.';
+                            this.authMsgType = 'success';
+                            this.authMode = 'login';
+                        } else if (action === 'reset') {
+                            this.authMsg = 'Senha alterada! Faça login.';
+                            this.authMsgType = 'success';
+                            this.authMode = 'login';
+                        } else {
+                            // LOGIN
                             this.isGuest = false;
                             localStorage.removeItem('zenite_is_guest');
                             this.authToken = res.token;
                             localStorage.setItem('zenite_token', res.token);
+                            
                             this.chars = res.data || {};
-                            localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
+                            localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); // Cache
                             this.updateAgentCount();
                             this.authMsg = '';
                             this.authInput = { user: '', pass: '', key: '', newPass: '' };
-                        } else {
-                            this.authMsg = action === 'reset' ? 'Senha alterada!' : 'Conta criada!';
-                            this.authMsgType = 'success';
-                            this.authMode = 'login';
                         }
                     } catch (e) {
                         this.authMsg = e.message;
@@ -242,6 +259,7 @@
                         this.char = null;
                         this.activeCharId = null;
                         this.currentView = 'dashboard';
+                        this.notify('Sessão encerrada.', 'info');
                     }
                 },
 
@@ -258,83 +276,98 @@
                 },
 
                 async syncCloud() {
-                    if (this.isGuest) return this.notify('Modo Offline: Salvo localmente.', 'info');
+                    if (this.isGuest) return this.notify('Modo Offline: Salvo neste dispositivo.', 'info');
                     if (!this.authToken) return;
 
-                    this.notify('Enviando para Nuvem...', 'info');
+                    this.notify('Sincronizando com a Nuvem...', 'info');
                     try {
+                        // Garante que o estado atual está salvo
                         if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
+                        
                         await fetch('/api/data', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${this.authToken}`, 'Content-Type': 'application/json' },
                             body: JSON.stringify({ data: this.chars })
                         });
-                        this.notify('Sincronizado com Sucesso!', 'success');
+                        this.notify('Sucesso! Dados seguros na nuvem.', 'success');
                     } catch(e) {
-                        this.notify('Erro de Conexão.', 'error');
+                        this.notify('Erro de conexão. Dados salvos localmente.', 'error');
                     }
                 },
 
-                // --- CORE LOGIC ---
-                updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-
-                loadCharacter(id) {
-                    this.activeCharId = id;
-                    this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                    
-                    // MIGRATIONS (Importante para não quebrar fichas antigas)
-                    if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
-                    if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
-                    if(!this.char.skills) this.char.skills = [];
-                    if(!this.char.powers.techniques) this.char.powers.techniques = [];
-                    if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
-
-                    this.currentView = 'sheet';
-                    this.activeTab = 'profile';
-                    setTimeout(() => this.updateRadarChart(), 100);
-                },
-
-                deleteCharacter(id) {
-                    if (window.confirm('Excluir agente permanentemente?')) {
-                        delete this.chars[id];
-                        const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                        localStorage.setItem(key, JSON.stringify(this.chars));
-                        if(!this.isGuest) this.syncCloud();
-                        this.updateAgentCount();
-                        this.notify('Agente eliminado.', 'success');
-                    }
-                },
-
-                // --- STATS LOGIC ---
+                // --- LOGIC KERNEL (Restored from v12) ---
                 recalcDerivedStats() {
                     if(!this.char) return;
                     const c = this.char;
                     const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
                     c.level = lvl;
-                    // (Mantive a lógica original aqui para brevidade, mas o código completo usaria as fórmulas)
-                    // Se precisar das fórmulas exatas de PV/PF, elas já estão no seu backup ou posso recolocar.
-                    // O importante é que os inputs manuais funcionam.
+
+                    const getV = (v) => parseInt(v) || 0;
+                    const FOR = getV(c.attrs.for);
+                    const AGI = getV(c.attrs.agi);
+                    const INT = getV(c.attrs.int);
+                    const VON = getV(c.attrs.von);
+                    const POD = getV(c.attrs.pod);
+
+                    let maxPV = 0, maxPF = 0, maxPDF = 0;
+
+                    // Fórmulas originais restauradas
+                    if (c.class === 'Titã') {
+                        maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Estrategista') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
+                    } else if (c.class === 'Infiltrador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
+                    } else if (c.class === 'Controlador') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
+                    } else if (c.class === 'Psíquico') {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
+                        maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
+                    } else {
+                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                        maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
+                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                    }
+
+                    c.stats.pv.max = Math.max(5, maxPV);
+                    c.stats.pf.max = Math.max(5, maxPF);
+                    c.stats.pdf.max = Math.max(5, maxPDF);
                 },
 
                 modStat(type, val) {
                     const stat = this.char.stats[type];
                     const oldVal = stat.current;
                     stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
+                    
                     if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
                     if (stat.current > oldVal) this.triggerFX('heal');
+                    // Nota: Removemos saveData() automático daqui para não floodar o server. O Watcher cuida do local.
                 },
 
                 modAttr(key, val) {
                     const current = this.char.attrs[key];
                     if (val > 0 && current < 6) this.char.attrs[key]++;
                     if (val < 0 && current > -1) this.char.attrs[key]--;
+                    
                     this.recalcDerivedStats();
                     this.updateRadarChart();
                 },
 
                 updateClassLogic() {
                     const arch = this.archetypes.find(a => a.class === this.char.class);
-                    if (arch && this.char.attrs[arch.focus] < 0) this.char.attrs[arch.focus] = 0;
+                    if (arch && this.char.attrs[arch.focus] < 0) {
+                        this.char.attrs[arch.focus] = 0;
+                        this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
+                    }
                     this.recalcDerivedStats();
                     this.updateRadarChart();
                 },
@@ -352,6 +385,7 @@
                     this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
                     this.wizardPoints = 8;
                 },
+
                 selectArchetype(arch) {
                     this.wizardData.class = arch.class;
                     this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
@@ -361,26 +395,57 @@
                     this.wizardPoints = 8;
                     setTimeout(() => this.updateWizardChart(), 50);
                 },
+
                 modWizardAttr(key, val) {
                     const current = this.wizardData.attrs[key];
                     const isFocus = key === this.wizardFocusAttr;
-                    if (val > 0 && this.wizardPoints > 0 && current < 3) { this.wizardData.attrs[key]++; this.wizardPoints--; }
-                    if (val < 0 && current > (isFocus ? 0 : -1)) { this.wizardData.attrs[key]--; this.wizardPoints++; }
+                    const min = isFocus ? 0 : -1;
+                    
+                    if (val > 0) {
+                        if (this.wizardPoints > 0 && current < 3) {
+                            this.wizardData.attrs[key]++;
+                            this.wizardPoints--;
+                        }
+                    } else {
+                        if (current > min) {
+                            this.wizardData.attrs[key]--;
+                            this.wizardPoints++;
+                        }
+                    }
                     this.updateWizardChart();
                 },
+
                 finishWizard() {
                     const id = 'z_' + Date.now();
-                    const tempChar = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs, stats: { pv:{}, pf:{}, pdf:{} } };
-                    // Recalc stats logic placeholder...
+                    const tempChar = { 
+                        class: this.wizardData.class, 
+                        level: 1, 
+                        attrs: this.wizardData.attrs,
+                        stats: { pv:{}, pf:{}, pdf:{} }
+                    };
+                    
+                    // Hack para calcular stats iniciais usando a lógica existente
+                    const oldChar = this.char;
+                    this.char = tempChar;
+                    this.recalcDerivedStats();
+                    this.char = oldChar; 
+
                     const newChar = {
-                        id: id, name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
-                        stats: { pv: {current:10,max:10}, pf: {current:10,max:10}, pdf: {current:10,max:10} },
+                        id: id,
+                        name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
+                        stats: {
+                            pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
+                            pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
+                            pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
+                        },
                         attrs: {...this.wizardData.attrs},
                         inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                        skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
+                        skills: [],
+                        powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
                     };
-                    this.chars[id] = newChar;
                     
+                    this.chars[id] = newChar;
+                    // Salva Localmente
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
                     
@@ -389,7 +454,7 @@
                     this.notify('Agente Inicializado.', 'success');
                 },
 
-                // --- INVENTORY (FULL RESTORED) ---
+                // --- INVENTORY & LISTS ---
                 addItem(cat) {
                     const defs = {
                         weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
@@ -403,18 +468,31 @@
                     } else {
                         this.char.inventory[cat].push({...defs[cat]});
                     }
+                    // Watcher salvará localmente. Cloud é manual.
                 },
                 deleteItem(cat, idx, subcat=null) {
                     if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
                     else this.char.inventory[cat].splice(idx, 1);
                 },
 
-                // --- SKILLS & POWERS ---
-                addSkill() { this.char.skills.push({ name: 'Nova Perícia', level: 1 }); },
-                deleteSkill(idx) { this.char.skills.splice(idx, 1); },
-                setSkillLevel(idx, lvl) { this.char.skills[idx].level = lvl; },
-                addTechnique() { this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' }); },
-                deleteTechnique(idx) { this.char.powers.techniques.splice(idx, 1); },
+                // --- SKILLS ---
+                addSkill() {
+                    this.char.skills.push({ name: 'Nova Perícia', level: 1 });
+                },
+                deleteSkill(idx) {
+                    this.char.skills.splice(idx, 1);
+                },
+                setSkillLevel(idx, lvl) {
+                    this.char.skills[idx].level = lvl;
+                },
+
+                // --- TECHNIQUES ---
+                addTechnique() {
+                    this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
+                },
+                deleteTechnique(idx) {
+                    this.char.powers.techniques.splice(idx, 1);
+                },
 
                 // --- CHARTS ---
                 renderChart(id, attrs, color) {
@@ -450,7 +528,7 @@
                     if(this.diceLog.length>8) this.diceLog.pop();
                 },
 
-                // --- CROPPER & UTILS ---
+                // --- CROPPER ---
                 openImageEditor() { document.getElementById('file-input').click(); },
                 initCropper(e) {
                     const file = e.target.files[0]; if (!file) return;
@@ -469,8 +547,11 @@
                     if(!this.cropperInstance) return;
                     this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
                     this.cropperOpen = false;
+                    // Foto salva no local storage pelo watcher
                     this.notify('Foto atualizada.', 'success');
                 },
+
+                // --- SYSTEM UTILS ---
                 notify(msg, type='info') {
                     const id = Date.now();
                     this.notifications.push({id, message: msg, type, dismissed: false});
@@ -484,17 +565,23 @@
                     const file = e.target.files[0]; if(!file) return;
                     const r = new FileReader();
                     r.onload = (evt) => {
-                        try { this.chars = JSON.parse(evt.target.result); 
-                              const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                              localStorage.setItem(key, JSON.stringify(this.chars));
-                              this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
+                        try { 
+                            this.chars = JSON.parse(evt.target.result);
+                            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                            localStorage.setItem(key, JSON.stringify(this.chars));
+                            this.saveData(); 
+                            this.notify('Backup restaurado.', 'success'); 
+                            this.configModal = false; 
+                            location.reload(); 
+                        } 
                         catch(err) { this.notify('Arquivo inválido.', 'error'); }
                     };
                     r.readAsText(file);
                 },
                 hardReset() {
-                    if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
-                        localStorage.clear();
+                    if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO? TODOS OS DADOS SERÃO PERDIDOS.')) {
+                        localStorage.removeItem('zenite_cached_db');
+                        localStorage.removeItem('zenite_guest_db');
                         window.location.reload();
                     }
                 }
@@ -508,13 +595,13 @@
         <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
             <div class="mb-6">
                 <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // BANCO DE DADOS NEON</p>
+                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // HIBRIDO</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
-                <button @click="authMode='login'" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
-                <button @click="authMode='register'" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
-                <button @click="authMode='reset'" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
+                <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
+                <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
+                <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
             </div>
             
             <div class="space-y-4">
@@ -525,12 +612,12 @@
                 </template>
 
                 <template x-if="authMode === 'register'">
-                    <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
+                    <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/50 text-yellow-500 placeholder-yellow-700">
                 </template>
 
                 <template x-if="authMode === 'reset'">
                     <div class="space-y-4">
-                        <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
+                        <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/50 text-yellow-500 placeholder-yellow-700">
                         <input x-model="authInput.newPass" type="password" placeholder="NOVA SENHA" class="input-cyber w-full p-3 text-center">
                     </div>
                 </template>
@@ -580,14 +667,22 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V15.0</p>
+                <p class="text-[10px] text-gray-500 font-code">V16.0</p>
             </div>
         </div>
         <div class="flex gap-3">
             <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">MODO OFFLINE</div>
-            <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair"><i class="fa-solid fa-power-off"></i></button>
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
-            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
+            <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
+                <i class="fa-solid fa-power-off"></i>
+            </button>
+
+            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            
+            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span>
+            </button>
         </div>
     </header>
 
