@@ -51,62 +51,85 @@ function zeniteSystem() {
         // ==========================================
         // INICIALIZAÇÃO E AUTH
         // ==========================================
-        async initSystem() {
-            // Verifica sessão existente ou retorno do Google
-            const { data: { session } } = await supabase.auth.getSession();
+// ... (mantenha as variáveis lá de cima iguais)
 
-            if (this.isGuest) {
-                this.loadLocalData('zenite_guest_db');
-                this.notify('Modo Offline Ativo', 'warn');
-            } else if (session) {
+// Dentro de zeniteSystem() { ...
+
+    async initSystem() {
+        // 1. Ouve mudanças de estado (Login/Logout) EM TEMPO REAL
+        // Isso precisa ser configurado ANTES de checar a sessão
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
                 this.user = session.user;
+                this.isGuest = false;
+                localStorage.removeItem('zenite_is_guest');
+                
+                // Limpa a URL feia (#access_token=...) sem recarregar a página
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
                 await this.fetchData();
+                this.notify('Conectado: ' + this.user.email, 'success');
+            } else if (event === 'SIGNED_OUT') {
+                this.user = null;
+                this.chars = {};
+                this.char = null;
             }
+        });
 
-            // Monitora Login/Logout em tempo real
-            supabase.auth.onAuthStateChange((event, session) => {
-                if (event === 'SIGNED_IN' && session) {
-                    this.user = session.user;
-                    this.isGuest = false;
-                    localStorage.removeItem('zenite_is_guest');
-                    this.fetchData();
-                    this.notify('Conectado: ' + this.user.email, 'success');
-                } else if (event === 'SIGNED_OUT') {
-                    this.user = null;
-                    this.chars = {};
+        // 2. Verifica se já existe uma sessão ativa ou se veio do Google
+        // O supabase.auth.getSession() pega o token da URL automaticamente
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (this.isGuest) {
+            this.loadLocalData('zenite_guest_db');
+            this.notify('Modo Offline Ativo', 'warn');
+        } else if (session) {
+            // Se o getSession achou algo (seja no cache ou na URL), define o user
+            this.user = session.user;
+            await this.fetchData();
+            
+            // Limpa URL se tiver hash sobrando
+            if(window.location.hash && window.location.hash.includes('access_token')) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+
+        // 3. Auto-Save e Auto-Sync (Mantido)
+        this.$watch('char', (val) => {
+            if (val && this.activeCharId) {
+                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
+                const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                localStorage.setItem(key, JSON.stringify(this.chars));
+                if (!this.isGuest) this.unsavedChanges = true;
+                if(this.activeTab === 'profile') this.updateRadarChart();
+            }
+        }, { deep: true });
+
+        setInterval(() => {
+            if (this.user && this.unsavedChanges) this.syncCloud(true);
+        }, 30000);
+    },
+
+    async doGoogleAuth() {
+        try {
+            this.authLoading = true;
+            // Pega a URL exata onde você está (localhost ou vercel)
+            const redirectUrl = window.location.origin; 
+            
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: redirectUrl // Garante que volta para o lugar certo
                 }
             });
+            if (error) throw error;
+        } catch (e) {
+            this.notify('Erro Google: ' + e.message, 'error');
+            this.authLoading = false;
+        }
+    },
 
-            // Auto-Save Local (Cache)
-            this.$watch('char', (val) => {
-                if (val && this.activeCharId) {
-                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                    const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                    localStorage.setItem(key, JSON.stringify(this.chars));
-                    if (!this.isGuest) this.unsavedChanges = true;
-                    if(this.activeTab === 'profile') this.updateRadarChart();
-                }
-            }, { deep: true });
-
-            // Auto-Sync Nuvem (A cada 30s)
-            setInterval(() => {
-                if (this.user && this.unsavedChanges) this.syncCloud(true);
-            }, 30000);
-        },
-
-        async doGoogleAuth() {
-            try {
-                this.authLoading = true;
-                const { error } = await supabase.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: { redirectTo: window.location.origin }
-                });
-                if (error) throw error;
-            } catch (e) {
-                this.notify('Erro Google: ' + e.message, 'error');
-                this.authLoading = false;
-            }
-        },
+// ... (resto do código igual)
 
         async doAuth(action) {
             let email = this.authInput.email;
