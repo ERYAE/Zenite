@@ -91,509 +91,501 @@
         .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
     </style>
 
-    <script>
-        const MAX_AGENTS = 30;
-        const APP_VERSION = 'v12.1';
+<script>
+    const MAX_AGENTS = 30;
+    const APP_VERSION = 'v12.2';
 
-        // Define Global Function for Alpine x-data
-function zeniteSystem() {
-    return {
-       // --- AUTH STATE ---
-        authToken: localStorage.getItem('zenite_token') || null,
-        
-        // AQUI ESTÃO AS MUDANÇAS:
-        // 1. Atualizamos o authInput com 'key' e 'newPass'
-        authInput: { user: '', pass: '', key: '', newPass: '' }, 
-        
-        // 2. Adicionamos o authMode para controlar as abas (Login/Registro/Reset)
-        authMode: 'login', 
+    // Define Global Function for Alpine x-data
+    function zeniteSystem() {
+        return {
+            // --- AUTH STATE (ATUALIZADO) ---
+            authToken: localStorage.getItem('zenite_token') || null,
+            
+            // Variáveis novas para o Login/Registro/Recuperação
+            authInput: { user: '', pass: '', key: '', newPass: '' }, 
+            authMode: 'login', // Controla a aba: 'login', 'register' ou 'reset'
 
-        authLoading: false,
-        authMsg: '',
-        authMsgType: '',
+            authLoading: false,
+            authMsg: '',
+            authMsgType: '',
 
-        // --- APP STATE --- (o resto continua igual)
-        currentView: 'dashboard',
-        chars: {},
-        activeCharId: null,
-        char: null,
-        
-        // --- UI ---
-        activeTab: 'profile',
-        logisticsTab: 'inventory',
-        notifications: [],
-        configModal: false,
-        
-        // --- DICE ---
-        showDiceLog: false,
-        diceLog: [],
-        lastRoll: '--',
-        lastNatural: 0,
-        lastFaces: 0,
-        diceMod: 0,
+            // --- APP STATE ---
+            currentView: 'dashboard',
+            chars: {},
+            activeCharId: null,
+            char: null, 
+            
+            // --- UI ---
+            activeTab: 'profile',
+            logisticsTab: 'inventory',
+            notifications: [],
+            configModal: false,
+            
+            // --- DICE ---
+            showDiceLog: false,
+            diceLog: [],
+            lastRoll: '--',
+            lastNatural: 0,
+            lastFaces: 0,
+            diceMod: 0,
 
-        // --- WIZARD & EXTRAS ---
-        wizardOpen: false,
-        wizardStep: 1,
-        wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
-        wizardPoints: 8,
-        wizardFocusAttr: '',
-        cropperOpen: false,
-        cropperInstance: null,
-        agentCount: 0,
-        _saveTimer: null,
+            // --- WIZARD ---
+            wizardOpen: false,
+            wizardStep: 1,
+            wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+            wizardPoints: 8,
+            wizardFocusAttr: '',
 
-        archetypes: [
-            { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
-            { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
-            { class: 'Infiltrador', desc: 'Furtividade e precisão.', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500' },
-            { class: 'Controlador', desc: 'Manipulação de energia.', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500' },
-            { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
-        ],
+            // --- CROPPER ---
+            cropperOpen: false,
+            cropperInstance: null,
 
-        initSystem() {
-            if (this.authToken) {
-                this.fetchData();
-            }
-            this.$watch('char', (val) => {
-                if (val && this.currentView === 'sheet') {
-                    clearTimeout(this._saveTimer);
-                    this._saveTimer = setTimeout(() => {
-                        this.saveData(); // Agora salva no DB
-                        if(this.activeTab === 'profile') this.updateRadarChart();
-                    }, 1000); // Aumentei o delay para não floodar o servidor
+            // --- META ---
+            agentCount: 0,
+            _saveTimer: null,
+
+            // --- ARCHETYPES ---
+            archetypes: [
+                { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
+                { class: 'Estrategista', desc: 'Análise tática e liderança.', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500' },
+                { class: 'Infiltrador', desc: 'Furtividade e precisão.', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500' },
+                { class: 'Controlador', desc: 'Manipulação de energia.', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500' },
+                { class: 'Psíquico', desc: 'Domínio mental.', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500' }
+            ],
+
+            initSystem() {
+                if (this.authToken) {
+                    this.fetchData();
                 }
-            });
-        },
-
-        // --- AUTHENTICATION ---
-        async doAuth(action) {
-    // Validação básica simplificada
-    if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
-    
-    this.authLoading = true;
-    this.authMsg = 'Processando...';
-    
-    // Monta o corpo do envio dependendo da ação
-    let payload = { action, username: this.authInput.user };
-    
-    if (action === 'login') {
-        payload.password = this.authInput.pass;
-    } else if (action === 'register') {
-        payload.password = this.authInput.pass;
-        payload.recovery_key = this.authInput.key;
-    } else if (action === 'reset') {
-        payload.recovery_key = this.authInput.key;
-        payload.new_password = this.authInput.newPass;
-    }
-
-    try {
-        const req = await fetch('/api/auth', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        const res = await req.json();
-        
-        if (req.status !== 200) throw new Error(res.error || 'Erro.');
-
-        if (action === 'register') {
-            this.authMsg = 'Conta criada! Faça login.';
-            this.authMsgType = 'success';
-            this.authMode = 'login';
-        } else if (action === 'reset') {
-            this.authMsg = 'Senha trocada! Entre com a nova senha.';
-            this.authMsgType = 'success';
-            this.authMode = 'login';
-        } else {
-            // Login Success
-            this.authToken = res.token;
-            localStorage.setItem('zenite_token', res.token);
-            this.chars = res.data || {};
-            this.updateAgentCount();
-            this.authMsg = '';
-            // Limpa form
-            this.authInput = { user: '', pass: '', key: '', newPass: '' };
-        }
-    } catch (e) {
-        this.authMsg = e.message;
-        this.authMsgType = 'error';
-    } finally {
-        this.authLoading = false;
-    }
-},
-
-logout() {
-    if (confirm("Desconectar do sistema?")) {
-        // 1. Limpa o token da memória e do navegador
-        this.authToken = null;
-        localStorage.removeItem('zenite_token');
-
-        this.authInput = { user: '', pass: '', key: '', newPass: '' };
-        
-        // 2. Limpa os dados visuais para segurança
-        this.chars = {};
-        this.char = null;
-        this.activeCharId = null;
-        
-        // 3. Reseta a vista
-        this.currentView = 'dashboard';
-        this.notify('Sessão encerrada.', 'info');
-    }
-},
-
-        // --- DATA CORE (API) ---
-        async fetchData() {
-            try {
-                const req = await fetch('/api/data', {
-                    headers: { 'Authorization': `Bearer ${this.authToken}` }
+                this.$watch('char', (val) => {
+                    if (val && this.currentView === 'sheet') {
+                        clearTimeout(this._saveTimer);
+                        this._saveTimer = setTimeout(() => {
+                            this.saveData();
+                            if(this.activeTab === 'profile') this.updateRadarChart();
+                        }, 1000);
+                    }
                 });
-                if(req.status === 401) return this.logout(); // Token expirou
-                const data = await req.json();
-                this.chars = data || {};
-                this.updateAgentCount();
-            } catch(e) { console.error(e); this.notify('Erro de conexão', 'error'); }
-        },
+            },
 
-        async saveData() {
-            if (!this.authToken) return;
-            try {
-                // Atualiza o objeto principal antes de enviar
-                if (this.char && this.activeCharId) {
-                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
-                }
+            // --- AUTHENTICATION (ATUALIZADO) ---
+            async doAuth(action) {
+                // Validação simples
+                if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
                 
-                await fetch('/api/data', {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${this.authToken}`,
-                        'Content-Type': 'application/json'
+                this.authLoading = true;
+                this.authMsg = 'Processando...';
+                
+                // Monta os dados para enviar ao servidor
+                let payload = { action, username: this.authInput.user };
+                
+                if (action === 'login') {
+                    payload.password = this.authInput.pass;
+                } else if (action === 'register') {
+                    payload.password = this.authInput.pass;
+                    payload.recovery_key = this.authInput.key;
+                } else if (action === 'reset') {
+                    payload.recovery_key = this.authInput.key;
+                    payload.new_password = this.authInput.newPass;
+                }
+
+                try {
+                    const req = await fetch('/api/auth', {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+                    const res = await req.json();
+                    
+                    if (req.status !== 200) throw new Error(res.error || 'Erro.');
+
+                    if (action === 'register') {
+                        this.authMsg = 'Conta criada! Faça login.';
+                        this.authMsgType = 'success';
+                        this.authMode = 'login';
+                    } else if (action === 'reset') {
+                        this.authMsg = 'Senha trocada! Entre com a nova senha.';
+                        this.authMsgType = 'success';
+                        this.authMode = 'login';
+                    } else {
+                        // Login com Sucesso
+                        this.authToken = res.token;
+                        localStorage.setItem('zenite_token', res.token);
+                        this.chars = res.data || {};
+                        this.updateAgentCount();
+                        this.authMsg = '';
+                        // Limpa campos
+                        this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                    }
+                } catch (e) {
+                    this.authMsg = e.message;
+                    this.authMsgType = 'error';
+                } finally {
+                    this.authLoading = false;
+                }
+            },
+
+            logout() {
+                if (confirm("Desconectar do sistema?")) {
+                    this.authToken = null;
+                    localStorage.removeItem('zenite_token');
+                    
+                    // Limpa variáveis de autenticação e dados
+                    this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                    this.chars = {};
+                    this.char = null;
+                    this.activeCharId = null;
+                    
+                    this.currentView = 'dashboard';
+                    this.notify('Sessão encerrada.', 'info');
+                }
+            },
+
+            // --- DATA CORE ---
+            async fetchData() {
+                try {
+                    const req = await fetch('/api/data', {
+                        headers: { 'Authorization': `Bearer ${this.authToken}` }
+                    });
+                    if(req.status === 401) return this.logout();
+                    const data = await req.json();
+                    this.chars = data || {};
+                    this.updateAgentCount();
+                } catch(e) { console.error(e); this.notify('Erro de conexão', 'error'); }
+            },
+
+            async saveData() {
+                if (!this.authToken) return;
+                try {
+                    if (this.char && this.activeCharId) {
+                        this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                    }
+                    await fetch('/api/data', {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': `Bearer ${this.authToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ data: this.chars })
+                    });
+                    this.updateAgentCount();
+                } catch(e) {
+                    this.notify('Falha ao salvar na nuvem!', 'error');
+                }
+            },
+
+            updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+
+            loadCharacter(id) {
+                this.activeCharId = id;
+                this.char = JSON.parse(JSON.stringify(this.chars[id]));
+                
+                // Migrations
+                if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
+                if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
+                if(!this.char.skills) this.char.skills = [];
+                if(!this.char.powers.techniques) this.char.powers.techniques = [];
+                if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
+
+                this.currentView = 'sheet';
+                this.activeTab = 'profile';
+                setTimeout(() => this.updateRadarChart(), 100);
+            },
+
+            deleteCharacter(id) {
+                if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
+                    delete this.chars[id];
+                    this.saveData();
+                    this.updateAgentCount();
+                    this.notify('Agente eliminado.', 'success');
+                }
+            },
+
+            // --- LOGIC KERNEL (Level & Stats) ---
+            recalcDerivedStats() {
+                if(!this.char) return;
+                const c = this.char;
+                const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
+                c.level = lvl;
+
+                const getV = (v) => parseInt(v) || 0;
+                const FOR = getV(c.attrs.for);
+                const AGI = getV(c.attrs.agi);
+                const INT = getV(c.attrs.int);
+                const VON = getV(c.attrs.von);
+                const POD = getV(c.attrs.pod);
+
+                let maxPV = 0, maxPF = 0, maxPDF = 0;
+
+                if (c.class === 'Titã') {
+                    maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
+                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                    maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                } else if (c.class === 'Estrategista') {
+                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                    maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
+                    maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
+                } else if (c.class === 'Infiltrador') {
+                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                    maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
+                } else if (c.class === 'Controlador') {
+                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                    maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
+                    maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
+                } else if (c.class === 'Psíquico') {
+                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                    maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
+                    maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
+                } else {
+                    maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
+                    maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
+                    maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
+                }
+
+                c.stats.pv.max = Math.max(5, maxPV);
+                c.stats.pf.max = Math.max(5, maxPF);
+                c.stats.pdf.max = Math.max(5, maxPDF);
+            },
+
+            modStat(type, val) {
+                const stat = this.char.stats[type];
+                const oldVal = stat.current;
+                stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
+                
+                if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
+                if (stat.current > oldVal) this.triggerFX('heal');
+                this.saveData();
+            },
+
+            modAttr(key, val) {
+                const current = this.char.attrs[key];
+                if (val > 0 && current < 6) this.char.attrs[key]++;
+                if (val < 0 && current > -1) this.char.attrs[key]--;
+                
+                this.recalcDerivedStats();
+                this.updateRadarChart();
+            },
+
+            updateClassLogic() {
+                const arch = this.archetypes.find(a => a.class === this.char.class);
+                if (arch && this.char.attrs[arch.focus] < 0) {
+                    this.char.attrs[arch.focus] = 0;
+                    this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
+                }
+                this.recalcDerivedStats();
+                this.updateRadarChart();
+            },
+
+            triggerFX(type) {
+                const el = document.getElementById(type + '-overlay');
+                if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
+            },
+
+            // --- WIZARD ---
+            openWizard() {
+                if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+                this.wizardOpen = true;
+                this.wizardStep = 1;
+                this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+                this.wizardPoints = 8;
+            },
+
+            selectArchetype(arch) {
+                this.wizardData.class = arch.class;
+                this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
+                this.wizardFocusAttr = arch.focus;
+                this.wizardData.attrs[arch.focus] = 0;
+                this.wizardStep = 2;
+                this.wizardPoints = 8;
+                setTimeout(() => this.updateWizardChart(), 50);
+            },
+
+            modWizardAttr(key, val) {
+                const current = this.wizardData.attrs[key];
+                const isFocus = key === this.wizardFocusAttr;
+                const min = isFocus ? 0 : -1;
+                
+                if (val > 0) {
+                    if (this.wizardPoints > 0 && current < 3) {
+                        this.wizardData.attrs[key]++;
+                        this.wizardPoints--;
+                    }
+                } else {
+                    if (current > min) {
+                        this.wizardData.attrs[key]--;
+                        this.wizardPoints++;
+                    }
+                }
+                this.updateWizardChart();
+            },
+
+            finishWizard() {
+                const id = 'z_' + Date.now();
+                const tempChar = { 
+                    class: this.wizardData.class, 
+                    level: 1, 
+                    attrs: this.wizardData.attrs,
+                    stats: { pv:{}, pf:{}, pdf:{} }
+                };
+                
+                const oldChar = this.char;
+                this.char = tempChar;
+                this.recalcDerivedStats();
+                this.char = oldChar; 
+
+                const newChar = {
+                    id: id,
+                    name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
+                    stats: {
+                        pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
+                        pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
+                        pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
                     },
-                    body: JSON.stringify({ data: this.chars })
-                });
+                    attrs: {...this.wizardData.attrs},
+                    inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
+                    skills: [],
+                    powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
+                };
                 
-                this.updateAgentCount();
-                // Opcional: Notificar salvamento silencioso
-            } catch(e) {
-                this.notify('Falha ao salvar na nuvem!', 'error');
-            }
-        },
+                this.chars[id] = newChar;
+                this.saveData();
+                this.wizardOpen = false;
+                this.loadCharacter(id);
+                this.notify('Agente Inicializado.', 'success');
+            },
 
-        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-
-        loadCharacter(id) {
-            this.activeCharId = id;
-            this.char = JSON.parse(JSON.stringify(this.chars[id]));
-            
-            // Migrations e Inicialização de campos vazios
-            if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
-            if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
-            if(!this.char.skills) this.char.skills = [];
-            if(!this.char.powers.techniques) this.char.powers.techniques = [];
-            if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
-
-            this.currentView = 'sheet';
-            this.activeTab = 'profile';
-            setTimeout(() => this.updateRadarChart(), 100);
-        },
-
-        deleteCharacter(id) {
-            if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
-                delete this.chars[id];
-                this.saveData(); // Salva a deleção
-                this.updateAgentCount();
-                this.notify('Agente eliminado.', 'success');
-            }
-        },
-
-        // MANTENHA TODO O RESTO DO CÓDIGO (recalcDerivedStats, modStat, triggerFX, charts, cropper, etc...)
-        // Exatamente como estava no original daqui para baixo...
-        
-        recalcDerivedStats() {
-            if(!this.char) return;
-            const c = this.char;
-            const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
-            c.level = lvl;
-
-            const getV = (v) => parseInt(v) || 0;
-            const FOR = getV(c.attrs.for);
-            const AGI = getV(c.attrs.agi);
-            const INT = getV(c.attrs.int);
-            const VON = getV(c.attrs.von);
-            const POD = getV(c.attrs.pod);
-
-            let maxPV = 0, maxPF = 0, maxPDF = 0;
-
-            if (c.class === 'Titã') {
-                maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
-                maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-            } else if (c.class === 'Estrategista') {
-                maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
-                maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
-            } else if (c.class === 'Infiltrador') {
-                maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
-            } else if (c.class === 'Controlador') {
-                maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
-            } else if (c.class === 'Psíquico') {
-                maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
-                maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
-            } else {
-                maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
-                maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-            }
-
-            c.stats.pv.max = Math.max(5, maxPV);
-            c.stats.pf.max = Math.max(5, maxPF);
-            c.stats.pdf.max = Math.max(5, maxPDF);
-        },
-
-        modStat(type, val) {
-            const stat = this.char.stats[type];
-            const oldVal = stat.current;
-            stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
-            
-            if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
-            if (stat.current > oldVal) this.triggerFX('heal');
-            this.saveData(); // Salva alteração
-        },
-
-        modAttr(key, val) {
-            const current = this.char.attrs[key];
-            if (val > 0 && current < 6) this.char.attrs[key]++;
-            if (val < 0 && current > -1) this.char.attrs[key]--;
-            
-            this.recalcDerivedStats();
-            this.updateRadarChart();
-        },
-
-        updateClassLogic() {
-            const arch = this.archetypes.find(a => a.class === this.char.class);
-            if (arch && this.char.attrs[arch.focus] < 0) {
-                this.char.attrs[arch.focus] = 0;
-                this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
-            }
-            this.recalcDerivedStats();
-            this.updateRadarChart();
-        },
-
-        triggerFX(type) {
-            const el = document.getElementById(type + '-overlay');
-            if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
-        },
-
-        // --- WIZARD ---
-        openWizard() {
-            if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
-            this.wizardOpen = true;
-            this.wizardStep = 1;
-            this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
-            this.wizardPoints = 8;
-        },
-
-        selectArchetype(arch) {
-            this.wizardData.class = arch.class;
-            this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
-            this.wizardFocusAttr = arch.focus;
-            this.wizardData.attrs[arch.focus] = 0;
-            this.wizardStep = 2;
-            this.wizardPoints = 8;
-            setTimeout(() => this.updateWizardChart(), 50);
-        },
-
-        modWizardAttr(key, val) {
-            const current = this.wizardData.attrs[key];
-            const isFocus = key === this.wizardFocusAttr;
-            const min = isFocus ? 0 : -1;
-            
-            if (val > 0) {
-                if (this.wizardPoints > 0 && current < 3) {
-                    this.wizardData.attrs[key]++;
-                    this.wizardPoints--;
+            // --- INVENTORY & LISTS ---
+            addItem(cat) {
+                const defs = {
+                    weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
+                    armor: { name: 'Traje', def: '1', pen: '0' },
+                    gear: { name: 'Item', desc: '', qty: 1 },
+                    social_people: { name: 'Nome', role: 'Relação' },
+                    social_objects: { name: 'Objeto', desc: 'Detalhes' }
+                };
+                if(cat.startsWith('social_')) {
+                    this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
+                } else {
+                    this.char.inventory[cat].push({...defs[cat]});
                 }
-            } else {
-                if (current > min) {
-                    this.wizardData.attrs[key]--;
-                    this.wizardPoints++;
-                }
-            }
-            this.updateWizardChart();
-        },
+                this.saveData();
+            },
+            deleteItem(cat, idx, subcat=null) {
+                if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
+                else this.char.inventory[cat].splice(idx, 1);
+                this.saveData();
+            },
 
-        finishWizard() {
-            const id = 'z_' + Date.now();
-            const tempChar = { 
-                class: this.wizardData.class, 
-                level: 1, 
-                attrs: this.wizardData.attrs,
-                stats: { pv:{}, pf:{}, pdf:{} }
-            };
-            
-            const oldChar = this.char;
-            this.char = tempChar;
-            this.recalcDerivedStats();
-            this.char = oldChar; 
+            // --- SKILLS ---
+            addSkill() {
+                this.char.skills.push({ name: 'Nova Perícia', level: 1 });
+                this.saveData();
+            },
+            deleteSkill(idx) {
+                this.char.skills.splice(idx, 1);
+                this.saveData();
+            },
+            setSkillLevel(idx, lvl) {
+                this.char.skills[idx].level = lvl;
+                this.saveData();
+            },
 
-            const newChar = {
-                id: id,
-                name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
-                stats: {
-                    pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
-                    pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
-                    pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
-                },
-                attrs: {...this.wizardData.attrs},
-                inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                skills: [],
-                powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
-            };
-            
-            this.chars[id] = newChar;
-            this.saveData(); // Salva novo char
-            this.wizardOpen = false;
-            this.loadCharacter(id);
-            this.notify('Agente Inicializado.', 'success');
-        },
+            // --- TECHNIQUES ---
+            addTechnique() {
+                this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
+                this.saveData();
+            },
+            deleteTechnique(idx) {
+                this.char.powers.techniques.splice(idx, 1);
+                this.saveData();
+            },
 
-        // --- INVENTORY & LISTS ---
-        addItem(cat) {
-            const defs = {
-                weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
-                armor: { name: 'Traje', def: '1', pen: '0' },
-                gear: { name: 'Item', desc: '', qty: 1 },
-                social_people: { name: 'Nome', role: 'Relação' },
-                social_objects: { name: 'Objeto', desc: 'Detalhes' }
-            };
-            if(cat.startsWith('social_')) {
-                this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
-            } else {
-                this.char.inventory[cat].push({...defs[cat]});
-            }
-            this.saveData();
-        },
-        deleteItem(cat, idx, subcat=null) {
-            if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
-            else this.char.inventory[cat].splice(idx, 1);
-            this.saveData();
-        },
-
-        // --- SKILLS ---
-        addSkill() {
-            this.char.skills.push({ name: 'Nova Perícia', level: 1 });
-            this.saveData();
-        },
-        deleteSkill(idx) {
-            this.char.skills.splice(idx, 1);
-            this.saveData();
-        },
-        setSkillLevel(idx, lvl) {
-            this.char.skills[idx].level = lvl;
-            this.saveData();
-        },
-
-        // --- TECHNIQUES ---
-        addTechnique() {
-            this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
-            this.saveData();
-        },
-        deleteTechnique(idx) {
-            this.char.powers.techniques.splice(idx, 1);
-            this.saveData();
-        },
-
-        // --- CHARTS ---
-        renderChart(id, attrs, color) {
-            const ctx = document.getElementById(id);
-            if (!ctx) return;
-            const data = [attrs.for, attrs.agi, attrs.int, attrs.von, attrs.pod];
-            if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.update(); return; }
-            ctx.chart = new Chart(ctx, {
-                type: 'radar',
-                data: {
-                    labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
-                    datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        },
-        updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
-        updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
-
-        // --- RNG ---
-        roll(sides) {
-            const arr = new Uint32Array(1);
-            window.crypto.getRandomValues(arr);
-            const natural = (arr[0] % sides) + 1;
-            this.lastNatural = natural; this.lastFaces = sides;
-            this.lastRoll = natural + parseInt(this.diceMod || 0);
-            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
-            if(this.diceLog.length>8) this.diceLog.pop();
-        },
-
-        // --- CROPPER ---
-        openImageEditor() { document.getElementById('file-input').click(); },
-        initCropper(e) {
-            const file = e.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                document.getElementById('crop-target').src = evt.target.result;
-                this.cropperOpen = true;
-                this.$nextTick(() => {
-                    if(this.cropperInstance) this.cropperInstance.destroy();
-                    this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+            // --- CHARTS ---
+            renderChart(id, attrs, color) {
+                const ctx = document.getElementById(id);
+                if (!ctx) return;
+                const data = [attrs.for, attrs.agi, attrs.int, attrs.von, attrs.pod];
+                if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.update(); return; }
+                ctx.chart = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
+                        datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
+                        plugins: { legend: { display: false } }
+                    }
                 });
-            };
-            reader.readAsDataURL(file);
-        },
-        applyCrop() {
-            if(!this.cropperInstance) return;
-            this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
-            this.cropperOpen = false;
-            this.saveData();
-            this.notify('Foto atualizada.', 'success');
-        },
+            },
+            updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
+            updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
 
-        // --- SYSTEM UTILS ---
-        notify(msg, type='info') {
-            const id = Date.now();
-            this.notifications.push({id, message: msg, type, dismissed: false});
-            setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
-        },
-        exportData() {
-            const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
-            const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
-        },
-        importData(e) {
-            const file = e.target.files[0]; if(!file) return;
-            const r = new FileReader();
-            r.onload = (evt) => {
-                try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
-                catch(err) { this.notify('Arquivo inválido.', 'error'); }
-            };
-            r.readAsText(file);
-        },
-        hardReset() {
-            if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
-               // Apenas limpa a view local, não deleta do banco para segurança, ou implemente uma rota de delete user
-               this.chars = {};
-               this.saveData();
-               this.notify('Dados limpos.', 'warn');
+            // --- RNG ---
+            roll(sides) {
+                const arr = new Uint32Array(1);
+                window.crypto.getRandomValues(arr);
+                const natural = (arr[0] % sides) + 1;
+                this.lastNatural = natural; this.lastFaces = sides;
+                this.lastRoll = natural + parseInt(this.diceMod || 0);
+                const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
+                if(this.diceLog.length>8) this.diceLog.pop();
+            },
+
+            // --- CROPPER ---
+            openImageEditor() { document.getElementById('file-input').click(); },
+            initCropper(e) {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    document.getElementById('crop-target').src = evt.target.result;
+                    this.cropperOpen = true;
+                    this.$nextTick(() => {
+                        if(this.cropperInstance) this.cropperInstance.destroy();
+                        this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+                    });
+                };
+                reader.readAsDataURL(file);
+            },
+            applyCrop() {
+                if(!this.cropperInstance) return;
+                this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
+                this.cropperOpen = false;
+                this.saveData();
+                this.notify('Foto atualizada.', 'success');
+            },
+
+            // --- SYSTEM UTILS ---
+            notify(msg, type='info') {
+                const id = Date.now();
+                this.notifications.push({id, message: msg, type, dismissed: false});
+                setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
+            },
+            exportData() {
+                const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
+                const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
+            },
+            importData(e) {
+                const file = e.target.files[0]; if(!file) return;
+                const r = new FileReader();
+                r.onload = (evt) => {
+                    try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
+                    catch(err) { this.notify('Arquivo inválido.', 'error'); }
+                };
+                r.readAsText(file);
+            },
+            hardReset() {
+                if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
+                   this.chars = {};
+                   this.saveData();
+                   this.notify('Dados limpos.', 'warn');
+                }
             }
         }
     }
-}
-    </script>
+</script>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
@@ -1112,6 +1104,7 @@ logout() {
 
 </body>
 </html>
+
 
 
 
