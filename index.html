@@ -19,66 +19,61 @@
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
-    <div x-show="!authToken" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
-            <div class="mb-6">
-                <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V17.2 MODULAR</p>
+    <div x-show="!user && !isGuest" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
+        <div class="mb-6">
+            <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
+            <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V18 SUPABASE</p>
+        </div>
+
+        <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
+            <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
+            <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
+            <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
+        </div>
+        
+        <div class="space-y-4">
+            <button @click="doGoogleAuth()" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors mb-4">
+                <i class="fa-brands fa-google text-red-600"></i> ENTRAR COM GOOGLE
+            </button>
+
+            <div class="relative flex items-center py-2">
+                <div class="flex-grow border-t border-gray-800"></div>
+                <span class="flex-shrink-0 mx-4 text-gray-600 text-[10px]">OU EMAIL</span>
+                <div class="flex-grow border-t border-gray-800"></div>
             </div>
 
-            <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
-                <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
-                <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
-                <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
+            <input x-model="authInput.email" type="text" placeholder="EMAIL" class="input-cyber w-full p-3 text-center uppercase">
+            
+            <template x-if="authMode === 'login' || authMode === 'register'">
+                <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
+            </template>
+
+            <div class="mt-6">
+                <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
+                    <span x-show="!authLoading">ENTRAR</span>
+                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                </button>
+
+                <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
+                    <span x-show="!authLoading">CRIAR CONTA</span>
+                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                </button>
+
+                <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
+                    <span x-show="!authLoading">ENVIAR EMAIL DE RESHEET</span>
+                    <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                </button>
+
+                <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
+                    ENTRAR COMO CONVIDADO (OFFLINE)
+                </button>
             </div>
             
-            <div class="space-y-4">
-                <input x-model="authInput.user" type="text" placeholder="USUÁRIO" class="input-cyber w-full p-3 text-center uppercase">
-                
-                <template x-if="authMode === 'login' || authMode === 'register'">
-                    <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
-                </template>
-
-                <template x-if="authMode === 'register'">
-                    <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/50 text-yellow-500 placeholder-yellow-700">
-                </template>
-
-                <template x-if="authMode === 'reset'">
-                    <div class="space-y-4">
-                        <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/50 text-yellow-500 placeholder-yellow-700">
-                        <input x-model="authInput.newPass" type="password" placeholder="NOVA SENHA" class="input-cyber w-full p-3 text-center">
-                    </div>
-                </template>
-                
-                <div class="mt-6">
-                    <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
-                        <span x-show="!authLoading">ENTRAR (ONLINE)</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-                    
-                    <button @click="doGoogleAuth()" class="w-full mb-3 py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
-                        <i class="fa-brands fa-google text-red-600"></i> ENTRAR COM GOOGLE
-                    </button>
-
-                    <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
-                        <span x-show="!authLoading">CRIAR CREDENCIAL</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-
-                    <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
-                        <span x-show="!authLoading">REDEFINIR SENHA</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-
-                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
-                        ENTRAR COMO CONVIDADO (OFFLINE)
-                    </button>
-                </div>
-                
-                <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
-            </div>
+            <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
         </div>
     </div>
+</div>
 
     <div id="damage-overlay"></div>
     <div id="heal-overlay"></div>
@@ -104,7 +99,7 @@
         </div>
         <div class="flex gap-3">
             <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">MODO OFFLINE</div>
-            <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair"><i class="fa-solid fa-power-off"></i></button>
+            <button x-show="user" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair"><i class="fa-solid fa-power-off"></i></button>
             <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
             <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
         </div>
