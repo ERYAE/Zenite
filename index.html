@@ -44,8 +44,14 @@
             </div>
             
             <div class="space-y-3">
-                <button @click="doSocialAuth('google')" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"><i class="fa-brands fa-google text-red-600"></i> GOOGLE</button>
-                <button @click="doSocialAuth('discord')" :disabled="authLoading" class="w-full py-3 bg-[#5865F2] text-white font-bold rounded flex items-center justify-center gap-2 hover:bg-[#4752C4] transition-colors"><i class="fa-brands fa-discord"></i> DISCORD</button>
+<button @click="doSocialAuth('google')" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors relative overflow-hidden">
+    <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-google text-red-600"></i> GOOGLE</div>
+    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> CONECTANDO...</div>
+</button>
+<button @click="doSocialAuth('discord')" :disabled="authLoading" class="w-full py-3 bg-[#5865F2] text-white font-bold rounded flex items-center justify-center gap-2 hover:bg-[#4752C4] transition-colors relative overflow-hidden">
+    <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-discord"></i> DISCORD</div>
+    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> CONECTANDO...</div>
+</button>
                 
                 <div class="relative flex items-center py-2"><div class="flex-grow border-t border-gray-800"></div><span class="flex-shrink-0 mx-4 text-gray-600 text-[10px]">OU</span><div class="flex-grow border-t border-gray-800"></div></div>
                 
