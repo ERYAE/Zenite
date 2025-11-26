@@ -90,9 +90,9 @@
         .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
     </style>
 
-    <script>
+        <script>
         const MAX_AGENTS = 30;
-        const APP_VERSION = 'v17.0-Debug';
+        const APP_VERSION = 'v17.1-FixedAuth';
 
         function zeniteSystem() {
             return {
@@ -149,7 +149,6 @@
                 ],
 
                 initSystem() {
-                    // 1. LOAD DATA
                     if (this.isGuest) {
                         this.loadLocalData('zenite_guest_db');
                         this.notify('Modo Offline Ativo', 'warn');
@@ -157,21 +156,17 @@
                         this.fetchData().catch(() => this.loadLocalData('zenite_cached_db'));
                     }
 
-                    // 2. AUTO-CLEAN & COUNT (FIX GHOST DATA)
                     this.sanitizeData();
 
-                    // 3. AUTO-SAVE LOCAL
                     this.$watch('char', (val) => {
                         if (val && this.activeCharId) {
-                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val)); // Deep copy to avoid ref issues
+                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                             localStorage.setItem(key, JSON.stringify(this.chars));
-                            
                             if(this.activeTab === 'profile') this.updateRadarChart();
                         }
                     }, { deep: true });
 
-                    // 4. REMINDER
                     setInterval(() => {
                         if (!this.isGuest && this.authToken) {
                             this.notify('⚠ Lembrete: Salve na Nuvem!', 'warn');
@@ -179,30 +174,21 @@
                     }, 300000);
                 },
 
-                // --- DATA HYGIENE ---
                 sanitizeData() {
-                    if (!this.chars || typeof this.chars !== 'object') {
-                        this.chars = {};
-                    }
-                    // Remove entradas nulas ou inválidas que causam o bug visual
+                    if (!this.chars || typeof this.chars !== 'object') this.chars = {};
                     Object.keys(this.chars).forEach(key => {
-                        if (!this.chars[key] || !this.chars[key].id) {
-                            delete this.chars[key];
-                        }
+                        if (!this.chars[key] || !this.chars[key].id) delete this.chars[key];
                     });
                     this.updateAgentCount();
                 },
 
-                updateAgentCount() { 
-                    this.agentCount = Object.keys(this.chars).length; 
-                },
+                updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
 
                 loadLocalData(key) {
                     const local = localStorage.getItem(key);
                     if(local) {
                         try { 
                             const parsed = JSON.parse(local);
-                            // Suporte para versões antigas que salvavam como Array
                             if (Array.isArray(parsed)) {
                                 this.chars = {};
                                 parsed.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
@@ -210,13 +196,10 @@
                                 this.chars = parsed || {};
                             }
                             this.sanitizeData();
-                        } catch(e) { 
-                            this.chars = {}; 
-                        }
+                        } catch(e) { this.chars = {}; }
                     }
                 },
 
-                // --- AUTHENTICATION ---
                 enterGuest() {
                     this.isGuest = true;
                     this.authToken = 'guest';
@@ -237,7 +220,12 @@
                     else if (action === 'reset') { payload.recovery_key = this.authInput.key; payload.new_password = this.authInput.newPass; }
 
                     try {
-                        const req = await fetch('/api/auth', { method: 'POST', body: JSON.stringify(payload) });
+                        // AQUI ESTÁ A CORREÇÃO: Headers adicionados
+                        const req = await fetch('/api/auth', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload) 
+                        });
                         const res = await req.json();
                         
                         if (req.status !== 200) throw new Error(res.error || 'Erro.');
@@ -247,14 +235,13 @@
                             this.authMsgType = 'success';
                             this.authMode = 'login';
                         } else {
-                            // LOGIN SUCCESS
                             this.isGuest = false;
                             localStorage.removeItem('zenite_is_guest');
                             this.authToken = res.token;
                             localStorage.setItem('zenite_token', res.token);
                             
                             this.chars = res.data || {};
-                            if(Array.isArray(this.chars)) { // Convert legacy array to object
+                            if(Array.isArray(this.chars)) {
                                 let temp = {}; this.chars.forEach(c => temp[c.id] = c); this.chars = temp;
                             }
                             
@@ -284,33 +271,29 @@
                     }
                 },
 
-                // --- CLOUD SYNC ---
                 async fetchData() {
                     try {
                         const req = await fetch('/api/data', { headers: { 'Authorization': `Bearer ${this.authToken}` } });
                         if(req.status === 401) return this.logout();
                         const data = await req.json();
                         
-                        // Handle legacy array format
                         if(Array.isArray(data)) {
                             this.chars = {};
                             data.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
                         } else {
                             this.chars = data || {};
                         }
-                        
                         localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
                         this.sanitizeData();
                     } catch(e) { console.error(e); }
                 },
 
                 async syncCloud() {
-                    if (this.isGuest) return this.notify('Modo Offline: Salvo no navegador.', 'info');
+                    if (this.isGuest) return this.notify('Modo Offline: Salvo localmente.', 'info');
                     if (!this.authToken) return;
 
                     this.notify('Sincronizando...', 'info');
                     try {
-                        // Force update current
                         if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
                         
                         await fetch('/api/data', {
@@ -324,17 +307,11 @@
                     }
                 },
 
-                // --- APP LOGIC ---
                 loadCharacter(id) {
-                    if (!this.chars[id]) {
-                        this.notify('Erro: Ficha corrompida ou deletada.', 'error');
-                        return;
-                    }
-                    
+                    if (!this.chars[id]) return this.notify('Erro: Ficha corrompida.', 'error');
                     this.activeCharId = id;
                     this.char = JSON.parse(JSON.stringify(this.chars[id]));
                     
-                    // MIGRATIONS (Ensure fields exist)
                     if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
                     if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
                     if(!this.char.inventory.armor) this.char.inventory.armor = [];
@@ -354,31 +331,25 @@
                 deleteCharacter(id) {
                     if (window.confirm('Excluir agente permanentemente?')) {
                         delete this.chars[id];
-                        this.sanitizeData(); // Re-count and clean
-                        
-                        // Save State
+                        this.sanitizeData();
                         const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                         localStorage.setItem(key, JSON.stringify(this.chars));
-                        
                         if(!this.isGuest) this.syncCloud();
                         this.notify('Agente eliminado.', 'success');
                     }
                 },
 
-                // --- STATS LOGIC (RESTORED) ---
                 recalcDerivedStats() {
                     if(!this.char) return;
                     const c = this.char;
                     const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
                     c.level = lvl;
-
                     const getV = (v) => parseInt(v) || 0;
                     const FOR = getV(c.attrs.for);
                     const AGI = getV(c.attrs.agi);
                     const INT = getV(c.attrs.int);
                     const VON = getV(c.attrs.von);
                     const POD = getV(c.attrs.pod);
-
                     let maxPV = 0, maxPF = 0, maxPDF = 0;
 
                     if (c.class === 'Titã') { maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1)); maxPF = (12 + POD) + ((2 + POD) * (lvl - 1)); maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1)); } 
@@ -421,7 +392,6 @@
                     if(el) { el.style.opacity = '0.4'; setTimeout(() => el.style.opacity = '0', 200); }
                 },
 
-                // --- WIZARD ---
                 openWizard() {
                     if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
                     this.wizardOpen = true;
@@ -459,22 +429,18 @@
                         },
                         attrs: {...this.wizardData.attrs},
                         inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                        skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
+                        skills: [], powers: { passive: '', active: '', trackName: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
                     };
                     
                     this.chars[id] = newChar;
-                    this.sanitizeData(); // Ensure it's added cleanly
-                    
-                    // Save Local
+                    this.sanitizeData();
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
-                    
                     this.wizardOpen = false;
                     this.loadCharacter(id);
                     this.notify('Agente Inicializado.', 'success');
                 },
 
-                // --- INVENTORY & LISTS (RESTORED V12 FIELDS) ---
                 addItem(cat) {
                     const defs = {
                         weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
@@ -494,14 +460,12 @@
                     else this.char.inventory[cat].splice(idx, 1);
                 },
 
-                // --- SKILLS & TECH ---
                 addSkill() { this.char.skills.push({ name: 'Nova Perícia', level: 1 }); },
                 deleteSkill(idx) { this.char.skills.splice(idx, 1); },
                 setSkillLevel(idx, lvl) { this.char.skills[idx].level = lvl; },
                 addTechnique() { this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' }); },
                 deleteTechnique(idx) { this.char.powers.techniques.splice(idx, 1); },
 
-                // --- CHARTS ---
                 renderChart(id, attrs, color) {
                     const ctx = document.getElementById(id);
                     if (!ctx) return;
@@ -523,7 +487,6 @@
                 updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
                 updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
 
-                // --- RNG ---
                 roll(sides) {
                     const arr = new Uint32Array(1);
                     window.crypto.getRandomValues(arr);
@@ -535,7 +498,6 @@
                     if(this.diceLog.length>8) this.diceLog.pop();
                 },
 
-                // --- CROPPER ---
                 openImageEditor() { document.getElementById('file-input').click(); },
                 initCropper(e) {
                     const file = e.target.files[0]; if (!file) return;
@@ -557,7 +519,6 @@
                     this.notify('Foto atualizada.', 'success');
                 },
 
-                // --- SYSTEM UTILS ---
                 notify(msg, type='info') {
                     const id = Date.now();
                     this.notifications.push({id, message: msg, type, dismissed: false});
@@ -572,23 +533,10 @@
                     const r = new FileReader();
                     r.onload = (evt) => {
                         try { 
-                            const parsed = JSON.parse(evt.target.result);
-                            // Support legacy array imports
-                            if (Array.isArray(parsed)) {
-                                this.chars = {};
-                                parsed.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
-                            } else {
-                                this.chars = parsed;
-                            }
-                            
+                            this.chars = JSON.parse(evt.target.result); 
                             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                             localStorage.setItem(key, JSON.stringify(this.chars));
-                            this.sanitizeData();
-                            
-                            this.notify('Backup restaurado.', 'success'); 
-                            this.configModal = false; 
-                            location.reload(); 
-                        } 
+                            this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
                         catch(err) { this.notify('Arquivo inválido.', 'error'); }
                     };
                     r.readAsText(file);
@@ -603,6 +551,7 @@
             }
         }
     </script>
+
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
