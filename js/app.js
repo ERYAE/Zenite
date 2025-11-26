@@ -6,7 +6,7 @@ const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v26.2-AntiFreeze';
+const APP_VERSION = 'v27.0-LogicFix';
 
 function zeniteSystem() {
     return {
@@ -46,70 +46,47 @@ function zeniteSystem() {
         ],
 
         // ============================================================
-        // 1. INICIALIZAÇÃO BLINDADA (ANTI-TRAVAMENTO)
+        // 1. INICIALIZAÇÃO BLINDADA (FIX LOOP)
         // ============================================================
         async initSystem() {
-            // TIMEOUT DE SEGURANÇA: Se travar por 7s, libera a tela
-            const safetyTimer = setTimeout(() => {
-                if (this.systemLoading) {
-                    this.systemLoading = false;
-                    this.notify('Conexão lenta. Verifique sua internet.', 'warn');
-                }
-            }, 7000);
+            // Cão de Guarda: Força o destravamento em 3s se algo falhar silenciosamente
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 3000);
 
-            try {
-                // 1. Verificar erros de OAuth na URL (Discord/Google falhou?)
-                const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                if (hashParams.has('error')) {
-                    const errorDesc = hashParams.get('error_description') || 'Erro desconhecido no login social.';
-                    this.notify(errorDesc.replace(/\+/g, ' '), 'error');
-                    history.replaceState(null, null, ' '); // Limpa URL
+            const isGuestStore = localStorage.getItem('zenite_is_guest') === 'true';
+            
+            if (isGuestStore) {
+                this.isGuest = true;
+                this.loadLocalData('zenite_guest_db');
+                this.sanitizeData();
+                this.systemLoading = false;
+            } else {
+                // Verifica Sessão
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    this.user = session.user;
+                    await this.fetchData();
                 }
-
-                // 2. Verifica modo Guest
-                const isGuestStore = localStorage.getItem('zenite_is_guest') === 'true';
-                
-                if (isGuestStore) {
-                    this.isGuest = true;
-                    this.loadLocalData('zenite_guest_db');
-                    this.sanitizeData();
-                } else {
-                    // 3. Verifica Sessão Supabase
-                    const { data: { session }, error } = await supabase.auth.getSession();
-                    if (error) throw error;
-
-                    if (session) {
-                        this.user = session.user;
-                        await this.fetchData();
-                    }
-                }
-            } catch (e) {
-                console.error("Init Error:", e);
-                // Não notifica erro trivial de "sem sessão", apenas libera a tela
-            } finally {
-                // GARANTIA: Remove o loader aconteça o que acontecer
-                clearTimeout(safetyTimer);
+                // CORREÇÃO CRÍTICA: Desliga o loader mesmo se não tiver sessão
                 this.systemLoading = false;
             }
 
-            // 4. Listeners de Auth (Para quando o redirecionamento completa)
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN' && session) {
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
                     await this.fetchData();
-                    this.systemLoading = false; // Garante liberação no login tardio
                     if(window.location.hash) history.replaceState(null, null, ' ');
                 } else if (event === 'SIGNED_OUT') {
                     this.user = null;
                     this.chars = {};
                     this.currentView = 'dashboard';
-                    this.systemLoading = false;
                 }
+                // Garante que o loader saia em eventos de auth tardios
+                this.systemLoading = false;
             });
 
-            // 5. Auto-Save Local (Watcher)
+            // Watcher: Auto-Save Local
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
@@ -124,11 +101,12 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // 6. Rotinas de Fundo
+            // Auto-Sync: A cada 60s tenta salvar se tiver mudanças
             setInterval(() => {
                 if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true);
             }, 60000);
 
+            // Lembrete Amigável (10 min)
             setInterval(() => {
                 if (this.currentView === 'sheet') {
                     if (!this.isGuest) this.notify('✨ Lembrete Mágico: Tudo salvo na nuvem?', 'info');
@@ -199,16 +177,9 @@ function zeniteSystem() {
         // ============================================================
         async doSocialAuth(provider) {
             this.authLoading = true;
-            this.systemLoading = true; // Cobre a tela
-            const { error } = await supabase.auth.signInWithOAuth({ 
-                provider, 
-                options: { redirectTo: window.location.origin } 
-            });
-            if (error) { 
-                this.notify(error.message, 'error'); 
-                this.authLoading = false; 
-                this.systemLoading = false; 
-            }
+            this.systemLoading = true; 
+            const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
+            if (error) { this.notify(error.message, 'error'); this.authLoading = false; this.systemLoading = false; }
         },
 
         async doAuth(action) {
@@ -250,16 +221,23 @@ function zeniteSystem() {
         askDeleteChar(id) { this.askConfirm('ELIMINAR AGENTE?', 'Ação irreversível.', 'danger', () => { delete this.chars[id]; this.sanitizeData(); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Agente Eliminado.', 'success'); }); },
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         
+        // --- LOAD CHARACTER (CORREÇÃO DE STATUS) ---
         loadCharacter(id) { 
             if (!this.chars[id]) return this.notify('Erro: Ficha inexistente.', 'error');
             this.activeCharId = id; 
             this.char = JSON.parse(JSON.stringify(this.chars[id]));
             
             if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
+            if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
+            if(!this.char.inventory.armor) this.char.inventory.armor = [];
+            if(!this.char.inventory.gear) this.char.inventory.gear = [];
+            if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
+
             if(!this.char.skills) this.char.skills = [];
             if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] };
+            if(!this.char.powers.techniques) this.char.powers.techniques = [];
             
-            // VITALIDADE FIX: Garante que current nunca seja null
+            // FIX VITALIDADE INVISÍVEL
             if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} };
             if(this.char.stats.pv.current == null) this.char.stats.pv.current = this.char.stats.pv.max || 10;
             if(this.char.stats.pf.current == null) this.char.stats.pf.current = this.char.stats.pf.max || 10;
@@ -274,7 +252,7 @@ function zeniteSystem() {
         confirmYes() { if (this.confirmAction) this.confirmAction(); this.confirmOpen = false; },
 
         // ============================================================
-        // 5. GAMEPLAY
+        // 5. GAMEPLAY & TOOLS
         // ============================================================
         recalcDerivedStats() { if(!this.char) return; const c = this.char; const lvl = Math.max(1, parseInt(c.level)||1); const getV = (v) => parseInt(v)||0; const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); c.stats.pv.max = Math.max(5, (12+FOR)+((2+FOR)*(lvl-1))); c.stats.pf.max = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); c.stats.pdf.max = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); },
         modStat(type, val) { if(!this.char) return; const s = this.char.stats[type]; const old = s.current; s.current = Math.min(Math.max(0, s.current + val), s.max); if(s.current < old && type==='pv') this.triggerFX('damage'); if(s.current > old) this.triggerFX('heal'); },
@@ -293,10 +271,33 @@ function zeniteSystem() {
         exportData() { const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click(); },
         importData(e) { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { try { this.chars = JSON.parse(evt.target.result); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } catch(err) { this.notify('Arquivo inválido.', 'error'); } }; r.readAsText(file); },
         
-        // WIZARD
         openWizard() { if (this.agentCount >= MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardOpen = true; this.wizardStep = 1; this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardPoints = 8; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardFocusAttr = a.focus; this.wizardData.attrs[a.focus] = 0; this.wizardStep = 2; this.wizardPoints = 8; setTimeout(()=>this.updateWizardChart(),50); },
         modWizardAttr(key, val) { const c = this.wizardData.attrs[key]; const isFocus = key === this.wizardFocusAttr; if (val > 0 && this.wizardPoints > 0 && c < 3) { this.wizardData.attrs[key]++; this.wizardPoints--; } if (val < 0 && c > (isFocus ? 0 : -1)) { this.wizardData.attrs[key]--; this.wizardPoints++; } this.updateWizardChart(); },
-        finishWizard() { const id = 'z_' + Date.now(); const newChar = { id, name: '', class: this.wizardData.class, level: 1, photo: '', credits: 0, stats: {pv:{current:10,max:10}, pf:{current:10,max:10}, pdf:{current:10,max:10}}, attrs: {...this.wizardData.attrs}, inventory: {weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]}}, skills:[], powers:{passive:'', active:'', techniques:[]} }; this.chars[id] = newChar; this.sanitizeData(); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.wizardOpen = false; this.loadCharacter(id); this.notify('Agente Inicializado.', 'success'); }
+        finishWizard() { 
+            const id = 'z_' + Date.now(); 
+            const tempChar = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs, stats: { pv:{}, pf:{}, pdf:{} } }; 
+            const oldChar = this.char; this.char = tempChar; this.recalcDerivedStats(); this.char = oldChar; 
+            
+            const maxPV = tempChar.stats.pv.max;
+            const maxPF = tempChar.stats.pf.max;
+            const maxPDF = tempChar.stats.pdf.max;
+
+            const newChar = { 
+                id: id, name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0, 
+                stats: { pv: { current: maxPV, max: maxPV }, pf: { current: maxPF, max: maxPF }, pdf: { current: maxPDF, max: maxPDF } }, 
+                attrs: {...this.wizardData.attrs}, 
+                inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} }, 
+                skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } 
+            }; 
+            this.chars[id] = newChar; 
+            this.sanitizeData(); 
+            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; 
+            localStorage.setItem(key, JSON.stringify(this.chars)); 
+            if(!this.isGuest) this.syncCloud(true); 
+            this.wizardOpen = false; 
+            this.loadCharacter(id); 
+            this.notify('Agente Inicializado.', 'success'); 
+        }
     }
 }
