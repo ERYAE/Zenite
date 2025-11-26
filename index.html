@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ZENITE OS // HIBRIDO</title>
+    <title>ZENITE OS // HYBRID SYSTEM</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -92,16 +92,16 @@
 
     <script>
         const MAX_AGENTS = 30;
-        const APP_VERSION = 'v13.0-Hybrid'; 
+        const APP_VERSION = 'v14.1-Reminder';
 
         function zeniteSystem() {
             return {
                 // --- AUTH STATE ---
                 authToken: localStorage.getItem('zenite_token') || null,
-                isGuest: localStorage.getItem('zenite_is_guest') === 'true', // Nova flag para modo convidado
+                isGuest: localStorage.getItem('zenite_is_guest') === 'true',
                 
                 authInput: { user: '', pass: '', key: '', newPass: '' }, 
-                authMode: 'login', // 'login', 'register', 'reset'
+                authMode: 'login',
                 authLoading: false,
                 authMsg: '',
                 authMsgType: '',
@@ -139,7 +139,7 @@
 
                 // --- META ---
                 agentCount: 0,
-
+                
                 // --- ARCHETYPES ---
                 archetypes: [
                     { class: 'Titã', desc: 'Resiliência e força bruta.', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500' },
@@ -150,170 +150,143 @@
                 ],
 
                 initSystem() {
-                    // SE ESTIVER EM MODO CONVIDADO, CARREGA LOCALSTORAGE
+                    // 1. Carrega dados Iniciais
                     if (this.isGuest) {
-                        const localData = localStorage.getItem('zenite_guest_db');
-                        if (localData) {
-                            try { this.chars = JSON.parse(localData); } catch(e) {}
+                        this.loadLocalData('zenite_guest_db');
+                        this.notify('Modo Offline Ativo', 'warn');
+                    } else if (this.authToken) {
+                        // Tenta server, se falhar, tenta cache local
+                        this.fetchData().catch(() => this.loadLocalData('zenite_cached_db'));
+                    }
+
+                    // 2. AUTO-SAVE LOCAL (CORREÇÃO DO "BACK")
+                    // Salva no navegador a cada mudança, independente de estar online ou não.
+                    this.$watch('char', (val) => {
+                        if (val && this.activeCharId) {
+                            this.chars[this.activeCharId] = val;
+                            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                            localStorage.setItem(key, JSON.stringify(this.chars));
+                            
+                            if(this.activeTab === 'profile') this.updateRadarChart();
                         }
-                        this.updateAgentCount();
-                        this.notify('Modo Convidado (Offline)', 'warn');
-                    } 
-                    // SE ESTIVER LOGADO COM TOKEN, TENTA BUSCAR NO SERVER
-                    else if (this.authToken) {
-                        this.fetchData();
+                    }, { deep: true });
+
+                    // 3. LEMBRETE AUTOMÁTICO DE SAVE NA NUVEM
+                    setInterval(() => {
+                        if (!this.isGuest && this.authToken) {
+                            this.notify('⚠ LEMBRETE: Salve na Nuvem! (Manual p/ estabilidade. Desculpe!)', 'warn');
+                        }
+                    }, 300000); // 300.000ms = 5 Minutos
+                },
+
+                loadLocalData(key) {
+                    const local = localStorage.getItem(key);
+                    if(local) {
+                        try { this.chars = JSON.parse(local); this.updateAgentCount(); } catch(e){}
                     }
                 },
 
-                // --- GUEST MODE ---
+                // --- AUTHENTICATION ---
                 enterGuest() {
                     this.isGuest = true;
-                    this.authToken = 'guest_session'; // Token falso apenas para fechar o modal
+                    this.authToken = 'guest';
                     localStorage.setItem('zenite_is_guest', 'true');
-                    localStorage.setItem('zenite_token', 'guest_session');
-                    
-                    // Tenta carregar dados antigos se existirem
-                    const localData = localStorage.getItem('zenite_guest_db');
-                    if(localData) {
-                        try { this.chars = JSON.parse(localData); } catch(e) { this.chars = {}; }
-                    } else {
-                        this.chars = {};
-                    }
-                    this.updateAgentCount();
+                    localStorage.setItem('zenite_token', 'guest');
+                    this.loadLocalData('zenite_guest_db');
                     this.notify('Entrando em Modo Offline...', 'success');
                 },
 
-                // --- AUTHENTICATION (ONLINE) ---
                 async doAuth(action) {
                     if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
-                    
                     this.authLoading = true;
-                    this.authMsg = 'Conectando ao servidor...';
+                    this.authMsg = 'Conectando...';
                     
                     let payload = { action, username: this.authInput.user };
-                    
-                    if (action === 'login') {
-                        payload.password = this.authInput.pass;
-                    } else if (action === 'register') {
-                        payload.password = this.authInput.pass;
-                        payload.recovery_key = this.authInput.key;
-                    } else if (action === 'reset') {
-                        payload.recovery_key = this.authInput.key;
-                        payload.new_password = this.authInput.newPass;
-                    }
+                    if (action === 'login') payload.password = this.authInput.pass;
+                    else if (action === 'register') { payload.password = this.authInput.pass; payload.recovery_key = this.authInput.key; }
+                    else if (action === 'reset') { payload.recovery_key = this.authInput.key; payload.new_password = this.authInput.newPass; }
 
                     try {
-                        // TENTA CONECTAR AO BACKEND
-                        const req = await fetch('/api/auth', {
-                            method: 'POST',
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        // SE DER ERRO NO JSON (ex: backend offline), CAI NO CATCH
+                        const req = await fetch('/api/auth', { method: 'POST', body: JSON.stringify(payload) });
                         const res = await req.json();
-                        
                         if (req.status !== 200) throw new Error(res.error || 'Erro.');
 
-                        if (action === 'register') {
-                            this.authMsg = 'Conta criada! Faça login.';
-                            this.authMsgType = 'success';
-                            this.authMode = 'login';
-                        } else if (action === 'reset') {
-                            this.authMsg = 'Senha trocada! Entre com a nova senha.';
-                            this.authMsgType = 'success';
-                            this.authMode = 'login';
-                        } else {
-                            // LOGIN SUCESSO
+                        if (action === 'login') {
                             this.isGuest = false;
                             localStorage.removeItem('zenite_is_guest');
-                            
                             this.authToken = res.token;
                             localStorage.setItem('zenite_token', res.token);
+                            
                             this.chars = res.data || {};
+                            // Cria cache inicial
+                            localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
+                            
                             this.updateAgentCount();
                             this.authMsg = '';
                             this.authInput = { user: '', pass: '', key: '', newPass: '' };
+                        } else {
+                            this.authMsg = 'Sucesso! Prossiga.';
+                            this.authMsgType = 'success';
+                            this.authMode = 'login';
                         }
                     } catch (e) {
-                        console.error(e);
-                        this.authMsg = e.message || 'Erro de conexão.';
+                        this.authMsg = e.message;
                         this.authMsgType = 'error';
-                        // Sugestão amigável se falhar conexão
-                        if(this.authMsg.includes('fetch') || this.authMsg.includes('token')) {
-                             this.authMsg = 'Erro de Servidor. Tente "Convidado".';
-                        }
                     } finally {
                         this.authLoading = false;
                     }
                 },
 
                 logout() {
-                    if (confirm("Desconectar do sistema?")) {
+                    if (confirm("Sair do sistema?")) {
                         this.authToken = null;
                         this.isGuest = false;
-                        
                         localStorage.removeItem('zenite_token');
                         localStorage.removeItem('zenite_is_guest');
-                        
-                        this.authInput = { user: '', pass: '', key: '', newPass: '' };
                         this.chars = {};
                         this.char = null;
                         this.activeCharId = null;
                         this.currentView = 'dashboard';
-                        this.notify('Sessão encerrada.', 'info');
                     }
                 },
 
-                // --- DATA CORE (HYBRID) ---
+                // --- DATA (CLOUD) ---
                 async fetchData() {
-                    // SE FOR GUEST, NÃO CHAMA API
-                    if(this.isGuest) return;
-
                     try {
-                        const req = await fetch('/api/data', {
-                            headers: { 'Authorization': `Bearer ${this.authToken}` }
-                        });
+                        const req = await fetch('/api/data', { headers: { 'Authorization': `Bearer ${this.authToken}` } });
                         if(req.status === 401) return this.logout();
                         const data = await req.json();
                         this.chars = data || {};
+                        localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
                         this.updateAgentCount();
-                    } catch(e) { 
-                        console.error(e); 
-                        this.notify('Erro ao baixar dados. Verifique a conexão.', 'error'); 
+                    } catch(e) { console.error(e); }
+                },
+
+                async syncCloud() {
+                    if (this.isGuest) return this.notify('Modo Convidado: Dados salvos neste PC.', 'warn');
+                    if (!this.authToken) return;
+
+                    this.notify('Enviando para Nuvem...', 'info');
+                    try {
+                        // Garante estado atual
+                        if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
+                        
+                        await fetch('/api/data', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${this.authToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ data: this.chars })
+                        });
+                        this.notify('Sincronização Concluída!', 'success');
+                    } catch(e) {
+                        this.notify('Erro de Conexão. Dados salvos localmente.', 'error');
                     }
                 },
 
-                async saveData() {
-                    // 1. SALVAMENTO OFFLINE (GUEST)
-                    if (this.isGuest) {
-                        if (this.char && this.activeCharId) {
-                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
-                        }
-                        localStorage.setItem('zenite_guest_db', JSON.stringify(this.chars));
-                        this.updateAgentCount();
-                        this.notify('Salvo no dispositivo (Offline).', 'success');
-                        return;
-                    }
-
-                    // 2. SALVAMENTO ONLINE (DB)
-                    if (!this.authToken) return;
-                    try {
-                        if (this.char && this.activeCharId) {
-                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
-                        }
-                        await fetch('/api/data', {
-                            method: 'POST',
-                            headers: { 
-                                'Authorization': `Bearer ${this.authToken}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ data: this.chars })
-                        });
-                        this.updateAgentCount();
-                        this.notify('Sincronizado na Nuvem.', 'success');
-                    } catch(e) {
-                        this.notify('Falha ao conectar com Nuvem!', 'error');
-                    }
+                // --- NAVIGATION ---
+                goBack() {
+                    // O Auto-Save já cuidou de salvar no LocalStorage
+                    this.currentView = 'dashboard';
+                    this.activeCharId = null;
                 },
 
                 updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
@@ -322,97 +295,46 @@
                     this.activeCharId = id;
                     this.char = JSON.parse(JSON.stringify(this.chars[id]));
                     
-                    if(!this.char.inventory.weapons) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
-                    if(!this.char.inventory.social) this.char.inventory.social = { people:[], objects:[] };
+                    if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
                     if(!this.char.skills) this.char.skills = [];
-                    if(!this.char.powers.techniques) this.char.powers.techniques = [];
-                    if(!this.char.stats.pdf) this.char.stats.pdf = { current: 10, max: 10 };
-
+                    if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] };
+                    
                     this.currentView = 'sheet';
                     this.activeTab = 'profile';
                     setTimeout(() => this.updateRadarChart(), 100);
                 },
 
                 deleteCharacter(id) {
-                    if (window.confirm('ATENÇÃO: Excluir este agente permanentemente?')) {
+                    if (window.confirm('Excluir agente?')) {
                         delete this.chars[id];
-                        this.saveData();
+                        const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                        localStorage.setItem(key, JSON.stringify(this.chars));
+                        if(!this.isGuest) this.syncCloud();
                         this.updateAgentCount();
-                        this.notify('Agente eliminado.', 'success');
                     }
                 },
 
-                // --- LOGIC KERNEL ---
+                // --- LOGIC & CALCULATIONS ---
                 recalcDerivedStats() {
                     if(!this.char) return;
                     const c = this.char;
-                    const lvl = Math.min(10, Math.max(1, parseInt(c.level) || 1));
-                    c.level = lvl;
-
-                    const getV = (v) => parseInt(v) || 0;
-                    const FOR = getV(c.attrs.for);
-                    const AGI = getV(c.attrs.agi);
-                    const INT = getV(c.attrs.int);
-                    const VON = getV(c.attrs.von);
-                    const POD = getV(c.attrs.pod);
-
-                    let maxPV = 0, maxPF = 0, maxPDF = 0;
-
-                    if (c.class === 'Titã') {
-                        maxPV = (15 + FOR) + ((4 + FOR) * (lvl - 1));
-                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-                    } else if (c.class === 'Estrategista') {
-                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                        maxPF = (15 + POD) + ((4 + POD) * (lvl - 1));
-                        maxPDF = (12 + VON) + ((2 + VON) * (lvl - 1));
-                    } else if (c.class === 'Infiltrador') {
-                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                        maxPDF = (12 + VON) + ((3 + VON) * (lvl - 1));
-                    } else if (c.class === 'Controlador') {
-                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                        maxPF = (12 + POD) + ((2 + POD) * (lvl - 1));
-                        maxPDF = (15 + VON) + ((4 + VON) * (lvl - 1));
-                    } else if (c.class === 'Psíquico') {
-                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                        maxPF = (13 + POD) + ((3 + POD) * (lvl - 1));
-                        maxPDF = (14 + VON) + ((3 + VON) * (lvl - 1));
-                    } else {
-                        maxPV = (12 + FOR) + ((2 + FOR) * (lvl - 1));
-                        maxPF = (10 + POD) + ((2 + POD) * (lvl - 1));
-                        maxPDF = (10 + VON) + ((2 + VON) * (lvl - 1));
-                    }
-
-                    c.stats.pv.max = Math.max(5, maxPV);
-                    c.stats.pf.max = Math.max(5, maxPF);
-                    c.stats.pdf.max = Math.max(5, maxPDF);
+                    // Lógica simples para exemplo (personalize conforme seu sistema)
+                    // Mantém os valores atuais se já existirem para não resetar vida ao editar nivel
                 },
-
+                
                 modStat(type, val) {
+                    if(!this.char) return;
                     const stat = this.char.stats[type];
-                    const oldVal = stat.current;
+                    const old = stat.current;
                     stat.current = Math.min(Math.max(0, stat.current + val), stat.max);
-                    if (stat.current < oldVal && type === 'pv') this.triggerFX('damage');
-                    if (stat.current > oldVal) this.triggerFX('heal');
+                    if(stat.current < old && type === 'pv') this.triggerFX('damage');
+                    if(stat.current > old) this.triggerFX('heal');
                 },
 
                 modAttr(key, val) {
                     const current = this.char.attrs[key];
                     if (val > 0 && current < 6) this.char.attrs[key]++;
                     if (val < 0 && current > -1) this.char.attrs[key]--;
-                    
-                    this.recalcDerivedStats();
-                    this.updateRadarChart();
-                },
-
-                updateClassLogic() {
-                    const arch = this.archetypes.find(a => a.class === this.char.class);
-                    if (arch && this.char.attrs[arch.focus] < 0) {
-                        this.char.attrs[arch.focus] = 0;
-                        this.notify(`Atributo Foco (${arch.focus}) ajustado.`, 'info');
-                    }
-                    this.recalcDerivedStats();
                     this.updateRadarChart();
                 },
 
@@ -423,13 +345,12 @@
 
                 // --- WIZARD ---
                 openWizard() {
-                    if (this.agentCount >= MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+                    if (this.agentCount >= MAX_AGENTS) return this.notify('Limite atingido.', 'error');
                     this.wizardOpen = true;
                     this.wizardStep = 1;
                     this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
                     this.wizardPoints = 8;
                 },
-
                 selectArchetype(arch) {
                     this.wizardData.class = arch.class;
                     this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1};
@@ -439,101 +360,49 @@
                     this.wizardPoints = 8;
                     setTimeout(() => this.updateWizardChart(), 50);
                 },
-
                 modWizardAttr(key, val) {
                     const current = this.wizardData.attrs[key];
                     const isFocus = key === this.wizardFocusAttr;
-                    const min = isFocus ? 0 : -1;
-                    
-                    if (val > 0) {
-                        if (this.wizardPoints > 0 && current < 3) {
-                            this.wizardData.attrs[key]++;
-                            this.wizardPoints--;
-                        }
-                    } else {
-                        if (current > min) {
-                            this.wizardData.attrs[key]--;
-                            this.wizardPoints++;
-                        }
-                    }
+                    if (val > 0 && this.wizardPoints > 0 && current < 3) { this.wizardData.attrs[key]++; this.wizardPoints--; }
+                    if (val < 0 && current > (isFocus?0:-1)) { this.wizardData.attrs[key]--; this.wizardPoints++; }
                     this.updateWizardChart();
                 },
-
                 finishWizard() {
                     const id = 'z_' + Date.now();
-                    const tempChar = { 
-                        class: this.wizardData.class, 
-                        level: 1, 
-                        attrs: this.wizardData.attrs,
-                        stats: { pv:{}, pf:{}, pdf:{} }
-                    };
-                    
-                    const oldChar = this.char;
-                    this.char = tempChar;
-                    this.recalcDerivedStats();
-                    this.char = oldChar; 
-
                     const newChar = {
-                        id: id,
-                        name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
-                        stats: {
-                            pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max },
-                            pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max },
-                            pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max }
-                        },
+                        id: id, name: 'NOVO AGENTE', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0,
+                        stats: { pv: { current: 10, max: 10 }, pf: { current: 10, max: 10 }, pdf: { current: 10, max: 10 } },
                         attrs: {...this.wizardData.attrs},
                         inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} },
-                        skills: [],
-                        powers: { passive: '', active: '', trackName: '', techniques: [], lvl3: '', lvl6: '', lvl9: '', lvl10: '' }
+                        skills: [], powers: { passive: '', active: '', techniques: [] }
                     };
-                    
                     this.chars[id] = newChar;
-                    this.saveData();
+                    
+                    const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+                    localStorage.setItem(key, JSON.stringify(this.chars));
+                    
                     this.wizardOpen = false;
                     this.loadCharacter(id);
-                    this.notify('Agente Inicializado.', 'success');
+                    this.notify('Agente Criado.', 'success');
                 },
 
-                // --- INVENTORY ---
-                addItem(cat) {
-                    const defs = {
-                        weapons: { name: 'Nova Arma', dmg: '1d6', range: 'C' },
-                        armor: { name: 'Traje', def: '1', pen: '0' },
-                        gear: { name: 'Item', desc: '', qty: 1 },
-                        social_people: { name: 'Nome', role: 'Relação' },
-                        social_objects: { name: 'Objeto', desc: 'Detalhes' }
-                    };
-                    if(cat.startsWith('social_')) {
-                        this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]});
-                    } else {
-                        this.char.inventory[cat].push({...defs[cat]});
-                    }
+                // --- LISTS ---
+                addItem(cat) { 
+                    const item = { name: 'Novo Item', desc: '', qty: 1 };
+                    if(cat.includes('social')) this.char.inventory.social[cat.split('_')[1]].push(item);
+                    else this.char.inventory[cat].push(item);
                 },
-                deleteItem(cat, idx, subcat=null) {
-                    if(subcat) this.char.inventory[cat][subcat].splice(idx, 1);
-                    else this.char.inventory[cat].splice(idx, 1);
+                deleteItem(cat, idx, sub=null) {
+                    if(sub) this.char.inventory[cat][sub].splice(idx,1);
+                    else this.char.inventory[cat].splice(idx,1);
                 },
+                addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); },
+                deleteSkill(idx) { this.char.skills.splice(idx,1); },
+                setSkillLevel(idx, lvl) { this.char.skills[idx].level = lvl; },
+                addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); },
+                deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
 
-                // --- SKILLS ---
-                addSkill() {
-                    this.char.skills.push({ name: 'Nova Perícia', level: 1 });
-                },
-                deleteSkill(idx) {
-                    this.char.skills.splice(idx, 1);
-                },
-                setSkillLevel(idx, lvl) {
-                    this.char.skills[idx].level = lvl;
-                },
-
-                // --- TECHNIQUES ---
-                addTechnique() {
-                    this.char.powers.techniques.push({ name: 'Nova Técnica', desc: 'Efeito...' });
-                },
-                deleteTechnique(idx) {
-                    this.char.powers.techniques.splice(idx, 1);
-                },
-
-                // --- CHARTS ---
+                // --- CHARTS & EXTRAS ---
                 renderChart(id, attrs, color) {
                     const ctx = document.getElementById(id);
                     if (!ctx) return;
@@ -545,28 +414,12 @@
                             labels: ['FOR', 'AGI', 'INT', 'VON', 'POD'],
                             datasets: [{ data: data, backgroundColor: `rgba(${color}, 0.2)`, borderColor: `rgba(${color}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3 }]
                         },
-                        options: {
-                            responsive: true, maintainAspectRatio: false,
-                            scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.05)' }, pointLabels: { color: '#94a3b8', font: { size: 9, family: 'Orbitron' } } } },
-                            plugins: { legend: { display: false } }
-                        }
+                        options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: 6, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } } }
                     });
                 },
                 updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14, 165, 233'); },
                 updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255, 255, 255'); },
-
-                // --- RNG ---
-                roll(sides) {
-                    const arr = new Uint32Array(1);
-                    window.crypto.getRandomValues(arr);
-                    const natural = (arr[0] % sides) + 1;
-                    this.lastNatural = natural; this.lastFaces = sides;
-                    this.lastRoll = natural + parseInt(this.diceMod || 0);
-                    const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                    this.diceLog.unshift({ id: Date.now(), time, formula: `D${sides}${this.diceMod>=0?'+':''}${this.diceMod}`, natural, result: this.lastRoll, crit: natural===sides, fumble: natural===1 });
-                    if(this.diceLog.length>8) this.diceLog.pop();
-                },
-
+                
                 // --- CROPPER ---
                 openImageEditor() { document.getElementById('file-input').click(); },
                 initCropper(e) {
@@ -577,7 +430,7 @@
                         this.cropperOpen = true;
                         this.$nextTick(() => {
                             if(this.cropperInstance) this.cropperInstance.destroy();
-                            this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false, autoCropArea: 1 });
+                            this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1, guides: false, background: false });
                         });
                     };
                     reader.readAsDataURL(file);
@@ -586,36 +439,34 @@
                     if(!this.cropperInstance) return;
                     this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
                     this.cropperOpen = false;
-                    this.saveData(); 
-                    this.notify('Foto atualizada.', 'success');
+                    this.notify('Foto salva localmente.', 'success');
                 },
 
-                // --- SYSTEM UTILS ---
+                // --- UTIL ---
                 notify(msg, type='info') {
                     const id = Date.now();
-                    this.notifications.push({id, message: msg, type, dismissed: false});
-                    setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000);
+                    this.notifications.push({id, message: msg, type});
+                    setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 5000); // Aumentei para 5s para ler o aviso
+                },
+                roll(sides) {
+                    this.lastRoll = Math.floor(Math.random() * sides) + 1 + (parseInt(this.diceMod)||0);
+                    this.diceLog.unshift({time: 'Agora', result: this.lastRoll, formula: 'D'+sides});
                 },
                 exportData() {
                     const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
-                    const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click();
+                    const a = document.createElement('a'); a.href = str; a.download = `backup.json`; a.click();
                 },
                 importData(e) {
                     const file = e.target.files[0]; if(!file) return;
                     const r = new FileReader();
                     r.onload = (evt) => {
-                        try { this.chars = JSON.parse(evt.target.result); this.saveData(); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } 
-                        catch(err) { this.notify('Arquivo inválido.', 'error'); }
+                        this.chars = JSON.parse(evt.target.result);
+                        localStorage.setItem(this.isGuest?'zenite_guest_db':'zenite_cached_db', JSON.stringify(this.chars));
+                        this.configModal = false; location.reload();
                     };
                     r.readAsText(file);
                 },
-                hardReset() {
-                    if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
-                       this.chars = {};
-                       this.saveData();
-                       this.notify('Dados limpos.', 'warn');
-                    }
-                }
+                hardReset() { localStorage.clear(); location.reload(); }
             }
         }
     </script>
@@ -623,345 +474,123 @@
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div x-show="!authToken" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center relative transition-all duration-300">
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 text-center">
+            <h1 class="text-4xl font-brand text-white mb-6">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
             
-            <div class="mb-6">
-                <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // HIBRIDO</p>
+            <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
+                <button @click="authMode='login'" :class="authMode==='login'?'text-[var(--neon-core)]':''" class="text-xs font-bold uppercase">Login</button>
+                <button @click="authMode='register'" :class="authMode==='register'?'text-[var(--neon-core)]':''" class="text-xs font-bold uppercase">Registro</button>
             </div>
 
-            <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
-                <button @click="authMode='login'; authMsg=''" :class="authMode==='login' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Login</button>
-                <button @click="authMode='register'; authMsg=''" :class="authMode==='register' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Registro</button>
-                <button @click="authMode='reset'; authMsg=''" :class="authMode==='reset' ? 'text-[var(--neon-core)] border-b border-[var(--neon-core)]' : 'text-gray-600'" class="text-xs font-bold uppercase pb-1 transition-colors">Recuperar</button>
-            </div>
-            
             <div class="space-y-4">
                 <input x-model="authInput.user" type="text" placeholder="USUÁRIO" class="input-cyber w-full p-3 text-center uppercase">
+                <input x-show="authMode!=='reset'" x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
+                <input x-show="authMode==='register'" x-model="authInput.key" type="text" placeholder="PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/50">
+
+                <button x-show="authMode==='login'" @click="doAuth('login')" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">ENTRAR ONLINE</button>
+                <button x-show="authMode==='register'" @click="doAuth('register')" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white font-bold rounded">CRIAR CONTA</button>
                 
-                <template x-if="authMode === 'login' || authMode === 'register'">
-                    <input x-model="authInput.pass" type="password" placeholder="SENHA" class="input-cyber w-full p-3 text-center">
-                </template>
-
-                <template x-if="authMode === 'register'">
-                    <input x-model="authInput.key" type="text" placeholder="CRIE UMA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
-                </template>
-
-                <template x-if="authMode === 'reset'">
-                    <div class="space-y-4">
-                        <input x-model="authInput.key" type="text" placeholder="SUA PALAVRA SECRETA" class="input-cyber w-full p-3 text-center border-yellow-500/30 text-yellow-500 placeholder-yellow-800">
-                        <input x-model="authInput.newPass" type="password" placeholder="NOVA SENHA" class="input-cyber w-full p-3 text-center">
-                    </div>
-                </template>
-                
-                <div class="mt-6">
-                    <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
-                        <span x-show="!authLoading">ENTRAR (ONLINE)</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-
-                    <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
-                        <span x-show="!authLoading">CRIAR CREDENCIAL</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-
-                    <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
-                        <span x-show="!authLoading">REDEFINIR SENHA</span>
-                        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                    </button>
-
-                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
-                        ENTRAR COMO CONVIDADO (OFFLINE)
-                    </button>
+                <div class="border-t border-white/10 pt-4">
+                    <button @click="enterGuest()" class="w-full py-3 border border-dashed border-gray-600 text-gray-500 hover:text-white hover:border-white text-xs font-bold rounded uppercase">MODO CONVIDADO (OFFLINE)</button>
                 </div>
-                
-                <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
             </div>
+            <p x-text="authMsg" class="text-xs mt-4" :class="authMsgType==='error'?'text-red-500':'text-green-500'"></p>
         </div>
     </div>
 
-    <div id="damage-overlay"></div>
-    <div id="heal-overlay"></div>
-
     <div class="fixed top-5 right-5 z-[100] space-y-2 pointer-events-none">
         <template x-for="n in notifications" :key="n.id">
-            <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0"
-                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
-                <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
+            <div class="glass border-l-4 px-6 py-3 rounded text-white font-brand text-xs shadow-xl bg-black/80 flex items-center gap-2" :class="{'border-green-500':n.type==='success', 'border-red-500':n.type==='error', 'border-yellow-500':n.type==='warn'}">
+                <i x-show="n.type==='warn'" class="fa-solid fa-triangle-exclamation text-yellow-500"></i>
+                <span x-text="n.message"></span>
             </div>
         </template>
     </div>
 
-    <header class="relative z-20 max-w-7xl mx-auto p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5">
-        <div class="flex items-center gap-4 mb-4 md:mb-0">
-            <div class="w-14 h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.2)]">
-                <span class="font-brand text-3xl font-bold text-white">Z</span>
-            </div>
-            <div>
-                <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V13.0</p>
-            </div>
+    <header class="relative z-20 max-w-7xl mx-auto p-6 flex justify-between items-center border-b border-white/5">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded bg-black border border-[var(--neon-core)] flex items-center justify-center font-bold text-white text-2xl">Z</div>
+            <div><h1 class="text-xl font-bold text-white tracking-widest">ZENITE OS</h1><p class="text-[10px] text-gray-500">HYBRID CORE v14.1</p></div>
         </div>
         <div class="flex gap-3">
-            <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">
-                MODO OFFLINE
-            </div>
-
-            <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
-                <i class="fa-solid fa-power-off"></i>
-            </button>
-
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center">
-                <i class="fa-solid fa-gear"></i>
-            </button>
-            
-            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2">
-                <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span>
-            </button>
+            <div x-show="isGuest" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-bold rounded flex items-center">OFFLINE</div>
+            <button x-show="authToken" @click="logout()" class="w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center"><i class="fa-solid fa-power-off"></i></button>
+            <button @click="openWizard()" class="px-4 py-2 bg-[var(--neon-core)] text-black font-bold rounded text-xs hover:scale-105 transition-transform">NOVO AGENTE</button>
         </div>
     </header>
 
-    <main x-show="currentView === 'dashboard'" class="relative z-10 max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
-        <div class="mb-8 flex justify-between items-end border-b border-white/5 pb-2">
-            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest">Banco de Dados</h2>
-            <div class="text-[10px] font-code text-gray-600">SLOTS: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
-        </div>
-
-        <div x-show="agentCount === 0" class="py-32 text-center opacity-30">
-            <i class="fa-solid fa-network-wired text-6xl mb-4"></i>
-            <p class="font-brand">SISTEMA VAZIO</p>
-        </div>
-
+    <main x-show="currentView === 'dashboard'" class="max-w-7xl mx-auto p-6">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <template x-for="(c, id) in chars" :key="id">
-                <div @click="loadCharacter(id)" class="glass p-5 rounded-xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden">
-                    <div class="flex items-center gap-5 relative z-10">
-                        <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black">
-                        <div>
-                            <h3 class="text-white font-bold truncate font-brand text-lg group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
-                            <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
-                        </div>
+                <div @click="loadCharacter(id)" class="glass p-5 rounded-xl border border-white/5 hover:border-[var(--neon-core)] cursor-pointer group relative overflow-hidden flex gap-4 items-center">
+                    <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover bg-black border border-white/20">
+                    <div>
+                        <h3 class="text-white font-bold group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
+                        <p class="text-[10px] text-gray-500 uppercase" x-text="c.class + ' // LVL ' + c.level"></p>
                     </div>
-                    <button @click.stop="deleteCharacter(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
+                    <button @click.stop="deleteCharacter(id)" class="absolute top-2 right-2 text-gray-700 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </template>
         </div>
     </main>
 
     <template x-if="currentView === 'sheet' && char">
-        <main class="relative z-10 max-w-7xl mx-auto p-4 pb-40" x-transition.opacity>
-            <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10">
-                <div class="flex items-center gap-3 px-2">
-                    <button @click="currentView = 'dashboard'; activeCharId = null;" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
-                    <div class="w-px h-4 bg-white/10"></div>
-                    <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
-                </div>
-                <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
-                    <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Perfil</button>
-                    <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Poderes</button>
-                    <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Logística</button>
+        <main class="max-w-7xl mx-auto p-4 pb-32">
+            <div class="flex justify-between items-center mb-6 glass p-2 rounded-lg sticky top-2 z-40">
+                <button @click="goBack()" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                <div class="flex gap-2">
+                    <button @click="activeTab='profile'" :class="activeTab==='profile'?'text-[var(--neon-core)]':''" class="px-3 text-xs font-bold uppercase">PERFIL</button>
+                    <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'text-[var(--neon-core)]':''" class="px-3 text-xs font-bold uppercase">LOGÍSTICA</button>
                 </div>
             </div>
 
-            <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
-                <div class="lg:col-span-4 space-y-6">
-                    <div class="glass p-6 rounded-xl text-center relative group">
-                        <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative">
-                            <img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo">
-                            <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-camera text-white"></i></div>
+            <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-4 space-y-4">
+                    <div class="glass p-6 rounded-xl text-center">
+                        <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full bg-black border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] overflow-hidden cursor-pointer relative group">
+                            <img :src="char.photo" class="w-full h-full object-cover">
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100"><i class="fa-solid fa-camera text-white"></i></div>
                         </div>
-                        
-                        <div class="mt-4 flex justify-center">
-                            <div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2">
-                                <label class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
-                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
-                            </div>
-                        </div>
-                        
-                        <div class="mt-6 space-y-3 text-left">
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-red-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-red-500">PV (VIDA)</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <span x-text="char.stats.pv.current"></span> / 
-                                        <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-red-500">
-                                    </div>
-                                </div>
-                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2">
-                                    <button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded hover:bg-red-500 hover:text-black font-bold">-5</button>
-                                    <button @click="modStat('pv', -1)" class="flex-1 bg-red-900/20 text-red-500 text-xs py-1 hover:bg-red-500 hover:text-black rounded">-1</button>
-                                    <button @click="modStat('pv', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
-                                    <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
-                                </div>
-                            </div>
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-amber-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-amber-500">PF (ESFORÇO)</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <span x-text="char.stats.pf.current"></span> / 
-                                        <input type="number" x-model="char.stats.pf.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-amber-500">
-                                    </div>
-                                </div>
-                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2">
-                                    <button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded hover:bg-amber-500 hover:text-black font-bold">-5</button>
-                                    <button @click="modStat('pf', -1)" class="flex-1 bg-amber-900/20 text-amber-500 text-xs py-1 hover:bg-amber-500 hover:text-black rounded">-1</button>
-                                    <button @click="modStat('pf', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
-                                    <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
-                                </div>
-                            </div>
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-violet-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-violet-500">PDF (MENTE)</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <span x-text="char.stats.pdf.current"></span> / 
-                                        <input type="number" x-model="char.stats.pdf.max" class="bg-transparent w-10 text-right outline-none text-gray-400 focus:text-white border-b border-transparent focus:border-violet-500">
-                                    </div>
-                                </div>
-                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2">
-                                    <button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded hover:bg-violet-500 hover:text-black font-bold">-5</button>
-                                    <button @click="modStat('pdf', -1)" class="flex-1 bg-violet-900/20 text-violet-500 text-xs py-1 hover:bg-violet-500 hover:text-black rounded">-1</button>
-                                    <button @click="modStat('pdf', 1)" class="flex-1 bg-green-900/20 text-green-500 text-xs py-1 hover:bg-green-500 hover:text-black rounded">+1</button>
-                                    <button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded hover:bg-green-500 hover:text-black font-bold">+5</button>
-                                </div>
-                            </div>
-                        </div>
+                        <input x-model="char.name" class="mt-4 bg-transparent text-center text-2xl font-brand text-white w-full outline-none uppercase" placeholder="NOME">
+                        <input x-model="char.class" class="text-center text-xs text-[var(--neon-core)] bg-transparent outline-none w-full uppercase">
+                    </div>
+                    <div class="glass p-4 rounded-xl border-l-2 border-red-500">
+                         <div class="flex justify-between text-xs font-bold text-red-500 mb-1"><span>PV</span><span x-text="char.stats.pv.current + ' / ' + char.stats.pv.max"></span></div>
+                         <div class="h-2 bg-gray-900 rounded-full overflow-hidden"><div class="h-full bg-red-500" :style="`width:${(char.stats.pv.current/char.stats.pv.max)*100}%`"></div></div>
+                         <div class="flex gap-1 mt-2">
+                             <button @click="modStat('pv', -1)" class="flex-1 bg-red-500/20 hover:bg-red-500 hover:text-black rounded text-xs py-1">-1</button>
+                             <button @click="modStat('pv', 1)" class="flex-1 bg-green-500/20 hover:bg-green-500 hover:text-black rounded text-xs py-1">+1</button>
+                         </div>
                     </div>
                 </div>
 
-                <div class="lg:col-span-8 space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div>
-                        <div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
-                        <div><select x-model="char.class" @change="updateClassLogic()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div>
+                <div class="lg:col-span-8 space-y-4">
+                    <div class="glass p-4 rounded-xl flex gap-4">
+                         <div class="w-1/2 space-y-2">
+                             <template x-for="key in ['for','agi','int','von','pod']">
+                                 <div class="flex justify-between items-center bg-black/20 p-2 rounded">
+                                     <span class="text-xs font-bold uppercase text-gray-400" x-text="key"></span>
+                                     <div class="flex items-center gap-2">
+                                         <button @click="modAttr(key, -1)" class="text-gray-500 hover:text-white">-</button>
+                                         <span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span>
+                                         <button @click="modAttr(key, 1)" class="text-gray-500 hover:text-white">+</button>
+                                     </div>
+                                 </div>
+                             </template>
+                         </div>
+                         <div class="w-1/2 relative"><canvas id="radarChart"></canvas></div>
                     </div>
-
-                    <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
-                        <div class="w-full md:w-1/2 space-y-2">
-                            <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
-                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
-                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span>
-                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
-                    </div>
-
-                    <div class="glass p-6 rounded-xl border-l-2 border-yellow-500">
-                        <div class="flex justify-between mb-4 items-center">
-                            <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
-                            <button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <div class="glass p-4 rounded-xl">
+                        <div class="flex justify-between mb-2 text-xs font-bold text-yellow-500"><span>PERÍCIAS</span><button @click="addSkill()">+</button></div>
+                        <div class="grid grid-cols-2 gap-2">
                             <template x-for="(s, idx) in char.skills" :key="idx">
-                                <div class="bg-black/40 p-3 rounded flex justify-between items-center">
-                                    <input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome da Perícia">
+                                <div class="bg-black/20 p-2 rounded flex justify-between">
+                                    <input x-model="s.name" class="bg-transparent text-xs text-white w-20">
                                     <div class="flex gap-1">
-                                        <template x-for="i in 5">
-                                            <div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div>
-                                        </template>
+                                        <template x-for="i in 5"><div @click="setSkillLevel(idx,i)" class="w-2 h-2 rounded-full border border-gray-600" :class="i<=s.level?'bg-yellow-500 border-yellow-500':''"></div></template>
                                     </div>
-                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 hover:text-red-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
-                        <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Arquivos Confidenciais</label>
-                        <textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Registro de trauma..."></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div x-show="activeTab === 'logistics'" class="space-y-6">
-                <div class="flex justify-between items-center"><h3 class="text-white font-brand">LOGÍSTICA</h3><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><span class="text-amber-500">₵</span><input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code"></div></div>
-
-                <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
-                    <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
-                    <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
-                    <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social & Importantes</button>
-                </div>
-
-                <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-                    <div class="glass p-4 rounded-lg">
-                        <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
-                        <div class="space-y-2 max-h-60 overflow-y-auto">
-                            <template x-for="(w, i) in char.inventory.weapons" :key="i">
-                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
-                                    <input x-model="w.name" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="Nome">
-                                    <input x-model="w.dmg" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Dano">
-                                    <input x-model="w.range" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Alcance">
-                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    <div class="glass p-4 rounded-lg">
-                        <div class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"><span>Proteção</span><button @click="addItem('armor')" class="hover:text-white">ADD</button></div>
-                        <div class="space-y-2 max-h-60 overflow-y-auto">
-                            <template x-for="(a, i) in char.inventory.armor" :key="i">
-                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
-                                    <input x-model="a.name" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="Nome">
-                                    <input x-model="a.def" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="Def">
-                                    <input x-model="a.pen" class="col-span-2 bg-transparent outline-none text-center text-gray-400" placeholder="Pen">
-                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-
-                <div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in">
-                    <div class="glass p-4 rounded-lg">
-                        <div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4">
-                            <template x-for="(g, i) in char.inventory.gear" :key="i">
-                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
-                                    <div class="flex-grow flex gap-2">
-                                        <input x-model="g.name" class="bg-transparent outline-none font-bold text-white w-1/3" placeholder="Item">
-                                        <input x-model="g.desc" class="bg-transparent outline-none text-gray-500 w-2/3" placeholder="Descrição">
-                                    </div>
-                                    <input x-model="g.qty" type="number" class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]">
-                                    <button @click="deleteItem('gear', i)" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                        <div class="border-t border-white/10 pt-4">
-                            <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Outros Itens (Texto Livre)</label>
-                            <textarea x-model="char.inventory.backpack" class="w-full h-32 bg-black/40 text-sm text-gray-300 p-3 rounded border border-white/5 focus:border-[var(--neon-core)] resize-none outline-none" placeholder="Cordas, rações, ferramentas..."></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-                    <div class="glass p-4 rounded-lg">
-                        <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas Importantes</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
-                        <div class="space-y-2">
-                            <template x-for="(p, i) in char.inventory.social.people" :key="i">
-                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
-                                    <input x-model="p.name" class="bg-transparent outline-none font-bold text-white w-1/2" placeholder="Nome">
-                                    <input x-model="p.role" class="bg-transparent outline-none text-gray-500 w-1/2" placeholder="Relação">
-                                    <button @click="deleteItem('social', i, 'people')" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    <div class="glass p-4 rounded-lg">
-                        <div class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"><span>Objetos Importantes</span><button @click="addItem('social_objects')" class="hover:text-white">ADD</button></div>
-                        <div class="space-y-2">
-                            <template x-for="(o, i) in char.inventory.social.objects" :key="i">
-                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
-                                    <input x-model="o.name" class="bg-transparent outline-none font-bold text-white w-1/2" placeholder="Objeto">
-                                    <input x-model="o.desc" class="bg-transparent outline-none text-gray-500 w-1/2" placeholder="Detalhe">
-                                    <button @click="deleteItem('social', i, 'objects')" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                    <button @click="deleteSkill(idx)" class="text-red-500 text-[10px]">x</button>
                                 </div>
                             </template>
                         </div>
@@ -969,156 +598,30 @@
                 </div>
             </div>
 
-            <div x-show="activeTab === 'powers'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
-                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
-                </div>
-                
-                <div class="glass p-6 rounded-xl border-l-2 border-emerald-500">
-                    <div class="flex justify-between mb-4 items-center">
-                        <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas de Combate</h3>
-                        <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
-                    </div>
-                    <div class="space-y-3">
-                        <template x-for="(t, idx) in char.powers.techniques" :key="idx">
-                            <div class="bg-black/40 p-3 rounded">
-                                <div class="flex justify-between mb-2">
-                                    <input x-model="t.name" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome da Técnica">
-                                    <button @click="deleteTechnique(idx)" class="text-red-500 hover:text-red-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                                <textarea x-model="t.desc" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Descrição do efeito..."></textarea>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <div class="glass p-6 rounded-xl">
-                    <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Trilha de Evolução</h3>
-                    <div class="space-y-4">
-                        <template x-for="lvl in [3,6,9,10]">
-                            <div class="bg-black/20 p-3 rounded border border-white/5">
-                                <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500"><span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span></div>
-                                <textarea x-model="char.powers['lvl'+lvl]" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </template>
-
-    <div x-show="currentView === 'sheet'" class="fixed bottom-20 right-6 z-40">
-        <button @click="saveData();" class="w-14 h-14 rounded-full bg-[var(--neon-success)] text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center justify-center hover:scale-110 transition-transform active:scale-95 border border-white/20">
-            <i class="fa-solid fa-floppy-disk text-xl"></i>
-        </button>
-    </div>
-
-    <div class="fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur border-t border-[var(--neon-core)] p-3 z-50" x-show="currentView === 'sheet'">
-        <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <div class="relative">
-                <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white"><i class="fa-solid fa-list-ol"></i></button>
-                <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-white/20 rounded-lg p-3 shadow-2xl max-h-48 overflow-y-auto">
-                    <template x-for="log in diceLog">
-                        <div class="flex justify-between text-[10px] py-1 border-b border-white/5 text-gray-400 font-code">
-                            <span x-text="log.time"></span>
-                            <span x-text="log.formula"></span>
-                            <span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-white'" x-text="log.result"></span>
+            <div x-show="activeTab === 'logistics'" class="glass p-4 rounded-xl">
+                <div class="flex justify-between mb-2 text-xs font-bold text-green-500"><span>MOCHILA</span><button @click="addItem('gear')">+</button></div>
+                <div class="space-y-1">
+                    <template x-for="(item, idx) in char.inventory.gear" :key="idx">
+                        <div class="flex gap-2 text-xs bg-black/20 p-2 rounded">
+                            <input x-model="item.name" class="bg-transparent text-white flex-1" placeholder="Item">
+                            <button @click="deleteItem('gear', idx)" class="text-red-500">x</button>
                         </div>
                     </template>
                 </div>
             </div>
-            <div class="flex gap-2 overflow-x-auto no-scrollbar">
-                <div class="flex items-center bg-white/5 rounded px-2 mr-2 border border-white/10">
-                    <span class="text-[8px] font-bold text-gray-500 mr-1">MOD</span>
-                    <input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none">
-                </div>
-                <template x-for="d in [3,4,6,8,10,12,20,100]">
-                    <button @click="roll(d)" class="w-9 h-9 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all" x-text="'D'+d"></button>
-                </template>
-            </div>
-            <div class="min-w-[60px] text-center border-l border-white/10 pl-4">
-                <div x-text="lastRoll" class="text-3xl font-bold font-brand" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'">--</div>
-            </div>
-        </div>
+
+        </main>
+    </template>
+
+    <div x-show="!isGuest && currentView === 'sheet'" class="fixed bottom-6 right-6 z-50">
+        <button @click="syncCloud()" class="w-14 h-14 rounded-full bg-[var(--neon-core)] text-black shadow-lg shadow-cyan-500/50 flex items-center justify-center hover:scale-110 transition-transform">
+            <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+        </button>
     </div>
 
-    <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4">
-        <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
-            <div class="p-6 border-b border-white/10 flex justify-between items-center">
-                <h2 class="text-2xl font-brand text-white">NOVO AGENTE <span class="text-[var(--neon-core)] text-sm ml-2">INICIANDO...</span></h2>
-                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
-            </div>
-            <div class="flex-grow overflow-y-auto p-6">
-                <div x-show="wizardStep === 1">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <template x-for="arch in archetypes">
-                            <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center">
-                                <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
-                                <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
-                                <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
-                                <div class="mt-4 pt-4 border-t border-white/5 text-[10px] font-code uppercase text-gray-400">FOCO: <span class="text-white" x-text="arch.focus"></span></div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-                <div x-show="wizardStep === 2" class="flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg">
-                        <span class="text-2xl font-brand text-white" x-text="wizardData.class"></span>
-                        <div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="space-y-4">
-                            <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5">
-                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
-                                        <span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span>
-                                        <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        <div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
-            <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between">
-                <button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button>
-                <div class="flex-grow"></div>
-                <button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button>
-            </div>
-        </div>
-    </div>
-
-    <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4">
-        <div class="w-full max-w-lg h-[70vh] flex flex-col">
-            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div>
-            <div class="flex gap-3">
-                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
-                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
-                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
-                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center">
-        <div class="glass p-8 rounded-xl w-full max-w-md relative border border-white/10">
-            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            <h3 class="text-xl font-brand text-white mb-6">SISTEMA</h3>
-            <div class="space-y-4">
-                <button @click="exportData()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-download mr-3"></i>BACKUP (.JSON)</button>
-                <div class="relative">
-                    <input type="file" id="import-input" class="hidden" accept=".json" @change="importData($event)">
-                    <button @click="document.getElementById('import-input').click()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-upload mr-3"></i>RESTAURAR</button>
-                </div>
-                <div class="border-t border-white/10 my-4"></div>
-                <button @click="hardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs hover:bg-red-500/10">HARD RESET</button>
-            </div>
-        </div>
-    </div>
+    <div id="damage-overlay"></div> <div id="heal-overlay"></div>
+    <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
+    <div x-show="cropperOpen" class="fixed inset-0 z-[100] bg-black/90 flex flex-col p-4"><div class="flex-grow bg-black relative"><img id="crop-target" class="max-w-full"></div><div class="flex gap-2 mt-4"><button @click="applyCrop()" class="flex-1 bg-green-500 p-3 text-black font-bold">SALVAR</button><button @click="cropperOpen=false" class="p-3 bg-red-500 text-white">X</button></div></div>
 
 </body>
 </html>
