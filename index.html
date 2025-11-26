@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
@@ -592,6 +593,11 @@
                         <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
                     </button>
 
+                    <button @click="doGoogleAuth()" class="w-full mb-3 btn-action py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-3 hover:bg-gray-200">
+                        <i class="fa-brands fa-google text-red-600"></i>
+                        <span>ENTRAR COM GOOGLE</span>
+                    </button>
+
                     <button x-show="authMode==='register'" @click="doAuth('register')" :disabled="authLoading" class="w-full btn-action py-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold rounded">
                         <span x-show="!authLoading">CRIAR CREDENCIAL</span>
                         <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
@@ -1045,3 +1051,4 @@
 
 </body>
 </html>
+
