@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ZENITE OS // FICHA DINÂMICA</title>
+    <title>ZENITE OS // HIBRIDO</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -92,12 +92,14 @@
 
     <script>
         const MAX_AGENTS = 30;
-        const APP_VERSION = 'v12.3'; // Manual Save Edition
+        const APP_VERSION = 'v13.0-Hybrid'; 
 
         function zeniteSystem() {
             return {
                 // --- AUTH STATE ---
                 authToken: localStorage.getItem('zenite_token') || null,
+                isGuest: localStorage.getItem('zenite_is_guest') === 'true', // Nova flag para modo convidado
+                
                 authInput: { user: '', pass: '', key: '', newPass: '' }, 
                 authMode: 'login', // 'login', 'register', 'reset'
                 authLoading: false,
@@ -148,18 +150,45 @@
                 ],
 
                 initSystem() {
-                    // MODO MANUAL: Sem watch automatico
-                    if (this.authToken) {
+                    // SE ESTIVER EM MODO CONVIDADO, CARREGA LOCALSTORAGE
+                    if (this.isGuest) {
+                        const localData = localStorage.getItem('zenite_guest_db');
+                        if (localData) {
+                            try { this.chars = JSON.parse(localData); } catch(e) {}
+                        }
+                        this.updateAgentCount();
+                        this.notify('Modo Convidado (Offline)', 'warn');
+                    } 
+                    // SE ESTIVER LOGADO COM TOKEN, TENTA BUSCAR NO SERVER
+                    else if (this.authToken) {
                         this.fetchData();
                     }
                 },
 
-                // --- AUTHENTICATION ---
+                // --- GUEST MODE ---
+                enterGuest() {
+                    this.isGuest = true;
+                    this.authToken = 'guest_session'; // Token falso apenas para fechar o modal
+                    localStorage.setItem('zenite_is_guest', 'true');
+                    localStorage.setItem('zenite_token', 'guest_session');
+                    
+                    // Tenta carregar dados antigos se existirem
+                    const localData = localStorage.getItem('zenite_guest_db');
+                    if(localData) {
+                        try { this.chars = JSON.parse(localData); } catch(e) { this.chars = {}; }
+                    } else {
+                        this.chars = {};
+                    }
+                    this.updateAgentCount();
+                    this.notify('Entrando em Modo Offline...', 'success');
+                },
+
+                // --- AUTHENTICATION (ONLINE) ---
                 async doAuth(action) {
                     if(!this.authInput.user) return this.authMsg = 'Falta usuário.';
                     
                     this.authLoading = true;
-                    this.authMsg = 'Processando...';
+                    this.authMsg = 'Conectando ao servidor...';
                     
                     let payload = { action, username: this.authInput.user };
                     
@@ -174,10 +203,13 @@
                     }
 
                     try {
+                        // TENTA CONECTAR AO BACKEND
                         const req = await fetch('/api/auth', {
                             method: 'POST',
                             body: JSON.stringify(payload)
                         });
+                        
+                        // SE DER ERRO NO JSON (ex: backend offline), CAI NO CATCH
                         const res = await req.json();
                         
                         if (req.status !== 200) throw new Error(res.error || 'Erro.');
@@ -191,6 +223,10 @@
                             this.authMsgType = 'success';
                             this.authMode = 'login';
                         } else {
+                            // LOGIN SUCESSO
+                            this.isGuest = false;
+                            localStorage.removeItem('zenite_is_guest');
+                            
                             this.authToken = res.token;
                             localStorage.setItem('zenite_token', res.token);
                             this.chars = res.data || {};
@@ -199,8 +235,13 @@
                             this.authInput = { user: '', pass: '', key: '', newPass: '' };
                         }
                     } catch (e) {
-                        this.authMsg = e.message;
+                        console.error(e);
+                        this.authMsg = e.message || 'Erro de conexão.';
                         this.authMsgType = 'error';
+                        // Sugestão amigável se falhar conexão
+                        if(this.authMsg.includes('fetch') || this.authMsg.includes('token')) {
+                             this.authMsg = 'Erro de Servidor. Tente "Convidado".';
+                        }
                     } finally {
                         this.authLoading = false;
                     }
@@ -209,7 +250,11 @@
                 logout() {
                     if (confirm("Desconectar do sistema?")) {
                         this.authToken = null;
+                        this.isGuest = false;
+                        
                         localStorage.removeItem('zenite_token');
+                        localStorage.removeItem('zenite_is_guest');
+                        
                         this.authInput = { user: '', pass: '', key: '', newPass: '' };
                         this.chars = {};
                         this.char = null;
@@ -219,8 +264,11 @@
                     }
                 },
 
-                // --- DATA CORE ---
+                // --- DATA CORE (HYBRID) ---
                 async fetchData() {
+                    // SE FOR GUEST, NÃO CHAMA API
+                    if(this.isGuest) return;
+
                     try {
                         const req = await fetch('/api/data', {
                             headers: { 'Authorization': `Bearer ${this.authToken}` }
@@ -229,10 +277,25 @@
                         const data = await req.json();
                         this.chars = data || {};
                         this.updateAgentCount();
-                    } catch(e) { console.error(e); this.notify('Erro de conexão', 'error'); }
+                    } catch(e) { 
+                        console.error(e); 
+                        this.notify('Erro ao baixar dados. Verifique a conexão.', 'error'); 
+                    }
                 },
 
                 async saveData() {
+                    // 1. SALVAMENTO OFFLINE (GUEST)
+                    if (this.isGuest) {
+                        if (this.char && this.activeCharId) {
+                            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                        }
+                        localStorage.setItem('zenite_guest_db', JSON.stringify(this.chars));
+                        this.updateAgentCount();
+                        this.notify('Salvo no dispositivo (Offline).', 'success');
+                        return;
+                    }
+
+                    // 2. SALVAMENTO ONLINE (DB)
                     if (!this.authToken) return;
                     try {
                         if (this.char && this.activeCharId) {
@@ -247,9 +310,9 @@
                             body: JSON.stringify({ data: this.chars })
                         });
                         this.updateAgentCount();
-                        this.notify('Dados salvos na nuvem.', 'success');
+                        this.notify('Sincronizado na Nuvem.', 'success');
                     } catch(e) {
-                        this.notify('Falha ao salvar!', 'error');
+                        this.notify('Falha ao conectar com Nuvem!', 'error');
                     }
                 },
 
@@ -523,7 +586,7 @@
                     if(!this.cropperInstance) return;
                     this.char.photo = this.cropperInstance.getCroppedCanvas({width: 300, height: 300}).toDataURL('image/jpeg', 0.8);
                     this.cropperOpen = false;
-                    this.saveData(); // Fotos ainda salvam automático pois são raras
+                    this.saveData(); 
                     this.notify('Foto atualizada.', 'success');
                 },
 
@@ -564,7 +627,7 @@
             
             <div class="mb-6">
                 <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // BANCO DE DADOS NEON</p>
+                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // HIBRIDO</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
@@ -593,7 +656,7 @@
                 
                 <div class="mt-6">
                     <button x-show="authMode==='login'" @click="doAuth('login')" :disabled="authLoading" class="w-full btn-action py-3 bg-[var(--neon-core)] text-black font-bold rounded">
-                        <span x-show="!authLoading">ENTRAR NO SISTEMA</span>
+                        <span x-show="!authLoading">ENTRAR (ONLINE)</span>
                         <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
                     </button>
 
@@ -605,6 +668,10 @@
                     <button x-show="authMode==='reset'" @click="doAuth('reset')" :disabled="authLoading" class="w-full btn-action py-3 bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 hover:bg-yellow-600/40 font-bold rounded">
                         <span x-show="!authLoading">REDEFINIR SENHA</span>
                         <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
+                    </button>
+
+                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
+                        ENTRAR COMO CONVIDADO (OFFLINE)
                     </button>
                 </div>
                 
@@ -619,7 +686,7 @@
     <div class="fixed top-5 right-5 z-[100] space-y-2 pointer-events-none">
         <template x-for="n in notifications" :key="n.id">
             <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0"
-                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info'}">
+                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
                 <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
             </div>
         </template>
@@ -632,10 +699,14 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V12.0</p>
+                <p class="text-[10px] text-gray-500 font-code">V13.0</p>
             </div>
         </div>
         <div class="flex gap-3">
+            <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">
+                MODO OFFLINE
+            </div>
+
             <button x-show="authToken" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair">
                 <i class="fa-solid fa-power-off"></i>
             </button>
