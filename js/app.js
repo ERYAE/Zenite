@@ -218,6 +218,23 @@ function zeniteSystem() {
             }
         },
 
+        async doDiscordAuth() {
+            try {
+            this.authLoading = true;
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'discord',
+                options: {
+                    redirectTo: window.location.origin,
+                    skipBrowserRedirect: false
+            }
+        });
+        if (error) throw error;
+    } catch (e) {
+        this.notify('Erro Discord: ' + e.message, 'error');
+        this.authLoading = false;
+    }
+},
+
         async doAuth(action) {
             let email = this.authInput.email;
             if (!email.includes('@')) email = email + '@zenite.os';
@@ -274,7 +291,8 @@ function zeniteSystem() {
             this.isGuest = true;
             localStorage.setItem('zenite_is_guest', 'true');
             this.loadLocalData('zenite_guest_db');
-            this.notify('Modo Offline.', 'success');
+            // Mudei a notificação para refletir o modo local
+            this.notify('Modo Offline: Dados salvos apenas neste dispositivo.', 'warn');
         },
 
         // ==========================================
@@ -541,7 +559,7 @@ function zeniteSystem() {
             r.readAsText(file);
         },
         hardReset() {
-            if (window.confirm('PERIGO: RESETAR O SISTEMA INTEIRO?')) {
+            if (window.confirm('PERIGO: DELETAR TUDO? Todos os dados locais serão perdidos. Isso não afeta fichas salvas na Nuvem.')) {
                 localStorage.removeItem('zenite_cached_db');
                 localStorage.removeItem('zenite_guest_db');
                 window.location.reload();

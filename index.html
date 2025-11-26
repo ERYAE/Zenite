@@ -20,6 +20,7 @@
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div x-show="!user && !isGuest" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
+
         <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
             <div class="mb-6">
                 <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
@@ -39,6 +40,10 @@
                     <div x-show="authLoading" class="flex items-center gap-2">
                         <i class="fa-solid fa-circle-notch fa-spin"></i> CONECTANDO...
                     </div>
+                </button>
+
+                <button @click="doDiscordAuth()" :disabled="authLoading" class="w-full py-3 bg-indigo-600 text-white font-bold rounded flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors mb-4">
+                    <i class="fa-brands fa-discord"></i> ENTRAR COM DISCORD
                 </button>
 
                 <div class="relative flex items-center py-2">
@@ -61,8 +66,9 @@
                         <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin"></i></span>
                     </button>
 
-                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider">
-                        MODO CONVIDADO (OFFLINE)
+                    <button @click="enterGuest()" class="w-full mt-3 py-3 border border-dashed border-gray-700 text-gray-500 text-xs font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider group">
+                    MODO CONVIDADO (OFFLINE)
+                    <span class="block text-[10px] normal-case text-yellow-500 mt-1">Dados não são sincronizados com a nuvem.</span>
                     </button>
                 </div>
                 
@@ -85,14 +91,15 @@
 
     <header class="relative z-20 max-w-7xl mx-auto p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5">
         <div class="flex items-center gap-4 mb-4 md:mb-0">
-            <div class="w-14 h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.2)]">
-                <span class="font-brand text-3xl font-bold text-white">Z</span>
+            <div class="w-14 h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.2)]" 
+             style="background-image: url('images/zenite_logo.svg'); background-size: cover; background-position: center;">
+            <span class="font-brand text-3xl font-bold text-white" x-show="!isGuest">Z</span> 
             </div>
-            <div>
-                <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V21.1</p>
-            </div>
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
+            <p class="text-[10px] text-gray-500 font-code">V21.4</p>
         </div>
+    </div>
         <div class="flex gap-3">
             <div x-show="isGuest" class="flex items-center text-[10px] font-bold text-yellow-500 border border-yellow-500/30 px-3 rounded bg-yellow-900/10 mr-2">OFFLINE</div>
             <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SALVANDO...</div>
@@ -487,13 +494,10 @@
             <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
             <h3 class="text-xl font-brand text-white mb-6">SISTEMA</h3>
             <div class="space-y-4">
-                <button @click="exportData()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-download mr-3"></i>BACKUP (.JSON)</button>
-                <div class="relative">
-                    <input type="file" id="import-input" class="hidden" accept=".json" @change="importData($event)">
-                    <button @click="document.getElementById('import-input').click()" class="w-full py-3 bg-white/5 border border-white/10 rounded text-xs hover:bg-white/10 text-left px-4"><i class="fa-solid fa-upload mr-3"></i>RESTAURAR</button>
-                </div>
+                <p class="text-xs text-gray-400">O sistema de backup é automático (Nuvem/Local). Este botão serve apenas para emergências (dados corrompidos) e **remove todas as fichas salvas neste navegador**.</p>
+                
                 <div class="border-t border-white/10 my-4"></div>
-                <button @click="hardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs hover:bg-red-500/10">HARD RESET</button>
+                <button @click="hardReset()" class="w-full py-3 border border-red-500/30 text-red-500 rounded text-xs font-bold hover:bg-red-500/10">DELETAR TUDO (LIMPAR CACHE LOCAL)</button>
             </div>
         </div>
     </div>
