@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ZENITE OS // V19 OPTIMIZED</title>
+    <title>ZENITE OS // V21.1 STABLE</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,86 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     
-    <script src="js/app.js"></script>
     <link rel="stylesheet" href="css/style.css">
-
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
-
-        :root {
-            --bg-void: #050507;
-            --glass-panel: rgba(20, 20, 25, 0.95);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --neon-core: #0ea5e9;
-            --neon-alert: #ef4444;
-            --neon-success: #10b981;
-            --neon-warn: #f59e0b;
-            --neon-purple: #d946ef;
-        }
-
-        [x-cloak] { display: none !important; }
-
-        body {
-            font-family: 'Rajdhani', sans-serif;
-            background-color: var(--bg-void);
-            color: #e2e8f0;
-            background-image: 
-                radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.05), transparent 70%),
-                linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-            background-size: 100% 100%, 40px 40px, 40px 40px;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* FX LAYERS */
-        #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
-        #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
-        #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
-
-        /* UI COMPONENTS */
-        .glass {
-            background: var(--glass-panel);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        .input-cyber {
-            background: rgba(0,0,0,0.5);
-            border: 1px solid var(--glass-border);
-            color: white;
-            transition: all 0.3s ease;
-            font-family: 'Rajdhani', sans-serif;
-        }
-        .input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); outline: none; }
-
-        .btn-action {
-            position: relative; overflow: hidden; transition: all 0.3s;
-            font-family: 'Orbitron', sans-serif; letter-spacing: 1px; text-transform: uppercase;
-        }
-        .btn-action:hover { filter: brightness(1.2); transform: translateY(-1px); }
-        .btn-action:active { transform: translateY(0); }
-
-        /* SCROLLBAR */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a0a; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
-
-        /* ANIMATIONS */
-        .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
-        .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
-        @keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-        
-        /* EXTRAS */
-        .cropper-view-box, .cropper-face { border-radius: 50%; }
-        .cropper-container { width: 100% !important; height: 100% !important; }
-        .skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
-        .skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
-    </style>
+    <script src="js/app.js"></script>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
@@ -101,7 +23,7 @@
         <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
             <div class="mb-6">
                 <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V19.0</p>
+                <p class="text-gray-500 font-code text-xs">ACESSO RESTRITO // V21.1</p>
             </div>
 
             <div class="flex justify-center gap-4 mb-6 border-b border-white/10 pb-2">
@@ -168,7 +90,7 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-white tracking-widest font-brand">ZENITE <span class="text-[var(--neon-core)] text-xs">OS</span></h1>
-                <p class="text-[10px] text-gray-500 font-code">V19.0 CONNECTED</p>
+                <p class="text-[10px] text-gray-500 font-code">V21.1</p>
             </div>
         </div>
         <div class="flex gap-3">
@@ -177,7 +99,7 @@
             
             <button x-show="user" @click="logout()" class="btn-action w-10 h-10 rounded glass border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-colors" title="Sair"><i class="fa-solid fa-power-off"></i></button>
             <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
-            <button @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
+            <button x-show="currentView === 'dashboard'" @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
         </div>
     </header>
 
@@ -214,7 +136,7 @@
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-40" x-transition.opacity>
             <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10">
                 <div class="flex items-center gap-3 px-2">
-                    <button @click="currentView = 'dashboard'; activeCharId = null;" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                    <button @click="saveAndExit()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
                     <div class="w-px h-4 bg-white/10"></div>
                     <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
                 </div>
@@ -345,13 +267,11 @@
 
             <div x-show="activeTab === 'logistics'" class="space-y-6">
                 <div class="flex justify-between items-center"><h3 class="text-white font-brand">LOGÍSTICA</h3><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><span class="text-amber-500">₵</span><input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code"></div></div>
-
                 <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
                     <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
                     <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
                     <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social & Importantes</button>
                 </div>
-
                 <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
@@ -380,7 +300,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div>
@@ -402,7 +321,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas Importantes</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
@@ -432,11 +350,10 @@
             </div>
 
             <div x-show="activeTab === 'powers'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
                     <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
                 </div>
-                
                 <div class="glass p-6 rounded-xl border-l-2 border-emerald-500">
                     <div class="flex justify-between mb-4 items-center">
                         <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas de Combate</h3>
@@ -454,7 +371,6 @@
                         </template>
                     </div>
                 </div>
-
                 <div class="glass p-6 rounded-xl">
                     <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Trilha de Evolução</h3>
                     <div class="space-y-4">
@@ -477,7 +393,7 @@
     </div>
 
     <div class="fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur border-t border-[var(--neon-core)] p-3 z-50" x-show="currentView === 'sheet'">
-        <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
+         <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div class="relative">
                 <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white"><i class="fa-solid fa-list-ol"></i></button>
                 <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-white/20 rounded-lg p-3 shadow-2xl max-h-48 overflow-y-auto">

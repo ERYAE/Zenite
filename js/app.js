@@ -5,9 +5,10 @@
 const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
 const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
 
+
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v20.0-DataShield';
+const APP_VERSION = 'v21.0-FixedUI';
 
 function zeniteSystem() {
     return {
@@ -50,32 +51,25 @@ function zeniteSystem() {
         ],
 
         // ==========================================
-        // INICIALIZAÇÃO BLINDADA
+        // INICIALIZAÇÃO
         // ==========================================
         async initSystem() {
-            // 1. CARREGA CACHE LOCAL IMEDIATAMENTE (Visual Instantâneo)
-            // Isso garante que você vê suas fichas mesmo se a internet cair ou o login demorar
             this.loadLocalData('zenite_cached_db');
 
-            // 2. Tenta restaurar a última ficha aberta
             const lastId = localStorage.getItem('zenite_last_char_id');
             if (lastId && this.chars[lastId]) {
                 this.loadCharacter(lastId);
             }
 
-            // 3. Listener de Auth (Login/Logout)
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN' && session) {
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
-                    
-                    // Limpa URL
                     if(window.location.hash && window.location.hash.includes('access_token')) {
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
-                    
-                    await this.fetchData(); // Sincroniza com a nuvem
+                    await this.fetchData();
                     this.notify('Conectado: ' + this.user.email, 'success');
                 } else if (event === 'SIGNED_OUT') {
                     this.user = null;
@@ -85,7 +79,6 @@ function zeniteSystem() {
                 }
             });
 
-            // 4. Verifica Sessão Atual
             const { data: { session } } = await supabase.auth.getSession();
             if (this.isGuest) {
                 this.loadLocalData('zenite_guest_db');
@@ -95,7 +88,6 @@ function zeniteSystem() {
                 await this.fetchData();
             }
 
-            // 5. Auto-Save Local (Sempre atualiza o cache do navegador)
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
@@ -106,29 +98,49 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // 6. Salvamento Periódico (Backup a cada 5 min)
             setInterval(() => {
                 if (this.user && this.unsavedChanges && !this.isSyncing) {
                     this.syncCloud(true);
                 }
             }, 300000);
 
-            // 7. Salvamento ao Fechar (Tentativa final)
             window.addEventListener('beforeunload', () => {
                 if (this.user && this.unsavedChanges) this.syncCloud(true);
             });
         },
 
+        // --- CORREÇÃO 2: Salvar ao Voltar ---
+        // Força a atualização do objeto 'chars' com o estado atual de 'char' antes de sair
+        saveAndExit() {
+            if (this.char && this.activeCharId) {
+                // Força cópia profunda para garantir atualização da lista
+                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                this.updateAgentCount();
+            }
+            
+            // Salva cache local
+            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+            localStorage.setItem(key, JSON.stringify(this.chars));
+
+            // Tenta salvar na nuvem se tiver mudanças
+            if (!this.isGuest && this.unsavedChanges) {
+                this.syncCloud(true);
+            }
+
+            this.currentView = 'dashboard';
+            this.activeCharId = null;
+            this.char = null;
+            localStorage.removeItem('zenite_last_char_id');
+        },
+
         // ==========================================
-        // SINCRONIZAÇÃO INTELIGENTE (SMART SYNC)
+        // SYNC
         // ==========================================
         async fetchData() {
             if (!this.user) return;
             
-            // Baixa dados da nuvem
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single();
 
-            // Se for usuário novo, cria entrada
             if (error && error.code === 'PGRST116') {
                 await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]);
                 data = { data: {} };
@@ -136,26 +148,19 @@ function zeniteSystem() {
 
             if (data) {
                 let cloudData = {};
-                // Tratamento de formato (Array vs Objeto)
                 if (Array.isArray(data.data)) {
                     data.data.forEach(c => { if(c && c.id) cloudData[c.id] = c; });
                 } else {
                     cloudData = data.data || {};
                 }
 
-                // LÓGICA DE PROTEÇÃO DE DADOS:
-                // Se a Nuvem estiver vazia, MAS eu tenho dados locais no cache...
-                // Significa que o save anterior falhou. NÃO APAGUE O LOCAL.
                 const localCount = Object.keys(this.chars).length;
                 const cloudCount = Object.keys(cloudData).length;
 
                 if (cloudCount === 0 && localCount > 0) {
-                    console.log("⚠️ Nuvem vazia detectada. Restaurando backup local...");
-                    this.notify('Restaurando backup local...', 'warn');
-                    // Força o envio dos dados locais para a nuvem
+                    console.log("⚠️ Nuvem vazia. Usando backup local.");
                     await this.syncCloud(true);
                 } else {
-                    // Caso normal: Nuvem tem dados, usamos a nuvem.
                     this.chars = cloudData;
                     localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars));
                 }
@@ -164,32 +169,35 @@ function zeniteSystem() {
             }
         },
 
+        // --- CORREÇÃO 1: Fim do "Salvamento Infinito" ---
         async syncCloud(silent = false) {
             if (!this.user || this.isGuest || this.isSyncing) return;
             
             this.isSyncing = true;
             if(!silent) this.notify('Salvando na Nuvem...', 'info');
 
-            // Garante estado atual
             if (this.char && this.activeCharId) this.chars[this.activeCharId] = this.char;
 
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({ id: this.user.id, data: this.chars });
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .upsert({ id: this.user.id, data: this.chars });
 
-            this.isSyncing = false;
+                if (error) throw error;
 
-            if (error) {
-                if(!silent) this.notify('Erro no Save: ' + error.message, 'error');
-                // Se der erro, mantemos 'unsavedChanges' como true para tentar de novo depois
-            } else {
                 this.unsavedChanges = false;
                 if(!silent) this.notify('Salvo com Sucesso.', 'success');
+
+            } catch (e) {
+                if(!silent) this.notify('Erro no Save: ' + e.message, 'error');
+            } finally {
+                // GARANTIA: Isso roda sempre, mesmo se der erro, destravando o "Salvando..."
+                this.isSyncing = false; 
             }
         },
 
         // ==========================================
-        // AUTHENTICATION
+        // AUTH
         // ==========================================
         async doGoogleAuth() {
             try {
@@ -241,7 +249,6 @@ function zeniteSystem() {
 
         logout() {
             if (confirm("Desconectar da Neural Link?")) {
-                // Tenta salvar antes de sair
                 if(this.unsavedChanges) this.syncCloud(true);
                 
                 supabase.auth.signOut();
@@ -252,7 +259,6 @@ function zeniteSystem() {
                 this.activeCharId = null;
                 this.currentView = 'dashboard';
                 
-                // Limpa dados sensíveis
                 localStorage.removeItem('zenite_cached_db');
                 localStorage.removeItem('zenite_is_guest');
                 localStorage.removeItem('zenite_last_char_id');
@@ -281,7 +287,6 @@ function zeniteSystem() {
             if(local) {
                 try { 
                     const parsed = JSON.parse(local);
-                    // Mescla o que achou no cache com o estado atual, preferindo o cache se chars estiver vazio
                     if (Object.keys(this.chars).length === 0) {
                          this.chars = Array.isArray(parsed) ? {} : parsed || {};
                          if(Array.isArray(parsed)) parsed.forEach(c => { if(c && c.id) this.chars[c.id] = c; });
@@ -294,11 +299,10 @@ function zeniteSystem() {
         loadCharacter(id) {
             if (!this.chars[id]) return this.notify('Erro: Ficha corrompida.', 'error');
             this.activeCharId = id;
-            localStorage.setItem('zenite_last_char_id', id); // Salva onde parou
+            localStorage.setItem('zenite_last_char_id', id);
             
             this.char = JSON.parse(JSON.stringify(this.chars[id]));
             
-            // Migrations / Garantia de Campos
             if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[] } };
             if(!this.char.inventory.weapons) this.char.inventory.weapons = [];
             if(!this.char.inventory.armor) this.char.inventory.armor = [];
@@ -317,20 +321,13 @@ function zeniteSystem() {
             if (window.confirm('Excluir agente permanentemente?')) {
                 delete this.chars[id];
                 this.sanitizeData();
-                
-                // Atualiza Cache
                 const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                 localStorage.setItem(key, JSON.stringify(this.chars));
-                
-                // CRÍTICO: Força sincronização imediata ao deletar
                 if(!this.isGuest) this.syncCloud(true);
-                
                 this.notify('Agente eliminado.', 'success');
             }
         },
 
-        // --- MANTEIGA DO PÃO (Stats, Wizard, Items, etc) ---
-        // Funções padrão do sistema mantidas iguais
         recalcDerivedStats() {
             if(!this.char) return;
             const c = this.char;
@@ -418,11 +415,9 @@ function zeniteSystem() {
             this.chars[id] = newChar;
             this.sanitizeData();
             
-            // Atualiza Cache
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
             localStorage.setItem(key, JSON.stringify(this.chars));
             
-            // CRÍTICO: Força sincronização imediata ao criar
             if(!this.isGuest) this.syncCloud(true);
 
             this.wizardOpen = false;
