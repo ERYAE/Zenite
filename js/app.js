@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v36.2-AuthFix';
+const APP_VERSION = 'v37.0-SmartMerge';
 
 function zeniteSystem() {
     return {
@@ -52,19 +52,14 @@ function zeniteSystem() {
         async initSystem() {
             this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
             
-            // 1. Reseta estado inicial (Load normal)
+            // 1. Previne bloqueio no 'Back Button'
             this.authLoading = false;
-
-            // 2. FIX: Reseta estado se voltar pelo histórico (Back Button / BFCache)
-            window.addEventListener('pageshow', (event) => {
-                this.authLoading = false;
-                this.log('Page Show: UI Unlocked', 'info');
-            });
+            window.addEventListener('pageshow', () => this.authLoading = false);
 
             // Recuperação de falha no load
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
 
-            // OAuth Redirect Handler (Se voltar com erro na URL)
+            // OAuth Redirect Handler
             if (window.location.hash) {
                 if(window.location.hash.includes('error=')) {
                     this.notify('Login cancelado.', 'warn');
@@ -81,10 +76,13 @@ function zeniteSystem() {
                 this.sanitizeData();
                 this.systemLoading = false;
             } else {
+                // --- FIX: Carrega cache local ANTES da nuvem para UI rápida e segurança ---
+                this.loadLocalData('zenite_cached_db');
+                
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
                     this.user = session.user;
-                    await this.fetchData();
+                    await this.fetchData(); // Vai fazer o merge inteligente
                 }
                 this.systemLoading = false;
             }
@@ -99,6 +97,10 @@ function zeniteSystem() {
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
+                    
+                    // Carrega local primeiro para garantir que temos os dados antes do merge
+                    this.loadLocalData('zenite_cached_db');
+                    
                     await this.fetchData();
                     this.systemLoading = false;
                     if(window.location.hash) history.replaceState(null, null, ' ');
@@ -115,7 +117,7 @@ function zeniteSystem() {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                    localStorage.setItem(key, JSON.stringify(this.chars)); // Save Local Instantâneo
+                    localStorage.setItem(key, JSON.stringify(this.chars));
                     
                     if (!this.isGuest) { 
                         this.unsavedChanges = true; 
@@ -125,7 +127,7 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // Auto-Save Econômico
+            // Auto-Save
             setInterval(() => { 
                 if (this.user && this.unsavedChanges && !this.isSyncing) {
                     this.log('Auto-save trigger', 'info');
@@ -189,7 +191,6 @@ function zeniteSystem() {
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
                 const payload = JSON.parse(JSON.stringify(this.chars));
                 
-                // Envia ao Supabase
                 const { error } = await Promise.race([
                     supabase.from('profiles').upsert({ 
                         id: this.user.id, 
@@ -204,7 +205,6 @@ function zeniteSystem() {
                 this.saveStatus = 'success';
                 if(!silent) this.notify('Dados salvos.', 'success');
                 this.log('Cloud Sync OK', 'success');
-                
                 setTimeout(() => { if(this.saveStatus === 'success') this.saveStatus = 'idle'; }, 2000);
 
             } catch (e) { 
@@ -216,8 +216,11 @@ function zeniteSystem() {
             }
         },
 
+        // --- FIX: FETCH DATA COM MERGE INTELIGENTE ---
         async fetchData() { 
             if (!this.user) return; 
+            
+            // 1. Busca da Nuvem
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
             
             if (error && error.code === 'PGRST116') { 
@@ -226,11 +229,37 @@ function zeniteSystem() {
             } 
 
             if (data) { 
-                let c = data.data || {}; 
-                if (Array.isArray(c)) { let o = {}; c.forEach(x => { if(x?.id) o[x.id] = x; }); c = o; } 
-                this.chars = c; 
+                let cloudChars = data.data || {}; 
+                if (Array.isArray(cloudChars)) { let o = {}; cloudChars.forEach(x => { if(x?.id) o[x.id] = x; }); cloudChars = o; } 
+                
+                // 2. Lógica de Mesclagem (Merge)
+                // Começamos assumindo que a nuvem é a verdade
+                let merged = { ...cloudChars };
+                let hasLocalOnly = false;
+
+                // Verificamos o que temos no Local Storage AGORA (carregado no initSystem)
+                Object.keys(this.chars).forEach(localId => {
+                    // Se existe localmente, mas NÃO na nuvem...
+                    if (!merged[localId]) {
+                        // É uma ficha nova que não deu tempo de subir antes de fechar a aba!
+                        // ENTÃO MANTEMOS ELA!
+                        merged[localId] = this.chars[localId];
+                        hasLocalOnly = true;
+                        this.log(`Ficha local ${localId} recuperada e mantida.`, 'warn');
+                    }
+                });
+
+                // 3. Atualiza estado e cache
+                this.chars = merged;
                 this.sanitizeData(); 
                 localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); 
+                this.log('Dados carregados e mesclados.', 'success');
+
+                // 4. Se recuperamos algo do limbo, salvamos na nuvem agora
+                if (hasLocalOnly) {
+                    this.unsavedChanges = true;
+                    this.syncCloud(true);
+                }
             } 
         },
 
