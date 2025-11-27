@@ -5,8 +5,6 @@
     --glass-panel: rgba(20, 20, 25, 0.95);
     --glass-border: rgba(255, 255, 255, 0.1);
     --neon-core: #0ea5e9;
-    /* Default RGB if JS fails */
-    --neon-rgb: 14, 165, 233;
     --neon-alert: #ef4444;
     --neon-success: #10b981;
     --neon-warn: #f59e0b;
@@ -29,33 +27,34 @@ body {
     padding-bottom: 120px;
 }
 
-/* --- FIXED NEBULA ANIMATION (Slower, Fluid) --- */
+/* NEBULA ANIMATION (Optimized) */
 .bg-nebula {
     background: radial-gradient(circle at 50% 50%, var(--neon-core), transparent 60%);
-    filter: blur(120px);
-    opacity: 0.3; /* Increased slightly */
+    filter: blur(100px);
+    opacity: 0.2;
     will-change: transform, opacity;
-    transform: translateZ(0);
-    /* Very slow breathing effect */
-    animation: pulseNebula 60s ease-in-out infinite alternate;
+    transform: translateZ(0); /* Force GPU */
+    animation: pulseNebula 30s ease-in-out infinite alternate;
 }
 @keyframes pulseNebula {
-    0% { transform: scale(1); opacity: 0.3; }
-    100% { transform: scale(1.1); opacity: 0.4; }
+    0% { opacity: 0.15; transform: scale(1); }
+    100% { opacity: 0.25; transform: scale(1.1); }
 }
 
-/* CURSOR SYSTEM */
+/* CURSOR CUSTOMIZADO */
 body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important; }
 #mouse-trail {
-    transition: width 0.2s, height 0.2s, background-color 0.2s; /* Pos is instant */
+    /* FIX: Transition removed for INSTANT feel */
+    transition: width 0.2s, height 0.2s, background-color 0.2s; 
 }
 #mouse-trail.hover-active {
     background: transparent !important;
     border: 2px solid var(--neon-core);
-    transform: scale(1.5);
+    transform: scale(1.5); /* Scale handled via CSS, Position via JS */
     mix-blend-mode: normal !important;
 }
 
+/* TOUCH DEVICES */
 @media (pointer: coarse) {
     #mouse-trail { display: none !important; }
     body.custom-cursor-active { cursor: auto !important; }
@@ -75,10 +74,11 @@ body.performance-mode * {
     transition: none !important;
 }
 body.performance-mode .bg-nebula { display: none !important; }
+
 body.compact-mode { font-size: 0.85rem; }
 body.compact-mode .glass { padding: 8px !important; }
 
-/* UTILS */
+/* LOADER & UTILS */
 #app-loader {
     position: fixed; inset: 0; background: var(--bg-void); z-index: 9000;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -100,7 +100,8 @@ body.compact-mode .glass { padding: 8px !important; }
     border: 1px solid var(--glass-border); border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.6);
     padding: 10px; z-index: 40;
-    display: flex; transition: all 0.3s ease;
+    display: flex; 
+    transition: all 0.3s ease;
     width: 95%; max-width: 95vw;
 }
 .dice-tray-suspended:hover { border-color: var(--neon-core); transform: translateX(-50%) translateY(-4px); }
@@ -112,13 +113,8 @@ body.compact-mode .glass { padding: 8px !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
 .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
-
-/* FIX: Use CSS Variable for Pulse Border */
 .animate-pulse-border { animation: border-pulse 2s infinite; }
-@keyframes border-pulse { 
-    0%, 100% { border-color: rgba(var(--neon-rgb), 0.3); } 
-    50% { border-color: rgba(var(--neon-rgb), 1); } 
-}
+@keyframes border-pulse { 0%, 100% { border-color: rgba(14, 165, 233, 0.3); } 50% { border-color: rgba(14, 165, 233, 1); box-shadow: 0 0 20px rgba(14, 165, 233, 0.4); } }
 
 .cropper-view-box, .cropper-face { border-radius: 50%; }
 .cropper-container { width: 100% !important; height: 100% !important; }
@@ -127,9 +123,3 @@ body.compact-mode .glass { padding: 8px !important; }
 #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
 #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
 #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
-
-.font-brand { font-family: 'Orbitron', sans-serif; }
-.font-code { font-family: 'JetBrains Mono', monospace; }
-
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
