@@ -18,25 +18,14 @@ body {
     background-color: var(--bg-void);
     color: #e2e8f0;
     cursor: auto; /* Fallback */
-    /* Padrão de grade sutil no fundo */
     background-image: 
+        radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.05), transparent 70%),
         linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-size: 100% 100%, 40px 40px, 40px 40px;
     min-height: 100vh;
     overflow-x: hidden;
     padding-bottom: 120px;
-}
-
-/* BACKGROUND NEBULA ANIMATION */
-.bg-nebula {
-    background: radial-gradient(circle at 50% 50%, var(--neon-core), transparent 60%);
-    filter: blur(100px);
-    animation: pulseNebula 10s infinite alternate;
-}
-@keyframes pulseNebula {
-    0% { opacity: 0.1; transform: scale(1); }
-    100% { opacity: 0.2; transform: scale(1.2); }
 }
 
 /* CURSOR CUSTOMIZADO */
@@ -52,7 +41,7 @@ body.custom-cursor-active * {
     mix-blend-mode: normal !important;
 }
 
-/* TOUCH DEVICES: Desativa cursor customizado */
+/* TOUCH DEVICES */
 @media (pointer: coarse) {
     #mouse-trail { display: none !important; }
     body.custom-cursor-active { cursor: auto !important; }
@@ -71,7 +60,6 @@ body.performance-mode * {
     animation: none !important;
     transition: none !important;
 }
-body.performance-mode .bg-nebula { display: none !important; }
 
 /* COMPACT MODE */
 body.compact-mode { font-size: 0.85rem; }
