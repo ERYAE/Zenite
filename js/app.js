@@ -1,6 +1,6 @@
 /**
  * ZENITE OS - Core Application
- * Version: v47.0-Stable-Refactor
+ * Version: v48.0-Performance
  * Architecture: Flat-Service Pattern (Alpine.js Compatible)
  */
 
@@ -23,7 +23,7 @@ const CONSTANTS = {
 function zeniteSystem() {
     return {
         // =========================================================================
-        // 1. STATE MANAGEMENT (Reactive Data)
+        // 1. STATE MANAGEMENT
         // =========================================================================
         
         // System
@@ -58,7 +58,7 @@ function zeniteSystem() {
         
         // Modals
         configModal: false,
-        wizardOpen: false,
+        wizardOpen: false, // Controla a janela "Novo Agente"
         cropperOpen: false,
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
@@ -69,7 +69,7 @@ function zeniteSystem() {
         wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
-        // Settings (Persistent)
+        // Settings
         settings: {
             mouseTrail: true,
             compactMode: false,
@@ -111,13 +111,13 @@ function zeniteSystem() {
         // 3. INITIALIZATION
         // =========================================================================
         async initSystem() {
-            // Failsafe: Garante que o loading suma mesmo se der erro
+            // Failsafe
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
             
-            this.log(`SYSTEM INIT`, 'info');
+            this.log(`ZENITE ${APP_VERSION} READY`, 'info');
             this.authLoading = false;
 
-            // Setup Global Handlers
+            // Setup Cursor
             this.setupCursor();
             this.setupWatchers();
 
@@ -129,7 +129,7 @@ function zeniteSystem() {
                 this.loadLocal('zenite_guest_db');
                 this.systemLoading = false;
             } else {
-                this.loadLocal('zenite_cached_db'); // Optimistic Load
+                this.loadLocal('zenite_cached_db'); // Optimistic
                 
                 if(supabase) {
                     const { data: { session } } = await supabase.auth.getSession();
@@ -138,7 +138,6 @@ function zeniteSystem() {
                         await this.fetchCloud();
                     }
                     
-                    // Auth Listener
                     supabase.auth.onAuthStateChange(async (event, session) => {
                         if (event === 'TOKEN_REFRESHED') return;
                         if (event === 'SIGNED_IN' && session) {
@@ -168,13 +167,12 @@ function zeniteSystem() {
         },
 
         // =========================================================================
-        // 4. CORE SERVICES (UI, DATA, AUTH)
+        // 4. CORE SERVICES
         // =========================================================================
 
         // --- UI & CURSOR ---
         setupCursor() {
             const trail = document.getElementById('mouse-trail');
-            // Só ativa se não for touch
             if (!window.matchMedia("(pointer: fine)").matches) {
                 if(trail) trail.style.display = 'none';
                 return;
@@ -186,9 +184,8 @@ function zeniteSystem() {
                 mouseX = e.clientX; 
                 mouseY = e.clientY;
                 
-                // Interatividade do cursor
                 const target = e.target;
-                if(trail && target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.classList.contains('cursor-pointer'))) {
+                if(trail && target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.classList.contains('cursor-pointer'))) {
                     trail.classList.add('hover-active');
                 } else if(trail) {
                     trail.classList.remove('hover-active');
@@ -197,7 +194,7 @@ function zeniteSystem() {
 
             const animate = () => {
                 if (this.settings.mouseTrail && !this.settings.performanceMode && trail) {
-                    trailX += (mouseX - trailX) * 0.5; // Sem delay perceptível
+                    trailX += (mouseX - trailX) * 0.5;
                     trailY += (mouseY - trailY) * 0.5;
                     trail.style.transform = `translate(${trailX - 8}px, ${trailY - 8}px)`;
                     trail.style.opacity = '1';
@@ -216,26 +213,14 @@ function zeniteSystem() {
                 if (this.loadingChar) return;
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                    this.saveLocal(); // Local backup instantâneo
-                    
+                    this.saveLocal();
                     if (!this.isGuest) { 
                         this.unsavedChanges = true; 
                         this.saveStatus = 'idle'; 
                     }
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
-            }); // Removed { deep: true } usage and let Alpine handle it, or ensure shallow watch is sufficient if structure is replaced
-             // Actually, for object mutation, deep watch is implicit in Alpine x-model, but explicit $watch needs {deep:true} for objects.
-             // Adding back the deep config properly:
-             this.$watch('char', (val) => {
-                if (this.loadingChar) return;
-                if (val && this.activeCharId) {
-                   this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                   this.saveLocal();
-                   if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
-                   if (this.activeTab === 'profile') this.updateRadarChart();
-                }
-             }, {deep: true});
+            }, {deep: true});
         },
 
         // --- DATA PERSISTENCE ---
@@ -248,7 +233,6 @@ function zeniteSystem() {
                         this.settings = { ...this.settings, ...parsed.config };
                         delete parsed.config;
                     }
-                    // Clean chars
                     const validChars = {};
                     Object.keys(parsed).forEach(k => { if(parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
@@ -275,14 +259,12 @@ function zeniteSystem() {
             if (data) {
                 const cloudData = data.data || {};
                 
-                // Load Settings
                 if(cloudData.config) {
                     this.settings = { ...this.settings, ...cloudData.config };
                     this.applyTheme(this.settings.themeColor);
                     this.toggleSetting('compactMode', this.settings.compactMode);
                 }
 
-                // Merge Data
                 let merged = { ...this.chars };
                 let hasLocalOnly = false;
                 
@@ -290,7 +272,6 @@ function zeniteSystem() {
                     if(k !== 'config') merged[k] = cloudData[k];
                 });
 
-                // Keep unsaved local chars
                 Object.keys(this.chars).forEach(localId => {
                     if (!cloudData[localId] && localId !== 'config') {
                         merged[localId] = this.chars[localId];
@@ -341,12 +322,10 @@ function zeniteSystem() {
             if(!this.char) return; 
             const c = this.char; 
             
-            // 1. Old Max
             const oldPv = c.stats.pv.max || 0;
             const oldPf = c.stats.pf.max || 0;
             const oldPdf = c.stats.pdf.max || 0;
 
-            // 2. New Max
             const lvl = Math.max(1, parseInt(c.level)||1); 
             const getV = (v) => parseInt(v)||0; 
             const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); 
@@ -355,12 +334,11 @@ function zeniteSystem() {
             const newPf = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); 
             const newPdf = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); 
 
-            // 3. Apply Delta (Smart Update)
+            // Apply Delta
             if (oldPv > 0) c.stats.pv.current = Math.max(0, c.stats.pv.current + (newPv - oldPv));
             if (oldPf > 0) c.stats.pf.current = Math.max(0, c.stats.pf.current + (newPf - oldPf));
             if (oldPdf > 0) c.stats.pdf.current = Math.max(0, c.stats.pdf.current + (newPdf - oldPdf));
 
-            // 4. Update Max
             c.stats.pv.max = newPv;
             c.stats.pf.max = newPf;
             c.stats.pdf.max = newPdf;
@@ -370,18 +348,78 @@ function zeniteSystem() {
             const c = this.char;
             if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) {
                 c.attrs[key] += val;
-                this.recalcDerivedStats(); // Trigger recalc on attr change
+                this.recalcDerivedStats();
                 this.updateRadarChart();
             }
         },
 
         // =========================================================================
-        // 5. ACTIONS & HELPERS
+        // 5. ACTIONS
         // =========================================================================
         
-        // UI Actions
-        toggleSystemLog() { this.configModal = false; this.consoleOpen = !this.consoleOpen; },
+        // WIZARD (Botão Novo)
+        openWizard() { 
+            // Verificação robusta de limite
+            if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+            
+            // Reset forçado do estado do wizard
+            this.wizardStep = 1;
+            this.wizardPoints = 8;
+            this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+            this.wizardFocusAttr = '';
+            
+            // Abre o modal
+            this.wizardOpen = true; 
+        },
+
+        selectArchetype(a) { 
+            this.wizardData.class = a.class; 
+            this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; 
+            this.wizardData.attrs[a.focus] = 0; 
+            this.wizardFocusAttr = a.focus; 
+            this.wizardStep = 2; 
+        },
+
+        modWizardAttr(k,v) { 
+            const c = this.wizardData.attrs[k]; 
+            const f = k === this.wizardFocusAttr; 
+            if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; } 
+            if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; } 
+        },
+
+        finishWizard() {
+            const id = 'z_'+Date.now();
+            const base = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs };
+            
+            // Calc Stats Manually for new char
+            const getV = (v) => parseInt(v);
+            const F=getV(base.attrs.for), P=getV(base.attrs.pod), V=getV(base.attrs.von);
+            const pv = 12+F, pf = 10+P, pdf = 10+V;
+            
+            const newChar = {
+                id, name: '', identity: '', class: base.class, level: 1, photo: '', history: '', credits: 0,
+                attrs: {...base.attrs},
+                stats: { pv: {current: pv, max: pv}, pf: {current: pf, max: pf}, pdf: {current: pdf, max: pdf} },
+                inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
+                skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
+            };
+            
+            this.chars[id] = newChar;
+            this.agentCount = Object.keys(this.chars).length; // Atualiza contagem imediata
+            this.saveLocal();
+            
+            if(!this.isGuest) { 
+                this.unsavedChanges = true; 
+                this.syncCloud(true); 
+            }
+            
+            this.wizardOpen = false;
+            this.loadCharacter(id);
+            this.notify('Agente Inicializado.', 'success');
+        },
         
+        // Settings
+        toggleSystemLog() { this.configModal = false; this.consoleOpen = !this.consoleOpen; },
         toggleSetting(key, val=null) {
             if(val !== null) {
                 this.settings[key] = val;
@@ -391,36 +429,27 @@ function zeniteSystem() {
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
             }
-            // Save settings changes
-            if(!this.isGuest && this.user) {
-                this.unsavedChanges = true;
-                this.syncCloud(true);
-            }
+            if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
-
         applyTheme(color) {
             const root = document.documentElement;
             const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
-            root.style.setProperty('--neon-core', map[color] || map['cyan']);
-            // Update trail color immediately
+            const hex = map[color] || map['cyan'];
+            root.style.setProperty('--neon-core', hex);
             const trail = document.getElementById('mouse-trail');
-            if(trail) trail.style.background = `radial-gradient(circle, ${map[color] || map['cyan']}, transparent 70%)`;
+            if(trail) trail.style.background = `radial-gradient(circle, ${hex}, transparent 70%)`;
         },
-
         toggleFullscreen() {
-            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } 
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); this.notify('Tela Cheia', 'info'); } 
             else if (document.exitFullscreen) { document.exitFullscreen(); }
         },
 
         // Diagnostics
-        handleKeys(e) {
-            if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.toggleSystemLog(); }
-        },
+        handleKeys(e) { if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.toggleSystemLog(); } },
         log(msg, type='info') {
             const time = new Date().toLocaleTimeString();
             this.sysLogs.unshift({time, msg, type});
             if(this.sysLogs.length > 50) this.sysLogs.pop();
-            // Avoid console spam if consoleOpen is false to save performance? No, keep for debug.
             console.log(`[${type.toUpperCase()}] ${msg}`);
         },
 
@@ -433,13 +462,11 @@ function zeniteSystem() {
             if(supabase) await supabase.auth.signOut();
             window.location.reload();
         },
-        
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
-
         doSocialAuth(provider) {
-            if(!supabase) return;
+            if(!supabase) return this.notify("Erro de conexão.", "error");
             this.authLoading = true;
             supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
                 .then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } });
@@ -463,7 +490,6 @@ function zeniteSystem() {
             this.loadingChar = true;
             this.activeCharId = id;
             
-            // Frame delay for UI responsiveness
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
                 // Defaults
@@ -488,11 +514,7 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // Stat Modifiers
-        modStat(type, val) { if(!this.char) return; const s = this.char.stats[type]; const old = s.current; s.current = Math.min(Math.max(0, s.current + val), s.max); if(val < 0) this.triggerFX('damage'); if(val > 0) this.triggerFX('heal'); },
-        triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
-
-        // Charts & Visuals
+        // Visuals
         updateRadarChart() {
             const ctx = document.getElementById('radarChart');
             if(!ctx || !this.char) return;
@@ -514,39 +536,10 @@ function zeniteSystem() {
                 });
             }
         },
-
-        // Wizard
-        openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardOpen=true; this.wizardStep=1; },
-        selectArchetype(a) { this.wizardData.class=a.class; this.wizardData.attrs={for:-1,agi:-1,int:-1,von:-1,pod:-1}; this.wizardData.attrs[a.focus]=0; this.wizardFocusAttr=a.focus; this.wizardStep=2; },
-        modWizardAttr(k,v) { const c=this.wizardData.attrs[k]; const f=k===this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; } },
-        finishWizard() {
-            const id = 'z_'+Date.now();
-            const base = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs, stats: { pv:{}, pf:{}, pdf:{} } };
-            // Calc Initial Stats using same logic
-            const getV = (v) => parseInt(v);
-            const F=getV(base.attrs.for), P=getV(base.attrs.pod), V=getV(base.attrs.von);
-            const pv = 12+F, pf = 10+P, pdf = 10+V;
-            
-            const newChar = {
-                id, name: '', identity: '', class: base.class, level: 1, photo: '', history: '', credits: 0,
-                attrs: {...base.attrs},
-                stats: { pv: {current: pv, max: pv}, pf: {current: pf, max: pf}, pdf: {current: pdf, max: pdf} },
-                inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
-                skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
-            };
-            this.chars[id] = newChar;
-            this.saveLocal();
-            if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false;
-            this.loadCharacter(id);
-            this.notify('Agente Inicializado.', 'success');
-        },
         
-        // Items
+        triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
-        
-        // Skills
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
         addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
 
@@ -561,7 +554,7 @@ function zeniteSystem() {
             this.log(`Rolou D${s}: ${this.lastRoll}`, 'info');
         },
 
-        // Helpers
+        // Utils
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); this.log(msg, type); },
         openImageEditor() { document.getElementById('file-input').click(); }, 
         initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); }, 
