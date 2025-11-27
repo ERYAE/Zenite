@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v36.0-EcoSave';
+const APP_VERSION = 'v36.1-Hotfix';
 
 function zeniteSystem() {
     return {
@@ -27,7 +27,7 @@ function zeniteSystem() {
         authLoading: false, authMsg: '', authMsgType: '',
 
         // --- SYNC (ECONOMIA DE DADOS) ---
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', saveTimeout: null,
+        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
 
         // --- DATA ---
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -177,7 +177,6 @@ function zeniteSystem() {
             this.isSyncing = true; 
             if(!silent) this.notify('Sincronizando...', 'info');
             
-            // Timeout de segurança (10s)
             const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), 10000));
             
             try {
@@ -185,19 +184,17 @@ function zeniteSystem() {
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
                 const payload = JSON.parse(JSON.stringify(this.chars));
                 
-                // Envia ao Supabase
+                // Envia ao Supabase (CORRIGIDO: Removido updated_at)
                 const { error } = await Promise.race([
                     supabase.from('profiles').upsert({ 
                         id: this.user.id, 
-                        data: payload,
-                        updated_at: new Date().toISOString()
+                        data: payload
                     }), 
                     timeout
                 ]);
 
                 if (error) throw error;
                 
-                // Sucesso
                 this.unsavedChanges = false; 
                 this.saveStatus = 'success';
                 if(!silent) this.notify('Dados salvos.', 'success');
