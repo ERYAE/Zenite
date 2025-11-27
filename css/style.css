@@ -93,5 +93,6 @@ body {
 @media (max-width: 768px) {
     .header-container { padding: 12px !important; }
     .dice-tray-suspended { bottom: 15px; width: 92%; border-radius: 16px; padding: 12px; gap: 10px; justify-content: flex-start; }
-    .save-float-btn { bottom: 95px !important; right: 20px !important; }
+    /* Ajuste para o botão de save não sumir */
+    .btn-save-status { width: 50px; height: 50px; }
 }
