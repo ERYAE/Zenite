@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v44.1-BugFix';
+const APP_VERSION = 'v45.0-Stable';
 
 function zeniteSystem() {
     return {
@@ -58,6 +58,7 @@ function zeniteSystem() {
             { class: 'Psíquico', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500', desc: 'Domínio mental.' }
         ],
 
+        // --- COMPUTED ---
         get filteredChars() {
             if (!this.searchQuery) return this.chars;
             const q = this.searchQuery.toLowerCase();
@@ -75,36 +76,39 @@ function zeniteSystem() {
             this.log(`ZENITE ${APP_VERSION} BOOT`, 'info');
             this.authLoading = false;
             
-            // --- GLOBAL ERROR HANDLING (FILTRADO) ---
+            // --- GLOBAL ERROR HANDLING (PROTEÇÃO CONTRA SPAM) ---
             window.onerror = (msg, url, line) => {
-                // Ignora erro genérico de script externo (CORS/Extensões) para limpar o log
-                if (msg === 'Script error.' && line === 0) return false;
-                
+                // Ignora erros genéricos de scripts externos/extensões
+                if (msg === 'Script error.' || msg.includes('Script error')) return true;
                 this.log(`ERR: ${msg} @ ${line}`, 'error'); 
                 return false; 
             };
             window.onunhandledrejection = (e) => { 
+                // Ignora erros de redimensionamento do navegador
+                if (e.reason && e.reason.message && e.reason.message.includes('ResizeObserver')) return;
                 this.log(`PROMISE: ${e.reason}`, 'error'); 
             };
 
-            // --- CURSOR INTERATIVO ---
+            // --- CURSOR INTERATIVO (OTIMIZADO) ---
             const trail = document.getElementById('mouse-trail');
             let mouseX = 0, mouseY = 0, trailX = 0, trailY = 0;
             
             if (window.matchMedia("(pointer: fine)").matches) {
                 document.addEventListener('mousemove', (e) => { 
                     mouseX = e.clientX; mouseY = e.clientY; 
-                    const target = e.target;
-                    if(trail && target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.classList.contains('cursor-pointer'))) {
-                        trail.classList.add('hover-active');
-                    } else if (trail) {
-                        trail.classList.remove('hover-active');
+                    if(trail) {
+                        const target = e.target;
+                        // Verifica se está sobre elemento interativo
+                        if(target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.classList.contains('cursor-pointer'))) {
+                            trail.classList.add('hover-active');
+                        } else {
+                            trail.classList.remove('hover-active');
+                        }
                     }
                 });
                 
                 const animateTrail = () => {
-                    // Verificação de segurança extra para this.settings
-                    if (this.settings && this.settings.mouseTrail && !this.settings.performanceMode && trail) {
+                    if (this.settings.mouseTrail && !this.settings.performanceMode && trail) {
                         trailX += (mouseX - trailX) * 0.2;
                         trailY += (mouseY - trailY) * 0.2;
                         trail.style.transform = `translate(${trailX - 8}px, ${trailY - 8}px)`;

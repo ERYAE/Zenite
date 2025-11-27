@@ -61,11 +61,11 @@ body.performance-mode * {
     transition: none !important;
 }
 
-/* COMPACT MODE (AGRESSIVO) */
+/* COMPACT MODE (CORRIGIDO) */
 body.compact-mode { font-size: 0.85rem; }
 body.compact-mode .glass { padding: 8px !important; }
 body.compact-mode h1, body.compact-mode h2, body.compact-mode h3 { margin-bottom: 0.2rem !important; }
-body.compact-mode .py-3 { py-1 !important; }
+body.compact-mode .py-3 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
 body.compact-mode input, body.compact-mode button { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.8rem !important; }
 
 /* LOADER */
