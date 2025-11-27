@@ -1,7 +1,7 @@
 /**
  * ZENITE OS - Core Application
- * Version: v53.0-Stable-Nightly
- * Fixes: Dice Tray Lag, D3 restored, Docking System, Onboarding
+ * Version: v53.1-GodMode-Patch
+ * Fixes: Dice Tray State Leaks, Debug Console Restoration, D3 Guarantee
  */
 
 const CONSTANTS = {
@@ -12,7 +12,7 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- PERFORMANCE ENGINE (Zero Reactivity overhead) ---
+// --- MOTOR GRÁFICO (Zero Lag) ---
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 
@@ -26,7 +26,7 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- SYSTEM STATES ---
+        // --- ESTADOS GERAIS ---
         systemLoading: true,
         loadingChar: false,
         consoleOpen: false,
@@ -37,7 +37,7 @@ function zeniteSystem() {
         userMenuOpen: false,
         authLoading: false, authMsg: '', authMsgType: '',
         
-        // --- DATA ---
+        // --- DADOS ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -47,17 +47,16 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- DICE TRAY & WIDGETS ---
+        // --- BANDEJA DE DADOS (DICE TRAY) ---
         diceTrayOpen: false,
         showDiceLog: false,
-        
-        // Novo estado de Docking: 'float', 'left', 'right'
-        trayDockMode: 'float', 
-        trayPosition: { x: window.innerWidth - 320, y: window.innerHeight - 400 },
+        trayDockMode: 'float', // 'float', 'dock-left', 'dock-right'
+        // Posição inicial segura (Canto inferior direito, mas visível)
+        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
         
-        // Tutorial / Onboarding
+        // Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
 
@@ -68,7 +67,7 @@ function zeniteSystem() {
         diceMod: 0,
         isMobile: window.innerWidth < 768,
         
-        // --- MODALS ---
+        // --- MODAIS ---
         configModal: false,
         wizardOpen: false, 
         cropperOpen: false,
@@ -123,12 +122,14 @@ function zeniteSystem() {
             this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
 
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+            
+            // Responsividade
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 768;
                 this.ensureTrayOnScreen();
             });
 
-            // History API para botão voltar
+            // Botão Voltar (History API)
             window.addEventListener('popstate', (event) => {
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
                     if(this.currentView === 'sheet') this.saveAndExit(true); 
@@ -174,11 +175,12 @@ function zeniteSystem() {
 
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
-            this.trayPosition.x = Math.min(Math.max(0, this.trayPosition.x), window.innerWidth - 300);
-            this.trayPosition.y = Math.min(Math.max(0, this.trayPosition.y), window.innerHeight - 100);
+            // Garante que a bandeja nunca nasça fora da tela
+            this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
+            this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS ENGINE ---
+        // --- MOTOR GRÁFICO ---
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
@@ -200,21 +202,25 @@ function zeniteSystem() {
             document.body.classList.add('custom-cursor-active');
         },
 
-        // --- NEW DICE TRAY LOGIC ---
+        // --- LÓGICA DA BANDEJA DE DADOS ---
         toggleDiceTray() {
             this.diceTrayOpen = !this.diceTrayOpen;
+            
             if(this.diceTrayOpen) {
-                this.showDiceTip = false; // Fecha tutorial se abrir
+                // Se abriu, fecha o tooltip e marca como visto
+                this.showDiceTip = false;
                 this.hasSeenDiceTip = true;
-                this.saveLocal(); // Salva que já viu
+                this.saveLocal();
+                this.ensureTrayOnScreen(); // Garante posição visível
             }
         },
 
         setDockMode(mode) {
             this.trayDockMode = mode;
-            // Se for float, centraliza ou restaura
             if(mode === 'float') {
-                this.trayPosition = { x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 200 };
+                // Ao soltar, centraliza levemente
+                this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 };
+                this.ensureTrayOnScreen();
             }
         },
 
@@ -242,7 +248,7 @@ function zeniteSystem() {
             document.addEventListener('mouseup', upHandler);
         },
 
-        // --- STANDARD APP LOGIC (Watchers, Load/Save) ---
+        // --- SISTEMA PADRÃO ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -262,7 +268,7 @@ function zeniteSystem() {
                     const parsed = JSON.parse(local);
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
-                    if(parsed.hasSeenTip) this.hasSeenDiceTip = parsed.hasSeenTip; // Carrega estado do tutorial
+                    if(parsed.hasSeenTip) this.hasSeenDiceTip = parsed.hasSeenTip;
                     
                     const validChars = {};
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
@@ -283,7 +289,7 @@ function zeniteSystem() {
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- ASYNC & CLOUD ---
+        // --- CLOUD ---
         async fetchCloud() {
             if (!this.user || !this.supabase) return;
             let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
@@ -393,6 +399,11 @@ function zeniteSystem() {
         saveAndExit(fromHistory = false) {
             if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
             this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+            
+            // RESETAR ESTADOS DA UI PARA A DASHBOARD
+            this.diceTrayOpen = false; // Fecha a bandeja!
+            this.showDiceTip = false;
+            
             this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
          },
@@ -406,7 +417,8 @@ function zeniteSystem() {
                 if(!this.char.age) this.char.age = ""; 
                 this.currentView = 'sheet'; this.activeTab = 'profile';
                 
-                // Show dice tip if new user
+                // Exibe dica se não viu e garante que a bandeja esteja fechada inicialmente
+                this.diceTrayOpen = false; 
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
 
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });

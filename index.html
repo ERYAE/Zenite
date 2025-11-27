@@ -60,6 +60,7 @@
             <template x-for="(log, idx) in sysLogs" :key="idx">
                 <div class="border-b border-white/5 pb-1 flex gap-2">
                     <span class="text-gray-600 w-12 flex-shrink-0" x-text="log.time"></span>
+                    <span :class="log.type==='error'?'text-red-500':(log.type==='warn'?'text-yellow-500':'text-[var(--neon-success)]')" x-text="'['+log.type+']'" class="uppercase font-bold w-12 flex-shrink-0"></span>
                     <span class="text-gray-300 break-all" x-text="log.msg"></span>
                 </div>
             </template>
@@ -185,7 +186,7 @@
                      <div class="flex gap-4"><div class="flex-grow"><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div><div class="w-24"><input x-model="char.age" type="number" min="0" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDADE"></div></div>
                      <div><select x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div></div>
                      <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8"><div class="w-full md:w-1/2 space-y-2"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5"><span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span><div class="flex items-center gap-3"><button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button><span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span><button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button></div></div></template></div><div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div></div>
-                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
+                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" aria-label="Remover Perícia" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
                      <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]"><textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea></div>
                 </div>
             </div>
@@ -196,7 +197,7 @@
         </main>
     </template>
 
-    <div x-show="diceTrayOpen" 
+    <div x-show="diceTrayOpen && currentView === 'sheet'" 
          class="z-[80] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass"
          :class="{
             'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile,
@@ -263,7 +264,7 @@
     </div>
 
     <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-50">
-        <div x-show="showDiceTip" class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce" x-transition>
+        <div x-show="showDiceTip" class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce z-[60]" x-transition>
             <div class="text-xs font-bold">Abra a bandeja aqui!</div>
             <div class="w-3 h-3 bg-[var(--neon-core)] rotate-45 absolute -bottom-1 right-6"></div>
         </div>
@@ -306,7 +307,10 @@
                 <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
             </div>
             <div class="border-t border-white/10 my-4"></div>
-            <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE LOCAL</button>
+            <div class="flex gap-2">
+                <button @click="toggleSystemLog()" class="flex-1 py-2 border border-gray-700 text-gray-500 rounded text-[10px] font-bold hover:bg-gray-800"><i class="fa-solid fa-bug mr-2"></i>CONSOLE</button>
+                <button @click="askHardReset()" class="flex-1 py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE</button>
+            </div>
         </div>
     </div></div>
     
