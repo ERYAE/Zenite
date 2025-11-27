@@ -13,12 +13,11 @@
 
 [x-cloak] { display: none !important; }
 
-/* CURSOR LOGIC */
 body {
     font-family: 'Rajdhani', sans-serif;
     background-color: var(--bg-void);
     color: #e2e8f0;
-    /* Default cursor, hidden only if class active */
+    cursor: auto; /* Default */
     background-image: 
         radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.05), transparent 70%),
         linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
@@ -29,15 +28,23 @@ body {
     padding-bottom: 120px;
 }
 
-/* Hides default cursor ONLY when custom one is active */
-body.custom-cursor-active {
-    cursor: none;
+/* CURSOR CUSTOMIZADO */
+body.custom-cursor-active, 
+body.custom-cursor-active * {
+    cursor: none !important;
 }
 
-/* Force show cursor on touch devices to avoid issues */
+#mouse-trail.hover-active {
+    background: transparent !important;
+    border: 2px solid var(--neon-core);
+    transform: scale(1.5);
+    mix-blend-mode: normal !important;
+}
+
+/* TOUCH DEVICES: Desativa cursor customizado */
 @media (pointer: coarse) {
-    body.custom-cursor-active { cursor: auto !important; }
     #mouse-trail { display: none !important; }
+    body.custom-cursor-active { cursor: auto !important; }
 }
 
 /* PERFORMANCE MODE */
@@ -54,9 +61,12 @@ body.performance-mode * {
     transition: none !important;
 }
 
-/* COMPACT MODE */
-body.compact-mode { font-size: 0.9em; }
-body.compact-mode .glass { padding: 10px !important; }
+/* COMPACT MODE (AGRESSIVO) */
+body.compact-mode { font-size: 0.85rem; }
+body.compact-mode .glass { padding: 8px !important; }
+body.compact-mode h1, body.compact-mode h2, body.compact-mode h3 { margin-bottom: 0.2rem !important; }
+body.compact-mode .py-3 { py-1 !important; }
+body.compact-mode input, body.compact-mode button { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.8rem !important; }
 
 /* LOADER */
 #app-loader {

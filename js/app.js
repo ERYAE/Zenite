@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v43.0-Pro';
+const APP_VERSION = 'v44.1-BugFix';
 
 function zeniteSystem() {
     return {
@@ -19,15 +19,17 @@ function zeniteSystem() {
         isGuest: false,
         userMenuOpen: false,
         loadingChar: false,
-        diceTrayOpen: true, // Novo estado para minimizar bandeja
+        diceTrayOpen: true,
         
-        // --- SETTINGS ---
+        // --- SETTINGS & FILTERS ---
         consoleOpen: false,
         sysLogs: [],
+        searchQuery: '', 
         settings: {
             mouseTrail: true,
             compactMode: false,
-            performanceMode: false
+            performanceMode: false,
+            themeColor: 'cyan'
         },
 
         // --- AUTH ---
@@ -56,36 +58,57 @@ function zeniteSystem() {
             { class: 'Psíquico', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500', desc: 'Domínio mental.' }
         ],
 
+        get filteredChars() {
+            if (!this.searchQuery) return this.chars;
+            const q = this.searchQuery.toLowerCase();
+            const result = {};
+            Object.keys(this.chars).forEach(id => {
+                const c = this.chars[id];
+                if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) {
+                    result[id] = c;
+                }
+            });
+            return result;
+        },
+
         async initSystem() {
             this.log(`ZENITE ${APP_VERSION} BOOT`, 'info');
             this.authLoading = false;
             
-            // --- GLOBAL ERROR HANDLING (Feedback Automático) ---
+            // --- GLOBAL ERROR HANDLING (FILTRADO) ---
             window.onerror = (msg, url, line) => {
-                this.log(`CRITICAL: ${msg} @ Line ${line}`, 'error');
-                return false;
+                // Ignora erro genérico de script externo (CORS/Extensões) para limpar o log
+                if (msg === 'Script error.' && line === 0) return false;
+                
+                this.log(`ERR: ${msg} @ ${line}`, 'error'); 
+                return false; 
             };
-            window.onunhandledrejection = (e) => {
-                this.log(`PROMISE ERROR: ${e.reason}`, 'error');
+            window.onunhandledrejection = (e) => { 
+                this.log(`PROMISE: ${e.reason}`, 'error'); 
             };
 
-            // --- MOUSE TRAIL LOGIC (Corrigido e Centralizado) ---
+            // --- CURSOR INTERATIVO ---
             const trail = document.getElementById('mouse-trail');
             let mouseX = 0, mouseY = 0, trailX = 0, trailY = 0;
             
-            // Detecta movimento apenas se não for touch (Performance)
             if (window.matchMedia("(pointer: fine)").matches) {
-                document.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+                document.addEventListener('mousemove', (e) => { 
+                    mouseX = e.clientX; mouseY = e.clientY; 
+                    const target = e.target;
+                    if(trail && target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.classList.contains('cursor-pointer'))) {
+                        trail.classList.add('hover-active');
+                    } else if (trail) {
+                        trail.classList.remove('hover-active');
+                    }
+                });
                 
                 const animateTrail = () => {
-                    // Só anima se ligado e fora do modo performance
-                    if (this.settings.mouseTrail && !this.settings.performanceMode && trail) {
-                        trailX += (mouseX - trailX) * 0.15;
-                        trailY += (mouseY - trailY) * 0.15;
-                        // Subtrai 8px (metade de 16px) para centralizar
+                    // Verificação de segurança extra para this.settings
+                    if (this.settings && this.settings.mouseTrail && !this.settings.performanceMode && trail) {
+                        trailX += (mouseX - trailX) * 0.2;
+                        trailY += (mouseY - trailY) * 0.2;
                         trail.style.transform = `translate(${trailX - 8}px, ${trailY - 8}px)`;
                         trail.style.opacity = '1';
-                        // Adiciona classe ao body para esconder cursor nativo
                         document.body.classList.add('custom-cursor-active');
                     } else {
                         if(trail) trail.style.opacity = '0';
@@ -170,10 +193,30 @@ function zeniteSystem() {
             this.sysLogs.unshift({time, msg, type});
             if(this.sysLogs.length > 50) this.sysLogs.pop();
         },
-        toggleSetting(key) {
-            this.settings[key] = !this.settings[key];
-            if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
-            if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
+        toggleSystemLog() { this.consoleOpen = !this.consoleOpen; },
+        toggleSetting(key, val=null) {
+            if(val !== null) {
+                this.settings[key] = val;
+                if(key === 'themeColor') this.applyTheme(val);
+            } else {
+                this.settings[key] = !this.settings[key];
+                if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
+                if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
+            }
+        },
+        applyTheme(color) {
+            const root = document.documentElement;
+            if(color === 'cyan') root.style.setProperty('--neon-core', '#0ea5e9');
+            if(color === 'purple') root.style.setProperty('--neon-core', '#d946ef');
+            if(color === 'gold') root.style.setProperty('--neon-core', '#eab308');
+        },
+        toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                this.notify('Modo Tela Cheia', 'info');
+            } else {
+                if (document.exitFullscreen) { document.exitFullscreen(); }
+            }
         },
 
         // --- IMPORT / EXPORT ---
@@ -270,11 +313,8 @@ function zeniteSystem() {
             this.loadingChar = true; 
             this.activeCharId = id; 
             
-            // requestAnimationFrame para evitar "jank" visual
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id])); 
-                
-                // Defaults
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
                 if(!this.char.skills) this.char.skills = []; 
                 if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] }; 
