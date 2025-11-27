@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v33.0-Fortress';
+const APP_VERSION = 'v34.0-Patch';
 
 function zeniteSystem() {
     return {
@@ -19,6 +19,10 @@ function zeniteSystem() {
         isGuest: false,
         userMenuOpen: false,
         
+        // --- DIAGNOSTICS ---
+        consoleOpen: false,
+        sysLogs: [],
+
         // --- LOGIN ---
         authInput: { email: '', pass: '', key: '', newPass: '' }, 
         authMode: 'login', authLoading: false, authMsg: '', authMsgType: '',
@@ -51,7 +55,7 @@ function zeniteSystem() {
         ],
 
         async initSystem() {
-            console.log(`ZENITE ${APP_VERSION} INIT`);
+            this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
             
             // Recuperação de falha no load
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
@@ -74,20 +78,26 @@ function zeniteSystem() {
                 if (session) {
                     this.user = session.user;
                     await this.fetchData();
-                    this.checkSecretWord(); // Verifica se tem chave de segurança
+                    // Checagem imediata se o usuário já tem perfil montado
+                    this.checkSecretWord(); 
                 }
                 this.systemLoading = false;
             }
 
             // Auth Listener
             supabase.auth.onAuthStateChange(async (event, session) => {
+                this.log(`Auth Event: ${event}`, 'info');
+                
                 if (event === 'SIGNED_IN' && session) {
                     this.systemLoading = true;
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
+                    
                     await this.fetchData();
-                    this.checkSecretWord();
+                    // FIX: Verificar palavra secreta no primeiro login social
+                    await this.checkSecretWord();
+                    
                     this.systemLoading = false;
                     if(window.location.hash) history.replaceState(null, null, ' ');
                 } else if (event === 'SIGNED_OUT') {
@@ -111,13 +121,36 @@ function zeniteSystem() {
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, 60000);
         },
 
+        // --- DIAGNOSTICS ---
+        handleKeys(e) {
+            // CTRL + SHIFT + D abre o console
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                this.consoleOpen = !this.consoleOpen;
+            }
+        },
+        log(msg, type='info') {
+            const time = new Date().toLocaleTimeString();
+            console.log(`[${type.toUpperCase()}] ${msg}`);
+            this.sysLogs.unshift({time, msg, type});
+            if(this.sysLogs.length > 50) this.sysLogs.pop();
+        },
+
         // --- SECRET WORD LOGIC ---
         async checkSecretWord() {
             if (!this.user) return;
-            // Verifica se a coluna secret_key está vazia
+            // Verifica se a coluna secret_key está vazia ou nula
             const { data, error } = await supabase.from('profiles').select('secret_key').eq('id', this.user.id).single();
+            
+            if (error) {
+                this.log('Erro ao checar secret_key: ' + error.message, 'error');
+                return;
+            }
+
+            // Se não tem chave, abre o modal para obrigar/sugerir criação
             if (data && !data.secret_key) {
-                this.secretModalOpen = true; // Abre modal para definir chave
+                this.log('Usuário sem Palavra Secreta. Abrindo modal.', 'warn');
+                this.secretModalOpen = true; 
             }
         },
 
@@ -128,6 +161,7 @@ function zeniteSystem() {
             
             if (error) {
                 this.notify('Erro ao salvar chave.', 'error');
+                this.log(error.message, 'error');
             } else {
                 this.notify('Chave de Segurança definida!', 'success');
                 this.secretModalOpen = false;
@@ -191,54 +225,119 @@ function zeniteSystem() {
 
             } catch (e) {
                 this.notify(e.message, 'error');
+                this.log(e.message, 'error');
             } finally {
                 this.authLoading = false;
             }
         },
 
-        // LOGOUT BLINDADO (Fix Travamento)
+        // FIX: LOGOUT BLINDADO
         async logout() {
             this.systemLoading = true;
-            try {
-                // Tenta salvar (timeout curto 3s para não travar)
-                if(this.unsavedChanges && !this.isGuest) {
-                    const timeout = new Promise((_, r) => setTimeout(() => r('Skip'), 3000));
-                    await Promise.race([this.syncCloud(true), timeout]).catch(e => console.log("Logout sync skipped"));
-                }
-            } catch(e) {} // Ignora erros de save no logout
+            this.log('Iniciando logout...', 'info');
 
-            // Limpeza Forçada
+            // 1. Tenta salvar rapidamente
+            if(this.unsavedChanges && !this.isGuest) {
+                try {
+                    this.notify('Salvando antes de sair...', 'info');
+                    await Promise.race([
+                        this.syncCloud(true),
+                        new Promise((_, r) => setTimeout(() => r('Timeout'), 2000))
+                    ]);
+                } catch(e) {
+                    this.log('Save logout ignorado: ' + e, 'warn');
+                }
+            }
+
+            // 2. Limpeza local IMEDIATA para evitar estado zumbi
             localStorage.removeItem('zenite_cached_db');
             localStorage.removeItem('zenite_is_guest');
-            await supabase.auth.signOut();
+            this.user = null;
+            this.chars = {};
+
+            // 3. Logout Supabase
+            try {
+                await supabase.auth.signOut();
+            } catch(e) {
+                this.log('Erro no signOut do Supabase', 'error');
+            }
+
+            // 4. Reload forçado para limpar memória
             window.location.reload();
         },
-
-        // ... (RESTO DO CÓDIGO: syncCloud, fetchData, doSocialAuth, helpers, gameplay) ...
-        // MANTENHA O RESTANTE DAS FUNÇÕES DA VERSÃO v30.0 AQUI PARA BAIXO
-        // Vou replicar as essenciais para garantir:
 
         async doSocialAuth(provider) {
             this.authLoading = true;
             const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
             if (error) { this.notify(error.message, 'error'); this.authLoading = false; }
         },
+
+        // FIX: SYNC CLOUD ROBUSTO
         async syncCloud(silent = false) {
             if (!this.user || this.isGuest || this.isSyncing) return;
-            this.isSyncing = true; if(!silent) this.notify('Sincronizando...', 'info');
-            const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), 10000));
+            
+            this.isSyncing = true; 
+            if(!silent) this.notify('Sincronizando...', 'info');
+            
+            const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Tempo limite excedido')), 10000));
+            
             try {
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                
                 const payload = JSON.parse(JSON.stringify(this.chars));
-                const { error } = await Promise.race([supabase.from('profiles').upsert({ id: this.user.id, data: payload }), timeout]);
+                
+                // IMPORTANTE: Adiciona updated_at para garantir que o banco processe a mudança se houver triggers
+                // E usa upsert garantindo que 'id' bata com o usuário
+                const { error } = await Promise.race([
+                    supabase.from('profiles').upsert({ 
+                        id: this.user.id, 
+                        data: payload,
+                        updated_at: new Date().toISOString()
+                    }), 
+                    timeout
+                ]);
+
                 if (error) throw error;
-                this.unsavedChanges = false; this.saveStatus = 'success';
-                if(!silent) this.notify('Salvo!', 'success');
+                
+                this.unsavedChanges = false; 
+                this.saveStatus = 'success';
+                if(!silent) this.notify('Salvo com sucesso!', 'success');
+                this.log('Dados sincronizados.', 'success');
+                
                 setTimeout(() => { if(this.saveStatus === 'success') this.saveStatus = 'idle'; }, 2000);
-            } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao Salvar.', 'error'); } 
-            finally { this.isSyncing = false; }
+            } catch (e) { 
+                this.saveStatus = 'error'; 
+                if(!silent) this.notify('Erro ao Salvar: ' + e.message, 'error'); 
+                this.log('Sync Error: ' + e.message, 'error');
+            } finally { 
+                this.isSyncing = false; 
+            }
         },
-        async fetchData() { if (!this.user) return; let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); if (error && error.code === 'PGRST116') { await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); data = { data: {} }; } if (data) { let c = data.data || {}; if (Array.isArray(c)) { let o = {}; c.forEach(x => { if(x?.id) o[x.id] = x; }); c = o; } this.chars = c; this.sanitizeData(); localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); } },
+
+        async fetchData() { 
+            if (!this.user) return; 
+            
+            let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
+            
+            // PGRST116 = Returns no rows (usuário novo sem perfil criado)
+            if (error && error.code === 'PGRST116') { 
+                this.log('Perfil novo detectado. Criando entrada...', 'info');
+                await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); 
+                data = { data: {} }; 
+            } else if (error) {
+                this.log('Erro ao baixar dados: ' + error.message, 'error');
+            }
+
+            if (data) { 
+                let c = data.data || {}; 
+                if (Array.isArray(c)) { let o = {}; c.forEach(x => { if(x?.id) o[x.id] = x; }); c = o; } 
+                this.chars = c; 
+                this.sanitizeData(); 
+                localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); 
+                this.log('Dados carregados.', 'success');
+            } 
+        },
+
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         sanitizeData() { if (!this.chars || typeof this.chars !== 'object') this.chars = {}; Object.keys(this.chars).forEach(k => { if (!this.chars[k] || !this.chars[k].id) delete this.chars[k]; }); this.updateAgentCount(); },
@@ -262,7 +361,7 @@ function zeniteSystem() {
         updateRadarChart() { this.renderChart('radarChart', this.char.attrs, '14,165,233'); }, updateWizardChart() { this.renderChart('wizChart', this.wizardData.attrs, '255,255,255'); },
         roll(s) { const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; const time = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); const formula = `D${s}${m!==0?(m>0?'+'+m:m):''}`; this.diceLog.unshift({id:Date.now(), time, formula, result: this.lastRoll, crit: n===s, fumble: n===1}); if(this.diceLog.length>8) this.diceLog.pop(); },
         openImageEditor() { document.getElementById('file-input').click(); }, initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); }, applyCrop() { if(!this.cropperInstance) return; this.char.photo = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); this.cropperOpen = false; this.notify('Foto salva.', 'success'); },
-        notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type, dismissed: false}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
+        notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type, dismissed: false}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); this.log(msg, type); },
         exportData() { const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = str; a.download = `zenite_bkp_${Date.now()}.json`; a.click(); },
         importData(e) { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { try { this.chars = JSON.parse(evt.target.result); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Backup restaurado.', 'success'); this.configModal = false; location.reload(); } catch(err) { this.notify('Arquivo inválido.', 'error'); } }; r.readAsText(file); },
         openWizard() { if (this.agentCount >= MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardOpen = true; this.wizardStep = 1; this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardPoints = 8; }, selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardFocusAttr = a.focus; this.wizardData.attrs[a.focus] = 0; this.wizardStep = 2; this.wizardPoints = 8; setTimeout(()=>this.updateWizardChart(),50); }, modWizardAttr(key, val) { const c = this.wizardData.attrs[key]; const isFocus = key === this.wizardFocusAttr; if (val > 0 && this.wizardPoints > 0 && c < 3) { this.wizardData.attrs[key]++; this.wizardPoints--; } if (val < 0 && c > (isFocus ? 0 : -1)) { this.wizardData.attrs[key]--; this.wizardPoints++; } this.updateWizardChart(); }, finishWizard() { const id = 'z_' + Date.now(); const tempChar = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs, stats: { pv:{}, pf:{}, pdf:{} } }; const oldChar = this.char; this.char = tempChar; this.recalcDerivedStats(); this.char = oldChar; const newChar = { id: id, name: '', identity: '', class: this.wizardData.class, level: 1, photo: '', history: '', credits: 0, stats: { pv: { current: tempChar.stats.pv.max, max: tempChar.stats.pv.max }, pf: { current: tempChar.stats.pf.max, max: tempChar.stats.pf.max }, pdf: { current: tempChar.stats.pdf.max, max: tempChar.stats.pdf.max } }, attrs: {...this.wizardData.attrs}, inventory: { weapons: [], armor: [], gear: [], backpack: "", social: {people:[], objects:[]} }, skills: [], powers: { passive: '', active: '', techniques: [], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } }; this.chars[id] = newChar; this.sanitizeData(); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.wizardOpen = false; this.loadCharacter(id); this.notify('Agente Inicializado.', 'success'); }
