@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     
     <link rel="stylesheet" href="css/style.css">
@@ -22,25 +23,29 @@
     <div id="mouse-trail" class="fixed top-0 left-0 w-4 h-4 rounded-full pointer-events-none z-[10002]" style="background: radial-gradient(circle, var(--neon-core), transparent 70%); mix-blend-mode: screen; opacity: 0;"></div>
 
     <div class="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-black">
-        <div class="absolute inset-0 bg-nebula opacity-20"></div>
+        <div class="absolute inset-0 bg-nebula"></div>
         <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTAgMzhoNDB2MmIMVjM4ek0wIDBoNDB2MkgwVjB6Ii8+PC9nPjwvZz48L3N2Zz4=')]"></div>
     </div>
 
-    <div id="app-loader" x-show="systemLoading" x-transition.opacity><div class="loader-spinner"></div><p class="text-xs font-bold text-gray-500 tracking-widest">INICIALIZANDO...</p></div>
+    <div id="app-loader" x-show="systemLoading" x-transition.opacity class="flex flex-col items-center justify-center fixed inset-0 z-[9000] bg-black">
+        <div class="loader-spinner"></div>
+        <p class="text-xs font-bold text-gray-500 tracking-widest mt-4">SYSTEM BOOT...</p>
+    </div>
 
     <div class="fixed top-5 right-5 z-[9999] space-y-2 pointer-events-none">
         <template x-for="n in notifications" :key="n.id">
-            <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl"
+            <div class="glass border-l-4 px-6 py-3 rounded shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl pointer-events-auto"
                  :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
                 <i x-show="n.type==='error'" class="fa-solid fa-circle-xmark text-red-500"></i>
                 <i x-show="n.type==='success'" class="fa-solid fa-circle-check text-green-500"></i>
                 <i x-show="n.type==='warn'" class="fa-solid fa-triangle-exclamation text-yellow-500"></i>
+                <i x-show="n.type==='info'" class="fa-solid fa-circle-info text-blue-500"></i>
                 <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
             </div>
         </template>
     </div>
 
-    <div x-show="consoleOpen" class="fixed top-0 left-0 w-full h-40 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in border-b border-red-900/50" x-transition>
+    <div x-show="consoleOpen" class="fixed top-0 left-0 w-full h-40 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in border-b border-red-900/50" x-transition style="display: none;">
         <div class="flex justify-between items-center px-4 py-2 bg-red-900/20">
             <span class="text-red-500 font-bold flex items-center gap-2"><i class="fa-solid fa-bug"></i> DEBUG CONSOLE</span>
             <button @click="consoleOpen=false" class="text-white hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
@@ -48,7 +53,7 @@
         <div class="flex-grow overflow-y-auto p-2 space-y-1 font-code">
             <template x-for="(log, idx) in sysLogs" :key="idx">
                 <div class="border-b border-white/5 pb-1 flex gap-2">
-                    <span class="text-gray-600 w-12 flex-shrink-0" x-text="log.time"></span>
+                    <span class="text-gray-600 w-16 flex-shrink-0" x-text="log.time"></span>
                     <span :class="log.type==='error'?'text-red-500':(log.type==='warn'?'text-yellow-500':'text-[var(--neon-success)]')" x-text="'['+log.type+']'" class="uppercase font-bold w-12 flex-shrink-0"></span>
                     <span class="text-gray-300 break-all" x-text="log.msg"></span>
                 </div>
@@ -57,29 +62,36 @@
     </div>
 
     <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center">
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.2)] text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-[var(--neon-core)] opacity-50"></div>
+            
             <div class="mb-8">
                 <h1 class="text-4xl font-brand text-white mb-2">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-xs uppercase tracking-widest">Acesso Seguro</p>
+                <p class="text-gray-500 font-code text-xs uppercase tracking-widest">Acesso Seguro v48.0</p>
             </div>
+            
             <div class="space-y-4">
                 <h3 class="text-xs font-bold text-white mb-4 uppercase">Login Social</h3>
+                
                 <button @click="doSocialAuth('google')" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors relative overflow-hidden disabled:opacity-50">
                     <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-google text-red-600"></i> GOOGLE</div>
-                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> ...</div>
+                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> Conectando...</div>
                 </button>
+                
                 <button @click="doSocialAuth('discord')" :disabled="authLoading" class="w-full py-3 bg-[#5865F2] text-white font-bold rounded flex items-center justify-center gap-2 hover:bg-[#4752C4] transition-colors relative overflow-hidden disabled:opacity-50">
                     <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-discord"></i> DISCORD</div>
-                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> ...</div>
+                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> Conectando...</div>
                 </button>
+                
                 <div class="border-t border-white/10 pt-6 mt-6">
-                    <button @click="enterGuest()" class="w-full py-2 border border-dashed border-gray-700 text-gray-500 text-[10px] font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider group">
+                    <button @click="enterGuest()" class="w-full py-2 border border-dashed border-gray-700 text-gray-500 text-[10px] font-bold hover:text-white hover:border-white/30 rounded uppercase tracking-wider group transition-all">
                         ENTRAR OFFLINE
-                        <span class="block text-[8px] normal-case text-gray-600 group-hover:text-gray-400 mt-0.5">Dados salvos apenas neste dispositivo</span>
+                        <span class="block text-[8px] normal-case text-gray-600 group-hover:text-gray-400 mt-0.5">Dados salvos apenas neste dispositivo (Cache Local)</span>
                     </button>
                 </div>
             </div>
-            <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
+            
+            <p x-show="authMsg" x-text="authMsg" class="text-xs font-bold mt-4 animate-pulse" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
         </div>
     </div>
 
@@ -88,38 +100,44 @@
             <div class="text-4xl mb-4" :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'"><i class="fa-solid" :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"></i></div>
             <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title"></h3>
             <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc"></p>
-            <div class="flex gap-3"><button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button><button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button></div>
+            <div class="flex gap-3">
+                <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button>
+                <button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button>
+            </div>
         </div>
     </div>
 
-    <header class="relative z-20 max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5">
+    <header class="relative z-20 max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center border-b border-white/5 bg-black/50 backdrop-blur-sm">
         <div class="flex items-center justify-between w-full md:w-auto mb-4 md:mb-0">
             <div class="flex items-center gap-4 cursor-pointer group" @click="toggleFullscreen()">
-                <div class="w-10 h-10 md:w-14 md:h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(14,165,233,0.2)] group-hover:scale-105 transition-transform" style="background-image: url('images/zenite_logo.svg'); background-size: cover; background-position: center;"><span class="font-brand text-xl md:text-3xl font-bold text-white" x-show="!isGuest && !user">Z</span></div>
+                <div class="w-10 h-10 md:w-14 md:h-14 rounded-xl bg-black border border-[var(--neon-core)] flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(14,165,233,0.2)] group-hover:scale-105 transition-transform" style="background-image: url('images/zenite_logo.svg'); background-size: cover; background-position: center;">
+                    <span class="font-brand text-xl md:text-3xl font-bold text-white" x-show="!isGuest && !user">Z</span>
+                </div>
                 <div><h1 class="text-xl md:text-2xl font-bold text-white tracking-widest font-brand">ZENITE OS</h1></div>
             </div>
 
             <div x-show="user" class="relative md:ml-4" @click.outside="userMenuOpen=false">
                 <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
-                    <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user.email"></span>
+                    <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
                 </button>
                 <div x-show="userMenuOpen" class="absolute top-full right-0 md:left-0 md:right-auto mt-2 w-64 max-w-[80vw] glass rounded-lg overflow-hidden z-50 shadow-xl border border-white/10 origin-top-right md:origin-top-left" x-transition>
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado como</p>
-                        <p class="text-xs text-white font-bold break-all leading-tight" x-text="user.email"></p>
-                        <p class="text-[10px] text-[var(--neon-core)] mt-1" x-show="user.app_metadata && user.app_metadata.provider">VIA <span class="uppercase" x-text="user.app_metadata.provider"></span></p>
+                        <p class="text-xs text-white font-bold break-all leading-tight" x-text="user?.email"></p>
+                        <p class="text-[10px] text-[var(--neon-core)] mt-1" x-show="user?.app_metadata?.provider">VIA <span class="uppercase" x-text="user?.app_metadata?.provider"></span></p>
                     </div>
                     <button @click="askLogout()" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"><i class="fa-solid fa-power-off mr-2"></i> SAIR DA CONTA</button>
                 </div>
             </div>
         </div>
+
         <div class="flex gap-3 items-center justify-center w-full md:w-auto">
             <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
             <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SAVING...</div>
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
-            <button x-show="currentView === 'dashboard'" @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO</span></button>
+            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-colors"><i class="fa-solid fa-gear"></i></button>
+            <button x-show="currentView === 'dashboard'" @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2 transition-transform"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO</span></button>
         </div>
     </header>
 
@@ -127,18 +145,27 @@
         <div class="mb-8 border-b border-white/5 pb-4">
             <div class="flex justify-between items-end mb-2">
                 <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest">Banco de Dados</h2>
-                <div class="text-[10px] font-code text-gray-600">SLOTS: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
+                <div class="text-[10px] font-code text-gray-600">SLOTS: <span x-text="agentCount" class="text-white font-bold"></span> / <span x-text="CONSTANTS.MAX_AGENTS"></span></div>
             </div>
             <div class="relative">
                 <input x-model="searchQuery" type="text" placeholder="Filtrar Agentes..." class="w-full bg-black/40 border border-white/10 rounded-lg py-2 px-10 text-xs text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors">
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600"></i>
             </div>
         </div>
-        <template x-if="agentCount === 0"><div class="py-32 text-center opacity-30"><i class="fa-solid fa-network-wired text-6xl mb-4"></i><p class="font-brand">SISTEMA VAZIO</p></div></template>
+        
+        <template x-if="agentCount === 0">
+            <div class="py-32 text-center opacity-30">
+                <i class="fa-solid fa-network-wired text-6xl mb-4"></i>
+                <p class="font-brand">SISTEMA VAZIO</p>
+            </div>
+        </template>
+        
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mobile-grid-stack">
             <template x-for="(c, id) in filteredChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5">
-                    <div class="relative z-10 flex-shrink-0"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black"></div>
+                    <div class="relative z-10 flex-shrink-0">
+                        <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black">
+                    </div>
                     <div class="relative z-10 overflow-hidden">
                         <h3 class="text-white font-bold truncate font-brand text-lg group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
                         <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
@@ -152,34 +179,151 @@
     <template x-if="currentView === 'sheet' && char">
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-48" x-transition.opacity>
             <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10">
-                <div class="flex items-center gap-3 px-2"><button @click="saveAndExit()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button><div class="w-px h-4 bg-white/10"></div><span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span></div>
-                <div class="flex gap-1 bg-black/40 p-1 rounded-lg"><button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Perfil</button><button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Poderes</button><button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Logística</button></div>
+                <div class="flex items-center gap-3 px-2">
+                    <button @click="saveAndExit()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                    <div class="w-px h-4 bg-white/10"></div>
+                    <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
+                </div>
+                <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
+                    <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Perfil</button>
+                    <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Poderes</button>
+                    <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded text-xs font-bold uppercase transition-all">Logística</button>
+                </div>
             </div>
 
             <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 <div class="lg:col-span-4 space-y-6">
                     <div class="glass p-6 rounded-xl text-center relative group">
-                        <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative"><img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo"></div>
-                        <div class="mt-4 flex justify-center"><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><label class="text-[10px] text-gray-500 font-bold">NÍVEL</label><input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none"></div></div>
+                        <div @click="openImageEditor()" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative">
+                            <img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo">
+                        </div>
+                        <div class="mt-4 flex justify-center">
+                            <div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2">
+                                <label class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
+                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
+                            </div>
+                        </div>
+                        
                         <div class="mt-6 space-y-3 text-left">
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-red-500/30 transition-colors"><div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-red-500">PV</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pv.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div><div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div><div class="flex gap-1 mt-2 justify-between"><button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded font-bold hover:text-white hover:bg-red-500">-5</button><button @click="modStat('pv', -1)" class="px-3 bg-red-900/20 text-red-500 text-xs rounded hover:text-white hover:bg-red-500">-1</button><button @click="modStat('pv', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button><button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button></div></div>
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-amber-500/30 transition-colors"><div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-amber-500">PF</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pf.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pf.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div><div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div><div class="flex gap-1 mt-2 justify-between"><button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded font-bold hover:text-white hover:bg-amber-500">-5</button><button @click="modStat('pf', -1)" class="px-3 bg-amber-900/20 text-amber-500 text-xs rounded hover:text-white hover:bg-amber-500">-1</button><button @click="modStat('pf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button><button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button></div></div>
-                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-violet-500/30 transition-colors"><div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-violet-500">PDF</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pdf.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pdf.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div><div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div><div class="flex gap-1 mt-2 justify-between"><button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded font-bold hover:text-white hover:bg-violet-500">-5</button><button @click="modStat('pdf', -1)" class="px-3 bg-violet-900/20 text-violet-500 text-xs rounded hover:text-white hover:bg-violet-500">-1</button><button @click="modStat('pdf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button><button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button></div></div>
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-red-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-red-500">PV (Vida)</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pv.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
+                            </div>
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-amber-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-amber-500">PF (Esforço)</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pf.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pf.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
+                            </div>
+                            <div class="bg-black/40 p-3 rounded border border-white/5 hover:border-violet-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-violet-500">PDF (Mente)</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pdf.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pdf.max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"></div></div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="lg:col-span-8 space-y-6">
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div><div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div><div><select x-model="char.class" @change="updateClassLogic()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div></div>
-                     <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8"><div class="w-full md:w-1/2 space-y-2"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5"><span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span><div class="flex items-center gap-3"><button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button><span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span><button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button></div></div></template></div><div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div></div>
-                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
-                     <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]"><textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea></div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div>
+                        <div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
+                        <div>
+                            <select x-model="char.class" class="input-cyber w-full p-3 text-sm">
+                                <template x-for="a in archetypes" :key="a.class"><option x-text="a.class"></option></template>
+                            </select>
+                        </div>
+                     </div>
+                     
+                     <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
+                        <div class="w-full md:w-1/2 space-y-2">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
+                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
+                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span>
+                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
+                     </div>
+                     
+                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500">
+                        <div class="flex justify-between mb-4 items-center">
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
+                            <button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="(s, idx) in char.skills" :key="idx">
+                                <div class="bg-black/40 p-3 rounded flex justify-between items-center">
+                                    <input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome">
+                                    <div class="flex gap-1">
+                                        <template x-for="i in 5">
+                                            <div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div>
+                                        </template>
+                                    </div>
+                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                     </div>
+                     
+                     <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
+                        <textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea>
+                     </div>
                 </div>
             </div>
             
-            <div x-show="activeTab === 'logistics'" class="space-y-6"><div class="flex justify-between items-center"><h3 class="text-white font-brand">LOGÍSTICA</h3><div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2"><span class="text-amber-500">₵</span><input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code"></div></div><div class="flex gap-2 border-b border-white/10 pb-2 mb-4"><button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button><button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button><button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social</button></div><div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"><div class="glass p-4 rounded-lg"><div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div><div class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"><span class="col-span-5">Nome</span> <span class="col-span-3 text-center">Dano</span> <span class="col-span-3 text-center">Alcance</span></div><div class="space-y-2 max-h-60 overflow-y-auto"><template x-for="(w, i) in char.inventory.weapons" :key="i"><div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs"><input x-model="w.name" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="..."><input x-model="w.dmg" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="..."><input x-model="w.range" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="..."><button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button></div></template></div></div><div class="glass p-4 rounded-lg"><div class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"><span>Proteção</span><button @click="addItem('armor')" class="hover:text-white">ADD</button></div><div class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"><span class="col-span-6">Nome</span> <span class="col-span-3 text-center">Defesa</span> <span class="col-span-2 text-center">Pen</span></div><div class="space-y-2 max-h-60 overflow-y-auto"><template x-for="(a, i) in char.inventory.armor" :key="i"><div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs"><input x-model="a.name" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="..."><input x-model="a.def" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="..."><input x-model="a.pen" class="col-span-2 bg-transparent outline-none text-center text-gray-400" placeholder="..."><button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button></div></template></div></div></div><div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in"><div class="glass p-4 rounded-lg"><div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4"><template x-for="(g, i) in char.inventory.gear" :key="i"><div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs"><div class="flex-grow flex gap-2"><input x-model="g.name" class="bg-transparent outline-none font-bold text-white w-1/3" placeholder="Item"><input x-model="g.desc" class="bg-transparent outline-none text-gray-500 w-2/3" placeholder="Descrição"></div><input x-model="g.qty" type="number" class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]"><button @click="deleteItem('gear', i)" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button></div></template></div><div class="border-t border-white/10 pt-4"><textarea x-model="char.inventory.backpack" class="w-full h-32 bg-black/40 text-sm text-gray-300 p-3 rounded border border-white/5 resize-none outline-none" placeholder="Outros..."></textarea></div></div></div><div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"><div class="glass p-4 rounded-lg"><div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div><div class="space-y-2"><template x-for="(p, i) in char.inventory.social.people" :key="i"><div class="bg-black/40 p-2 rounded flex justify-between text-xs"><input x-model="p.name" class="bg-transparent font-bold text-white w-1/2" placeholder="Nome"><input x-model="p.role" class="bg-transparent text-gray-500 w-1/2" placeholder="Relação"><button @click="deleteItem('social', i, 'people')" class="text-red-500">x</button></div></template></div></div><div class="glass p-4 rounded-lg"><div class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"><span>Objetos</span><button @click="addItem('social_objects')" class="hover:text-white">ADD</button></div><div class="space-y-2"><template x-for="(o, i) in char.inventory.social.objects" :key="i"><div class="bg-black/40 p-2 rounded flex justify-between text-xs"><input x-model="o.name" class="bg-transparent font-bold text-white w-1/2" placeholder="Objeto"><input x-model="o.desc" class="bg-transparent text-gray-500 w-1/2" placeholder="Detalhe"><button @click="deleteItem('social', i, 'objects')" class="text-red-500">x</button></div></template></div></div></div></div>
+            <div x-show="activeTab === 'logistics'" class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-white font-brand">LOGÍSTICA</h3>
+                    <div class="bg-black/40 px-4 py-2 rounded border border-white/10 flex items-center gap-2">
+                        <span class="text-amber-500">₵</span>
+                        <input type="number" x-model="char.credits" class="bg-transparent w-24 text-right outline-none font-code">
+                    </div>
+                </div>
+                <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
+                    <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
+                    <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
+                    <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social</button>
+                </div>
+                
+                <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
+                        <div class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"><span class="col-span-5">Nome</span> <span class="col-span-3 text-center">Dano</span> <span class="col-span-3 text-center">Alcance</span></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(w, i) in char.inventory.weapons" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="w.name" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="...">
+                                    <input x-model="w.dmg" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <input x-model="w.range" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"><span>Proteção</span><button @click="addItem('armor')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(a, i) in char.inventory.armor" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="a.name" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="...">
+                                    <input x-model="a.def" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                </div>
             
-            <div x-show="activeTab === 'powers'" class="space-y-6"><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div><div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div></div><div class="glass p-6 rounded-xl border-l-2 border-emerald-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas</h3><button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="space-y-3"><template x-for="(t, idx) in char.powers.techniques" :key="idx"><div class="bg-black/40 p-3 rounded"><div class="flex justify-between mb-2"><input x-model="t.name" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome"><button @click="deleteTechnique(idx)" class="text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div><textarea x-model="t.desc" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Efeito..."></textarea></div></template></div></div><div class="glass p-6 rounded-xl"><h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Evolução</h3><div class="space-y-4"><template x-for="lvl in [3,6,9,10]"><div class="bg-black/20 p-3 rounded border border-white/5"><div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500"><span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span></div><textarea x-model="char.powers['lvl'+lvl]" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea></div></template></div></div></div>
+            <div x-show="activeTab === 'powers'" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4><textarea x-model="char.powers.passive" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
+                    <div class="glass p-4 rounded-lg"><h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4><textarea x-model="char.powers.active" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea></div>
+                </div>
+            </div>
         </main>
     </template>
 
@@ -189,7 +333,6 @@
          class="fixed bottom-40 md:bottom-28 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-auto z-[9990] flex justify-center pointer-events-none">
         <div class="bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-6 py-3 flex items-center gap-4 shadow-[0_0_30px_rgba(14,165,233,0.3)] animate-pulse-border pointer-events-auto">
             <span class="text-xs font-bold text-white uppercase tracking-wider hidden md:block">Você tem alterações não salvas</span>
-            <span class="text-xs font-bold text-white uppercase tracking-wider md:hidden">Não salvo!</span>
             <div class="flex gap-2">
                 <button @click="syncCloud()" class="px-4 py-1.5 bg-[var(--neon-core)] text-black text-xs font-bold rounded-full hover:bg-white transition-colors shadow-lg flex items-center gap-2">
                     <span x-show="!isSyncing">SALVAR</span>
@@ -201,21 +344,10 @@
 
     <div class="fixed bottom-0 left-0 w-full p-3 z-50 pointer-events-none" x-show="currentView === 'sheet'">
         <div x-show="diceTrayOpen" x-transition class="dice-tray-suspended glass pointer-events-auto flex-col md:flex-row gap-3 md:gap-4 !px-4 !py-3">
-            <div class="flex justify-between items-center w-full md:w-auto gap-3 border-b md:border-b-0 border-white/5 pb-2 md:pb-0">
+             <div class="flex justify-between items-center w-full md:w-auto gap-3 border-b md:border-b-0 border-white/5 pb-2 md:pb-0">
                 <button @click="diceTrayOpen=false" class="text-red-500 hover:text-white md:hidden"><i class="fa-solid fa-xmark"></i></button>
-                <div class="relative">
-                    <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white p-2"><i class="fa-solid fa-clock-rotate-left"></i></button>
-                    <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-[var(--neon-core)] rounded-lg p-0 shadow-2xl max-h-60 overflow-hidden flex flex-col z-[100]" x-transition>
-                        <div class="bg-[var(--neon-core)] text-black text-[10px] font-bold px-3 py-1 uppercase">Histórico</div>
-                        <div class="overflow-y-auto p-3 space-y-2">
-                            <template x-for="log in diceLog"><div class="flex justify-between text-[10px] border-b border-white/5 pb-1 text-gray-400 font-code"><span x-text="log.time"></span><span class="text-white font-bold" x-text="log.formula"></span><span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-white'" x-text="log.result"></span></div></template>
-                            <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-600 py-2">Vazio</div>
-                        </div>
-                    </div>
-                </div>
                 <div class="flex items-center bg-white/5 rounded-full px-3 py-1 border border-white/10"><span class="text-[8px] font-bold text-gray-500 mr-2">MOD</span><input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none"></div>
-                <div class="text-2xl font-bold font-brand w-12 text-center" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
-                <button @click="diceTrayOpen=false" class="text-red-500 hover:text-white hidden md:block ml-2"><i class="fa-solid fa-xmark"></i></button>
+                <div class="text-2xl font-bold font-brand w-12 text-center" :class="lastRoll === (lastFaces+parseInt(diceMod)) ? 'crit-success' : (lastRoll === (1+parseInt(diceMod)) ? 'crit-fail' : 'text-white')" x-text="lastRoll">--</div>
             </div>
             <div class="grid grid-cols-4 gap-2 md:flex md:gap-2 w-full md:w-auto">
                 <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="w-full md:w-9 h-8 md:h-9 rounded md:rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all shadow-lg" x-text="'D'+d"></button></template>
@@ -226,37 +358,102 @@
         </button>
     </div>
 
-    <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center px-4"><div class="glass p-6 md:p-8 rounded-xl w-full max-w-md relative border border-white/10 shadow-2xl">
-        <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-        <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
-        <div class="space-y-4">
-            <div>
-                <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
-                <div class="flex gap-2">
-                    <button @click="toggleSetting('themeColor', 'cyan')" class="flex-1 py-2 rounded border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40" :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
-                    <button @click="toggleSetting('themeColor', 'purple')" class="flex-1 py-2 rounded border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40" :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
-                    <button @click="toggleSetting('themeColor', 'gold')" class="flex-1 py-2 rounded border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40" :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
+    <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+        <div class="glass p-6 md:p-8 rounded-xl w-full max-w-md relative border border-white/10 shadow-2xl" @click.outside="configModal=false">
+            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
+            <div class="space-y-4">
+                <div>
+                    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
+                    <div class="flex gap-2">
+                        <button @click="toggleSetting('themeColor', 'cyan')" class="flex-1 py-2 rounded border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40" :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
+                        <button @click="toggleSetting('themeColor', 'purple')" class="flex-1 py-2 rounded border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40" :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
+                        <button @click="toggleSetting('themeColor', 'gold')" class="flex-1 py-2 rounded border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40" :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
+                    </div>
+                </div>
+                <div class="border-t border-white/10"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
+                    <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO</button>
+                    <button @click="toggleSetting('performanceMode')" class="py-3 border border-white/10 rounded text-xs font-bold col-span-2" :class="settings.performanceMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO PERFORMANCE (MOBILE)</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded text-xs hover:bg-blue-600/30"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
+                    <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded text-xs hover:bg-emerald-600/30"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
+                    <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                </div>
+                <div class="border-t border-white/10 my-4"></div>
+                <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE LOCAL</button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4">
+        <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
+                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-6">
+                <div x-show="wizardStep === 1">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <template x-for="arch in archetypes">
+                            <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center">
+                                <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
+                                <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
+                                <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="wizardStep === 2">
+                    <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg">
+                        <span class="text-2xl font-brand text-white" x-text="wizardData.class"></span>
+                        <div class="text-right">
+                            <div class="text-[10px] text-gray-500">PONTOS</div>
+                            <div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="space-y-4">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5">
+                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
+                                        <span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span>
+                                        <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex items-center justify-center bg-black/20 rounded-xl h-64">
+                            <canvas id="wizardChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="border-t border-white/10"></div>
-            <div class="grid grid-cols-2 gap-3">
-                <button @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
-                <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO</button>
-                <button @click="toggleSetting('performanceMode')" class="py-3 border border-white/10 rounded text-xs font-bold col-span-2" :class="settings.performanceMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO PERFORMANCE (MOBILE)</button>
+            <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between">
+                <button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button>
+                <div class="flex-grow"></div>
+                <button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button>
             </div>
-            <div class="grid grid-cols-2 gap-3 pt-2">
-                <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded text-xs hover:bg-blue-600/30"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
-                <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded text-xs hover:bg-emerald-600/30"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
-                <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
-            </div>
-            <div class="border-t border-white/10 my-4"></div>
-            <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE LOCAL</button>
         </div>
-    </div></div>
-    
-    <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4"><div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl"><div class="p-6 border-b border-white/10 flex justify-between items-center"><h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2><button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button></div><div class="flex-grow overflow-y-auto p-6"><div x-show="wizardStep === 1"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><template x-for="arch in archetypes"><div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center"><i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i><h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3><p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p></div></template></div></div><div x-show="wizardStep === 2"><div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg"><span class="text-2xl font-brand text-white" x-text="wizardData.class"></span><div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="space-y-4"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5"><span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span><div class="flex items-center gap-3"><button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button><span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span><button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button></div></div></template></div><div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div></div></div></div><div class="p-6 border-t border-white/10 bg-black/20 flex justify-between"><button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button><div class="flex-grow"></div><button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button></div></div></div>
+    </div>
 
-    <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4"><div class="w-full max-w-lg h-[70vh] flex flex-col"><div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div><div class="flex gap-3"><input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)"><button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button><button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button><button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button></div></div></div>
+    <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4">
+        <div class="w-full max-w-lg h-[70vh] flex flex-col">
+            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
+                <img id="crop-target" class="block max-w-full">
+            </div>
+            <div class="flex gap-3">
+                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
+                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
+                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
+                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
