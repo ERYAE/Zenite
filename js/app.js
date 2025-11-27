@@ -1,22 +1,17 @@
 /**
  * ZENITE OS - Core Application
- * Version: v49.1-Hybrid-Fix
- * Changelog:
- * - UI Feedback: INSTANTÂNEO (Pop-up aparece na hora)
- * - Database Save: DEBOUNCED (Salva só quando para de digitar)
- * - Favicon: Lógica preparada para troca de tema
+ * Version: v50.0-Warlord
+ * Features: Draggable Widgets, rAF Performance Loop, Extended Wizard
  */
 
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    // Em produção, nunca exponha chaves assim. Mas para seu MVP, segue o jogo.
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// Utilitário de Debounce (O "Freio" do salvamento)
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -50,15 +45,24 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- UI GERAL ---
+        // --- WIDGETS & UI ---
+        // Dice Tray Flutuante
         diceTrayOpen: true,
         showDiceLog: false,
+        diceTrayPos: { x: 20, y: window.innerHeight - 150 }, // Posição inicial segura
+        isDraggingTray: false,
+        dragOffset: { x: 0, y: 0 },
+        
         diceLog: [],
         lastRoll: '--',
         lastNatural: 0,
         lastFaces: 20,
         diceMod: 0,
         
+        // --- PERFORMANCE (MOUSE) ---
+        mousePos: { x: -100, y: -100 }, // Fora da tela inicialmente
+        mouseRafId: null,
+
         // --- MODAIS ---
         configModal: false,
         wizardOpen: false, 
@@ -69,25 +73,31 @@ function zeniteSystem() {
         // --- WIZARD (Criação) ---
         wizardStep: 1,
         wizardPoints: 8,
-        wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+        // Novos campos adicionados aqui
+        wizardData: { 
+            class: '', 
+            name: '', 
+            identity: '', 
+            age: '', 
+            history: '',
+            attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
+        },
         wizardFocusAttr: '',
         
         // --- CONFIGS ---
         settings: {
             mouseTrail: true,
             compactMode: false,
-            performanceMode: false,
+            performanceMode: false, // Se true, desativa rastro e blur
             themeColor: 'cyan'
         },
         
-        // --- CONTROLE DE SALVAMENTO (Aqui está a mágica) ---
-        unsavedChanges: false, // Controla o Pop-up "Discord Style"
+        unsavedChanges: false,
         isSyncing: false,
         saveStatus: 'idle',
 
-        // Services
         supabase: null,
-        debouncedSaveFunc: null, // Variável para guardar a função com freio
+        debouncedSaveFunc: null,
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -111,29 +121,20 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            // Inicializa Supabase
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                     auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                 });
             }
 
-            // Inicializa a função de salvamento com "freio" (1 segundo)
             this.debouncedSaveFunc = debounce(() => {
                 this.saveLocal();
-                // Apenas loga ou faz algo leve, o indicador visual já foi ativado antes
-                this.log('Auto-save local triggered', 'info');
             }, 1000);
 
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+            window.addEventListener('resize', () => this.ensureTrayOnScreen()); // Evita perder a janela
             
-            this.handleFavicon(); // Verifica o tema ao iniciar
-            // Escuta mudanças de tema no sistema (Dark/Light mode)
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.handleFavicon());
-
-            this.log(`ZENITE OS v49.1 READY`);
-            
-            this.setupCursor();
+            this.setupCursorOptimized(); // Otimização GOD MODE
             this.setupWatchers();
 
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -172,64 +173,86 @@ function zeniteSystem() {
 
             this.applyTheme(this.settings.themeColor);
             if(this.settings.compactMode) document.body.classList.add('compact-mode');
+            if(this.settings.performanceMode) document.body.classList.add('performance-mode');
+            
             this.updateAgentCount();
             
-            // Backup periódico na nuvem (a cada 3 min)
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
-        // --- LÓGICA DO FAVICON ---
-        handleFavicon() {
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const link = document.getElementById('dynamic-favicon');
-            if(link) {
-                // Se você tiver as imagens, descomente a linha abaixo:
-                link.href = isDark ? 'images/favicon-white.svg' : 'images/favicon-black.svg';
-                
-                // Dica: Se quiser testar, crie dois arquivos na pasta images.
-            }
+        ensureTrayOnScreen() {
+            // Garante que a bandeja não suma se redimensionar a tela
+            this.diceTrayPos.x = Math.min(Math.max(0, this.diceTrayPos.x), window.innerWidth - 300);
+            this.diceTrayPos.y = Math.min(Math.max(0, this.diceTrayPos.y), window.innerHeight - 100);
         },
 
-        setupCursor() {
+        // --- PERFORMANCE: MOUSE LOOP ---
+        setupCursorOptimized() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) {
                 if(trail) trail.style.display = 'none';
                 return;
             }
+
+            // 1. O evento mousemove apenas atualiza coordenadas (Levíssimo)
             document.addEventListener('mousemove', (e) => { 
-                const trail = document.getElementById('mouse-trail');
-                if(trail) {
-                    trail.style.transform = `translate(${e.clientX - 8}px, ${e.clientY - 8}px)`; 
-                    trail.style.opacity = '1';
-                    const target = e.target;
-                    const isInteractive = target.closest('button, a, input, select, textarea, .cursor-pointer');
-                    if(isInteractive) {
-                        trail.classList.add('hover-active');
-                    } else {
-                        trail.classList.remove('hover-active');
-                    }
+                this.mousePos.x = e.clientX;
+                this.mousePos.y = e.clientY;
+                
+                // Detecção de Hover ainda precisa ser no evento para responsividade
+                if(trail && this.settings.mouseTrail) {
+                     const target = e.target;
+                     const isInteractive = target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle');
+                     if(isInteractive) trail.classList.add('hover-active');
+                     else trail.classList.remove('hover-active');
                 }
-                if (this.settings.mouseTrail) document.body.classList.add('custom-cursor-active');
             });
+
+            // 2. O requestAnimationFrame cuida do visual (Sincronizado com a tela)
+            const renderLoop = () => {
+                if (this.settings.mouseTrail && trail) {
+                    // Usar transform3d ativa aceleração de hardware
+                    trail.style.transform = `translate3d(${this.mousePos.x - 8}px, ${this.mousePos.y - 8}px, 0)`;
+                    if(trail.style.opacity === '0') trail.style.opacity = '1';
+                }
+                requestAnimationFrame(renderLoop);
+            };
+            renderLoop(); // Inicia o loop eterno
+            
+            document.body.classList.add('custom-cursor-active');
         },
 
-        // --- WATCHERS CRÍTICOS (Aqui corrigimos o comportamento) ---
+        // --- DRAGGABLE LOGIC ---
+        startDragTray(e) {
+            if(e.target.closest('button') || e.target.closest('input')) return; // Não arrasta se clicar em botões
+            this.isDraggingTray = true;
+            // Calcula onde clicou relativo à janela para não "pular"
+            this.dragOffset.x = e.clientX - this.diceTrayPos.x;
+            this.dragOffset.y = e.clientY - this.diceTrayPos.y;
+            
+            const moveHandler = (ev) => {
+                if(!this.isDraggingTray) return;
+                this.diceTrayPos.x = ev.clientX - this.dragOffset.x;
+                this.diceTrayPos.y = ev.clientY - this.dragOffset.y;
+            };
+            
+            const upHandler = () => {
+                this.isDraggingTray = false;
+                document.removeEventListener('mousemove', moveHandler);
+                document.removeEventListener('mouseup', upHandler);
+            };
+            
+            document.addEventListener('mousemove', moveHandler);
+            document.addEventListener('mouseup', upHandler);
+        },
+
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
                 if (val && this.activeCharId) {
-                    // 1. Atualiza o objeto principal na memória RAM (Instantâneo)
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                    
-                    // 2. Feedback Visual: "Ei, tem coisa não salva!" (Instantâneo)
-                    if (!this.isGuest) { 
-                        this.unsavedChanges = true; 
-                        this.saveStatus = 'idle'; 
-                    }
-
-                    // 3. Salvar no HD: Espera um pouco para não travar (Debounce)
+                    if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     this.debouncedSaveFunc();
-                    
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
@@ -241,21 +264,25 @@ function zeniteSystem() {
                 try {
                     const parsed = JSON.parse(local);
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
+                    // Recuperar posição da bandeja se existir
+                    if(parsed.trayPos) this.diceTrayPos = parsed.trayPos;
+                    
                     const validChars = {};
-                    Object.keys(parsed).forEach(k => { if(k !== 'config' && parsed[k]?.id) validChars[k] = parsed[k]; });
+                    Object.keys(parsed).forEach(k => { if(k !== 'config' && k !== 'trayPos' && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
-                } catch(e) { console.error('Data Error'); }
+                } catch(e) {}
             }
         },
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            const payload = { ...this.chars, config: this.settings };
+            // Salva posição da bandeja também
+            const payload = { ...this.chars, config: this.settings, trayPos: this.diceTrayPos };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        async fetchCloud() {
+        async fetchCloud() { /* (Mesmo código anterior) */
             if (!this.user || !this.supabase) return;
             let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
             if (error && error.code === 'PGRST116') {
@@ -280,43 +307,34 @@ function zeniteSystem() {
                 if (hasLocalOnly) { this.unsavedChanges = true; this.syncCloud(true); }
             }
         },
-
-        async syncCloud(silent = false) {
-            if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
+        async syncCloud(silent = false) { /* (Mesmo código anterior) */
+             if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
             this.isSyncing = true;
-            if(!silent) this.notify('Sincronizando nuvem...', 'info');
+            if(!silent) this.notify('Sincronizando...', 'info');
             try {
                 const payload = { ...this.chars, config: this.settings };
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
-                
-                // SUCESSO: Agora sim removemos o aviso visual
                 this.unsavedChanges = false;
                 this.saveStatus = 'success';
-                if(!silent) this.notify('Salvo na nuvem!', 'success');
+                if(!silent) this.notify('Salvo!', 'success');
             } catch (e) {
                 this.saveStatus = 'error';
-                if(!silent) this.notify('Erro ao sincronizar.', 'error');
+                if(!silent) this.notify('Erro ao salvar.', 'error');
             } finally {
                 this.isSyncing = false;
             }
         },
-
-        // --- RESTO DO CÓDIGO (Lógica RPG, Dados, Charts - Mantido igual) ---
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-
-        recalcDerivedStats() { 
-            if(!this.char) return; 
+        recalcDerivedStats() { /* (Mesmo código anterior - Stats RPG) */ 
+             if(!this.char) return; 
             const c = this.char;
             const cl = c.class || 'Titã';
-            
             const oldPv = c.stats.pv.max || 0;
             const oldPf = c.stats.pf.max || 0;
             const oldPdf = c.stats.pdf.max || 0;
-
             const lvl = Math.max(1, parseInt(c.level)||1); 
             const get = (v) => parseInt(c.attrs[v]||0); 
-            
             const config = {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
@@ -324,49 +342,53 @@ function zeniteSystem() {
                 'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [15, 4] },
                 'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
             };
-            
             const cfg = config[cl] || config['Titã'];
-
             const newPv = (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1));
             const newPf = (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1));
             const newPdf = (cfg.pdf[0] + get('von')) + ((cfg.pdf[1] + get('von')) * (lvl - 1));
-
             if (oldPv > 0) c.stats.pv.current = Math.max(0, c.stats.pv.current + (newPv - oldPv)); else c.stats.pv.current = newPv;
             if (oldPf > 0) c.stats.pf.current = Math.max(0, c.stats.pf.current + (newPf - oldPf)); else c.stats.pf.current = newPf;
             if (oldPdf > 0) c.stats.pdf.current = Math.max(0, c.stats.pdf.current + (newPdf - oldPdf)); else c.stats.pdf.current = newPdf;
-
             c.stats.pv.max = newPv;
             c.stats.pf.max = newPf;
             c.stats.pdf.max = newPdf;
         },
-
-        modAttr(key, val) {
+        modAttr(key, val) { /* (Mesmo código) */
             const c = this.char;
             if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) {
                 c.attrs[key] += val;
                 this.recalcDerivedStats();
                 this.updateRadarChart();
             }
-        },
-
-        modStat(stat, val) {
+         },
+        modStat(stat, val) { /* (Mesmo código) */
             if(!this.char || !this.char.stats[stat]) return;
             const s = this.char.stats[stat];
             const newVal = Math.max(0, Math.min(s.max, s.current + val));
             s.current = newVal;
-        },
+         },
 
+        // --- WIZARD EXPANDIDO ---
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
             this.wizardStep = 1;
             this.wizardPoints = 8;
-            this.wizardData = { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+            // Reset completo dos dados
+            this.wizardData = { 
+                class: '', 
+                name: '', 
+                identity: '', 
+                age: '', 
+                history: '',
+                attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
+            };
             this.wizardFocusAttr = '';
             this.wizardOpen = true; 
         },
 
         selectArchetype(a) { 
             this.wizardData.class = a.class; 
+            // Reseta atributos ao trocar de classe
             this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; 
             this.wizardData.attrs[a.focus] = 0; 
             this.wizardFocusAttr = a.focus; 
@@ -382,26 +404,54 @@ function zeniteSystem() {
         },
 
         finishWizard() {
+            // Verifica se preencheu o básico
+            if(!this.wizardData.name) {
+                this.notify("Defina um Codinome!", "warn");
+                return;
+            }
+
             const id = 'z_'+Date.now();
-            const base = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs };
+            const base = { 
+                class: this.wizardData.class, 
+                level: 1, 
+                attrs: this.wizardData.attrs,
+                name: this.wizardData.name,
+                identity: this.wizardData.identity,
+                age: this.wizardData.age,
+                history: this.wizardData.history
+            };
+            
             const pv = 10, pf = 10, pdf = 10;
+            
             const newChar = {
-                id, name: '', identity: '', class: base.class, level: 1, photo: '', history: '', credits: 0,
+                id, 
+                name: base.name, 
+                identity: base.identity, 
+                class: base.class, 
+                level: 1, 
+                age: base.age, // Novo campo
+                photo: '', 
+                history: base.history, 
+                credits: 0,
                 attrs: {...base.attrs},
                 stats: { pv: {current: pv, max: pv}, pf: {current: pf, max: pf}, pdf: {current: pdf, max: pdf} },
                 inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
                 skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
             };
+            
             this.chars[id] = newChar;
             this.updateAgentCount();
             this.saveLocal();
+            
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
+            
             this.wizardOpen = false;
             this.loadCharacter(id);
             this.$nextTick(() => this.recalcDerivedStats());
             this.notify('Agente Inicializado.', 'success');
         },
         
+        // --- OUTROS MÉTODOS UI ---
         toggleSystemLog() { this.configModal = false; this.consoleOpen = !this.consoleOpen; },
         toggleSetting(key, val=null) {
             if(val !== null) {
@@ -410,13 +460,18 @@ function zeniteSystem() {
             } else {
                 this.settings[key] = !this.settings[key];
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
-                if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
+                if(key === 'performanceMode') {
+                     document.body.classList.toggle('performance-mode', this.settings.performanceMode);
+                     // Se ativar performance, desativa rastro
+                     const trail = document.getElementById('mouse-trail');
+                     if(trail) trail.style.display = this.settings.performanceMode ? 'none' : 'block';
+                }
             }
             this.saveLocal();
             if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         
-        applyTheme(color) {
+        applyTheme(color) { /* (Mesmo código) */
             const root = document.documentElement;
             const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan'];
@@ -433,17 +488,14 @@ function zeniteSystem() {
             if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } 
             else if (document.exitFullscreen) { document.exitFullscreen(); }
         },
-
         handleKeys(e) { if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.toggleSystemLog(); } },
         log(msg, type='info') {
             const time = new Date().toLocaleTimeString();
             this.sysLogs.unshift({time, msg, type});
             if(this.sysLogs.length > 50) this.sysLogs.pop();
-            console.log(`[${type.toUpperCase()}] ${msg}`);
         },
-
-        async logout() {
-            this.systemLoading = true;
+        async logout() { /* (Mesmo código) */ 
+             this.systemLoading = true;
             if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} }
             localStorage.removeItem('zenite_cached_db');
             localStorage.removeItem('zenite_is_guest');
@@ -453,15 +505,14 @@ function zeniteSystem() {
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
-        doSocialAuth(provider) {
-            if(!this.supabase) return this.notify("Erro de conexão.", "error");
+        doSocialAuth(provider) { /* (Mesmo código) */
+             if(!this.supabase) return this.notify("Erro de conexão.", "error");
             this.authLoading = true;
             this.authMsg = "Conectando...";
             this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
                 .then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } });
         },
-
-        saveAndExit() { 
+        saveAndExit() { /* (Mesmo código) */
             if(this.char && this.activeCharId) { 
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
                 this.updateAgentCount();
@@ -471,10 +522,9 @@ function zeniteSystem() {
             this.currentView = 'dashboard'; 
             this.activeCharId = null; 
             this.char = null; 
-        },
-        
-        loadCharacter(id) {
-            if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
+         },
+        loadCharacter(id) { /* (Mesmo código) */
+             if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
             this.loadingChar = true;
             this.activeCharId = id;
             requestAnimationFrame(() => {
@@ -487,35 +537,29 @@ function zeniteSystem() {
                     setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300);
                 });
             });
-        },
-
+         },
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-// --- FIXED CHART ANIMATIONS (FLUID MORPHING) ---
+        // --- GRÁFICOS OTIMIZADOS E PRECISOS ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id);
             if(!ctx) return;
-            
-            // Pega a cor atual do tema para manter consistência
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16);
             const g = parseInt(color.slice(3, 5), 16);
             const b = parseInt(color.slice(5, 7), 16);
             const rgb = `${r},${g},${b}`;
 
-            // A MÁGICA ESTÁ AQUI:
             if (ctx.chart) {
-                // Se o gráfico já existe, ATUALIZA apenas os valores e as cores.
-                // O Chart.js vai calcular a interpolação (movimento) sozinho.
+                // Atualização Fluida
                 ctx.chart.data.datasets[0].data = data;
                 ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`;
                 ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`;
-                ctx.chart.update(); // Animação suave padrão do Chart.js
+                ctx.chart.update();
             } else {
-                // Se não existe, CRIA do zero (só na primeira vez)
                 ctx.chart = new Chart(ctx, {
                     type: 'radar',
                     data: { 
@@ -536,37 +580,27 @@ function zeniteSystem() {
                             r: { 
                                 min: -1, 
                                 max: isWizard ? 4 : 6, 
-                                ticks: { display: false }, 
-                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                ticks: { 
+                                    display: false, // Desliguei os números do eixo, polui muito
+                                    stepSize: 1     // ISSO AQUI garante linhas em cada número inteiro
+                                }, 
+                                grid: { 
+                                    color: 'rgba(255,255,255,0.1)',
+                                    circular: false // Mantém poligonal
+                                },
                                 angleLines: { color: 'rgba(255,255,255,0.1)' }
                             } 
                         }, 
                         plugins: { legend: { display: false } },
-                        // Configuração para deixar a transição "amanteigada"
-                        transitions: {
-                            active: {
-                                animation: {
-                                    duration: 600
-                                }
-                            }
-                        }
+                        transitions: { active: { animation: { duration: 600 } } }
                     }
                 });
             }
         },
-
-        updateRadarChart() {
-            if(!this.char) return;
-            const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod];
-            this._renderChart('radarChart', d);
-        },
-
-        updateWizardChart() {
-            const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod];
-            this._renderChart('wizChart', d, true);
-        },
+        updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
+        updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
         
-        triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
+        triggerFX(type) { /* (Mesmo código) */ const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },

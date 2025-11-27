@@ -190,7 +190,10 @@
                 </div>
 
                 <div class="lg:col-span-8 space-y-6">
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div><div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div><div><select x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div></div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div><div class="flex gap-4">
+    <div class="flex-grow"><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
+    <div class="w-20"><input x-model="char.age" type="number" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDD"></div>
+</div><div><select x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div></div>
                      <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8"><div class="w-full md:w-1/2 space-y-2"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5"><span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span><div class="flex items-center gap-3"><button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button><span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span><button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button></div></div></template></div><div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div></div>
                      <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" aria-label="Remover Perícia" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
                      <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]"><textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea></div>
@@ -222,27 +225,49 @@
     </div>
 
     <div class="fixed bottom-0 left-0 w-full p-3 z-50 pointer-events-none" x-show="currentView === 'sheet'">
-        <div x-show="diceTrayOpen" x-transition class="dice-tray-suspended glass pointer-events-auto flex-col md:flex-row gap-3 md:gap-4 !px-4 !py-3">
-            <div class="flex justify-between items-center w-full md:w-auto gap-3 border-b md:border-b-0 border-white/5 pb-2 md:pb-0">
-                <button @click="diceTrayOpen=false" class="text-red-500 hover:text-white md:hidden"><i class="fa-solid fa-xmark"></i></button>
-                <div class="relative">
-                    <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white p-2"><i class="fa-solid fa-clock-rotate-left"></i></button>
-                    <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-[var(--neon-core)] rounded-lg p-0 shadow-2xl max-h-60 overflow-hidden flex flex-col z-[100]" x-transition>
-                        <div class="bg-[var(--neon-core)] text-black text-[10px] font-bold px-3 py-1 uppercase">Histórico</div>
-                        <div class="overflow-y-auto p-3 space-y-2">
-                            <template x-for="log in diceLog"><div class="flex justify-between text-[10px] border-b border-white/5 pb-1 text-gray-400 font-code"><span x-text="log.time"></span><span class="text-white font-bold" x-text="log.formula"></span><span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-white'" x-text="log.result"></span></div></template>
-                            <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-600 py-2">Vazio</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center bg-white/5 rounded-full px-3 py-1 border border-white/10"><span class="text-[8px] font-bold text-gray-500 mr-2">MOD</span><input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none"></div>
-                <div class="text-2xl font-bold font-brand w-12 text-center" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
-                <button @click="diceTrayOpen=false" class="text-red-500 hover:text-white hidden md:block ml-2"><i class="fa-solid fa-xmark"></i></button>
+        <div x-show="diceTrayOpen" 
+     class="fixed glass rounded-xl border border-white/10 shadow-2xl flex flex-col z-[80] overflow-hidden transition-opacity"
+     :style="`top: ${diceTrayPos.y}px; left: ${diceTrayPos.x}px; width: 300px;`"
+     x-transition>
+    
+    <div @mousedown="startDragTray($event)" class="bg-black/50 p-2 border-b border-white/5 cursor-move flex justify-between items-center select-none draggable-handle">
+        <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-2">
+            <i class="fa-solid fa-grip-lines mr-2"></i>BANDEJA DE DADOS
+        <button @click="diceTrayOpen=false" class="text-gray-500 hover:text-white px-2"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="p-4 bg-black/80 backdrop-blur-xl">
+        <div class="flex justify-between items-center mb-4 bg-white/5 p-2 rounded border border-white/5">
+            <div class="flex items-center gap-2">
+                 <div class="bg-black px-2 py-1 rounded text-[8px] text-gray-500 font-bold border border-white/10">MOD</div>
+                 <input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none">
             </div>
-            <div class="grid grid-cols-4 gap-2 md:flex md:gap-2 w-full md:w-auto">
-                <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="w-full md:w-9 h-8 md:h-9 rounded md:rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all shadow-lg" x-text="'D'+d"></button></template>
-            </div>
+            <div class="text-3xl font-bold font-brand" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
         </div>
+
+        <div class="grid grid-cols-4 gap-2 mb-4">
+            <template x-for="d in [4,6,8,10,12,20,100]">
+                <button @click="roll(d)" class="h-8 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-colors" x-text="'D'+d"></button>
+            </template>
+        </div>
+
+        <button @click="showDiceLog=!showDiceLog" class="w-full py-1 text-[10px] text-gray-500 hover:text-white border-t border-white/5 uppercase font-bold flex justify-between items-center">
+            <span>HISTÓRICO</span>
+            <i class="fa-solid" :class="showDiceLog?'fa-chevron-up':'fa-chevron-down'"></i>
+        </button>
+
+        <div x-show="showDiceLog" class="mt-2 max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar border-t border-white/5 pt-2" x-transition>
+            <template x-for="log in diceLog">
+                <div class="flex justify-between text-[10px] font-code text-gray-500">
+                    <span x-text="log.time"></span>
+                    <span class="text-white" x-text="log.formula"></span>
+                    <span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-gray-300'" x-text="log.result"></span>
+                </div>
+            </template>
+            <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700">Sem registros</div>
+        </div>
+    </div>
+</div>
         <button x-show="!diceTrayOpen" @click="diceTrayOpen=true" class="pointer-events-auto absolute bottom-4 left-4 glass w-12 h-12 rounded-full flex items-center justify-center border border-[var(--neon-core)] text-[var(--neon-core)] hover:bg-[var(--neon-core)] hover:text-black transition-all shadow-xl animate-fade-in">
             <i class="fa-solid fa-dice"></i>
         </button>
@@ -276,7 +301,104 @@
         </div>
     </div></div>
     
-    <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4"><div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl"><div class="p-6 border-b border-white/10 flex justify-between items-center"><h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2><button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button></div><div class="flex-grow overflow-y-auto p-6"><div x-show="wizardStep === 1"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><template x-for="arch in archetypes"><div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center"><i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i><h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3><p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p></div></template></div></div><div x-show="wizardStep === 2"><div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg"><span class="text-2xl font-brand text-white" x-text="wizardData.class"></span><div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="space-y-4"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5"><span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span><div class="flex items-center gap-3"><button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button><span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span><button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button></div></div></template></div><div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div></div></div></div><div class="p-6 border-t border-white/10 bg-black/20 flex justify-between"><button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button><div class="flex-grow"></div><button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button></div></div></div>
+<div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4">
+    <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
+        
+        <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
+            <div>
+                <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
+                <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
+            </div>
+            <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
+        </div>
+
+        <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
+            
+            <div x-show="wizardStep === 1" class="animate-fade-in">
+                <h3 class="text-center text-white font-bold mb-8 uppercase tracking-widest">Selecione o Arquétipo</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <template x-for="arch in archetypes">
+                        <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center bg-black/40">
+                            <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
+                            <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
+                            <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="wizardStep === 2" class="animate-fade-in">
+                <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg border-l-4 border-[var(--neon-core)]">
+                    <div>
+                        <span class="text-2xl font-brand text-white uppercase" x-text="wizardData.class"></span>
+                        <p class="text-xs text-gray-500">Ajuste os atributos iniciais</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] text-gray-500 uppercase font-bold">Pontos Restantes</div>
+                        <div class="text-3xl font-mono font-bold" :class="wizardPoints>0?'text-[var(--neon-success)]':'text-gray-600'" x-text="wizardPoints"></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+                    <div class="space-y-4">
+                        <template x-for="key in ['for','agi','int','von','pod']">
+                            <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors">
+                                <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
+                                <div class="flex items-center gap-3">
+                                    <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
+                                    <span class="w-8 text-center font-mono font-bold text-lg text-white" x-text="wizardData.attrs[key]"></span>
+                                    <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700 disabled:scale-100 transition-transform" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex items-center justify-center bg-black/20 rounded-xl p-4 h-64 border border-white/5">
+                        <canvas id="wizChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="wizardStep === 3" class="animate-fade-in max-w-2xl mx-auto space-y-6">
+                <div class="text-center mb-8">
+                    <h3 class="text-white font-bold uppercase tracking-widest text-lg">Identidade do Agente</h3>
+                    <p class="text-xs text-gray-500">Finalize o registro no banco de dados.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-1 block">Codinome (Obrigatório)</label>
+                        <input x-model="wizardData.name" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none font-brand text-lg" placeholder="Ex: FANTASMA">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Idade</label>
+                        <input x-model="wizardData.age" type="number" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none" placeholder="Ex: 28">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Identidade Real</label>
+                    <input x-model="wizardData.identity" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none" placeholder="Nome Civil">
+                </div>
+
+                <div>
+                    <label class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Histórico / Origem</label>
+                    <textarea x-model="wizardData.history" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm" placeholder="Breve resumo do passado..."></textarea>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center backdrop-blur-sm">
+            <button x-show="wizardStep > 1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors">VOLTAR</button>
+            <div class="flex-grow"></div>
+            
+            <button x-show="wizardStep < 3" @click="wizardStep++" class="px-8 py-2 bg-white/10 text-white font-bold rounded hover:bg-white/20 transition-colors border border-white/5">PRÓXIMO</button>
+            
+            <button x-show="wizardStep === 3" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] transition-all">
+                <i class="fa-solid fa-check mr-2"></i>INICIALIZAR
+            </button>
+        </div>
+    </div>
+</div>
 
     <div x-show="cropperOpen" class="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4"><div class="w-full max-w-lg h-[70vh] flex flex-col"><div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"><img id="crop-target" class="block max-w-full"></div><div class="flex gap-3"><input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)"><button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button><button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button><button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button></div></div></div>
 
