@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v45.0-Stable';
+const APP_VERSION = 'v45.1-LevelUp';
 
 function zeniteSystem() {
     return {
@@ -58,7 +58,6 @@ function zeniteSystem() {
             { class: 'Psíquico', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500', desc: 'Domínio mental.' }
         ],
 
-        // --- COMPUTED ---
         get filteredChars() {
             if (!this.searchQuery) return this.chars;
             const q = this.searchQuery.toLowerCase();
@@ -76,20 +75,18 @@ function zeniteSystem() {
             this.log(`ZENITE ${APP_VERSION} BOOT`, 'info');
             this.authLoading = false;
             
-            // --- GLOBAL ERROR HANDLING (PROTEÇÃO CONTRA SPAM) ---
+            // --- GLOBAL ERROR HANDLING ---
             window.onerror = (msg, url, line) => {
-                // Ignora erros genéricos de scripts externos/extensões
                 if (msg === 'Script error.' || msg.includes('Script error')) return true;
                 this.log(`ERR: ${msg} @ ${line}`, 'error'); 
                 return false; 
             };
             window.onunhandledrejection = (e) => { 
-                // Ignora erros de redimensionamento do navegador
                 if (e.reason && e.reason.message && e.reason.message.includes('ResizeObserver')) return;
                 this.log(`PROMISE: ${e.reason}`, 'error'); 
             };
 
-            // --- CURSOR INTERATIVO (OTIMIZADO) ---
+            // --- CURSOR INTERATIVO (SPEED UP) ---
             const trail = document.getElementById('mouse-trail');
             let mouseX = 0, mouseY = 0, trailX = 0, trailY = 0;
             
@@ -98,7 +95,6 @@ function zeniteSystem() {
                     mouseX = e.clientX; mouseY = e.clientY; 
                     if(trail) {
                         const target = e.target;
-                        // Verifica se está sobre elemento interativo
                         if(target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.classList.contains('cursor-pointer'))) {
                             trail.classList.add('hover-active');
                         } else {
@@ -109,8 +105,9 @@ function zeniteSystem() {
                 
                 const animateTrail = () => {
                     if (this.settings.mouseTrail && !this.settings.performanceMode && trail) {
-                        trailX += (mouseX - trailX) * 0.2;
-                        trailY += (mouseY - trailY) * 0.2;
+                        // Aumentei o fator para 0.5 para reduzir o delay (mais responsivo)
+                        trailX += (mouseX - trailX) * 0.5;
+                        trailY += (mouseY - trailY) * 0.5;
                         trail.style.transform = `translate(${trailX - 8}px, ${trailY - 8}px)`;
                         trail.style.opacity = '1';
                         document.body.classList.add('custom-cursor-active');
@@ -187,10 +184,7 @@ function zeniteSystem() {
             }, 180000); 
         },
 
-        // --- DIAGNOSTICS & SETTINGS ---
-        handleKeys(e) {
-            if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.consoleOpen = !this.consoleOpen; }
-        },
+        handleKeys(e) { if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.consoleOpen = !this.consoleOpen; } },
         log(msg, type='info') {
             const time = new Date().toLocaleTimeString();
             console.log(`[${type.toUpperCase()}] ${msg}`);
@@ -223,7 +217,6 @@ function zeniteSystem() {
             }
         },
 
-        // --- IMPORT / EXPORT ---
         exportData() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
             const a = document.createElement('a'); a.href = dataStr; a.download = `zenite_bkp_${new Date().toISOString().slice(0,10)}.json`; a.click(); a.remove();
@@ -253,7 +246,6 @@ function zeniteSystem() {
             r.readAsText(file);
         },
 
-        // --- AUTH ---
         async logout() {
             this.systemLoading = true;
             if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} }
@@ -268,7 +260,6 @@ function zeniteSystem() {
             if (error) { this.notify(error.message, 'error'); this.authLoading = false; }
         },
 
-        // --- SYNC ---
         async syncCloud(silent = false) {
             if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing) return;
             this.isSyncing = true; 
@@ -291,7 +282,6 @@ function zeniteSystem() {
             } finally { this.isSyncing = false; }
         },
 
-        // --- DATA ---
         async fetchData() { 
             if (!this.user) return; 
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
@@ -311,28 +301,21 @@ function zeniteSystem() {
             } 
         },
 
-        // --- LOAD ---
         loadCharacter(id) { 
             if (!this.chars[id]) return this.notify('Ficha inválida.', 'error'); 
             this.loadingChar = true; 
             this.activeCharId = id; 
-            
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id])); 
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
                 if(!this.char.skills) this.char.skills = []; 
                 if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] }; 
                 if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} }; 
-                
                 this.currentView = 'sheet'; 
                 this.activeTab = 'profile'; 
-                
                 this.$nextTick(() => {
                     this.updateRadarChart();
-                    setTimeout(() => { 
-                        this.loadingChar = false; 
-                        this.unsavedChanges = false; 
-                    }, 300);
+                    setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300);
                 });
             });
         },
@@ -347,7 +330,42 @@ function zeniteSystem() {
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Remove dados locais.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         askConfirm(title, desc, type, action) { this.confirmTitle = title; this.confirmDesc = desc; this.confirmType = type; this.confirmAction = action; this.confirmOpen = true; }, confirmYes() { if (this.confirmAction) this.confirmAction(); this.confirmOpen = false; },
-        recalcDerivedStats() { if(!this.char) return; const c = this.char; const lvl = Math.max(1, parseInt(c.level)||1); const getV = (v) => parseInt(v)||0; const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); c.stats.pv.max = Math.max(5, (12+FOR)+((2+FOR)*(lvl-1))); c.stats.pf.max = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); c.stats.pdf.max = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); },
+        
+        // --- LEVEL UP LOGIC FIX ---
+        recalcDerivedStats() { 
+            if(!this.char) return; 
+            const c = this.char; 
+            
+            // 1. Armazena máximos ANTIGOS
+            const oldPv = c.stats.pv.max || 0;
+            const oldPf = c.stats.pf.max || 0;
+            const oldPdf = c.stats.pdf.max || 0;
+
+            // 2. Calcula NOVOS máximos
+            const lvl = Math.max(1, parseInt(c.level)||1); 
+            const getV = (v) => parseInt(v)||0; 
+            const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); 
+            
+            const newPv = Math.max(5, (12+FOR)+((2+FOR)*(lvl-1))); 
+            const newPf = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); 
+            const newPdf = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); 
+
+            // 3. Aplica a Diferença (Delta) nos Atuais
+            if (oldPv > 0) c.stats.pv.current += (newPv - oldPv);
+            if (oldPf > 0) c.stats.pf.current += (newPf - oldPf);
+            if (oldPdf > 0) c.stats.pdf.current += (newPdf - oldPdf);
+
+            // 4. Atualiza os Máximos
+            c.stats.pv.max = newPv;
+            c.stats.pf.max = newPf;
+            c.stats.pdf.max = newPdf;
+            
+            // Garante que não fique negativo
+            c.stats.pv.current = Math.max(0, c.stats.pv.current);
+            c.stats.pf.current = Math.max(0, c.stats.pf.current);
+            c.stats.pdf.current = Math.max(0, c.stats.pdf.current);
+        },
+        
         modStat(type, val) { if(!this.char) return; const s = this.char.stats[type]; const old = s.current; s.current = Math.min(Math.max(0, s.current + val), s.max); if(s.current < old && type==='pv') this.triggerFX('damage'); if(s.current > old) this.triggerFX('heal'); },
         modAttr(key, val) { const c = this.char.attrs[key]; if (val > 0 && c < 6) this.char.attrs[key]++; if (val < 0 && c > -1) this.char.attrs[key]--; this.recalcDerivedStats(); this.updateRadarChart(); },
         updateClassLogic() { this.recalcDerivedStats(); this.updateRadarChart(); },
