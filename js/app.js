@@ -1,7 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v51.0-GodMode-Restored
- * Fixes: Mouse Loop Performance (Decoupled), Wizard State, Age Validation
+ * Version: v52.0-GodMode-Final
+ * Features: 
+ * - Hybrid Mobile/Desktop Layout
+ * - Browser Back Button Handling (History API)
+ * - Optimized Render Loop (60fps)
+ * - Secure Data Handling
  */
 
 const CONSTANTS = {
@@ -12,8 +16,8 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- PERFORMANCE VARIABLES (OUTSIDE ALPINE REACTIVITY) ---
-// Isso aqui salva sua CPU. O Alpine ignora essas vars, mas o renderLoop as lê.
+// --- PERFORMANCE VARIABLES (OUTSIDE ALPINE) ---
+// Variáveis estáticas para não poluir a reatividade do Alpine
 let cursorX = -100;
 let cursorY = -100;
 let isCursorHover = false;
@@ -51,8 +55,8 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- WIDGETS ---
-        diceTrayOpen: true,
+        // --- WIDGETS & UI ---
+        diceTrayOpen: false, // Começa FECHADO para não poluir a tela
         showDiceLog: false,
         diceTrayPos: { x: 20, y: window.innerHeight - 150 },
         isDraggingTray: false,
@@ -62,6 +66,7 @@ function zeniteSystem() {
         lastNatural: 0,
         lastFaces: 20,
         diceMod: 0,
+        isMobile: window.innerWidth < 768, // Detecção inicial
         
         // --- MODAIS ---
         configModal: false,
@@ -126,10 +131,27 @@ function zeniteSystem() {
                 this.saveLocal();
             }, 1000);
 
+            // Listeners de Janela
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            window.addEventListener('resize', () => this.ensureTrayOnScreen());
+            
+            // Responsividade e Bandeja
+            window.addEventListener('resize', () => {
+                this.isMobile = window.innerWidth < 768;
+                this.ensureTrayOnScreen();
+            });
 
-            // Inicia o motor gráfico OTIMIZADO
+            // Lógica do Botão Voltar (History API)
+            window.addEventListener('popstate', (event) => {
+                // Se o usuário clicar em "Voltar" e estivermos numa view interna
+                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
+                    // Fecha tudo suavemente
+                    if(this.currentView === 'sheet') this.saveAndExit(true); // true = não mexer no histórico de novo
+                    this.wizardOpen = false;
+                    this.configModal = false;
+                    this.cropperOpen = false;
+                }
+            });
+
             this.setupCursorEngine(); 
             this.setupWatchers();
 
@@ -176,6 +198,7 @@ function zeniteSystem() {
         },
 
         ensureTrayOnScreen() {
+            if(this.isMobile) return; // No mobile é fixo
             this.diceTrayPos.x = Math.min(Math.max(0, this.diceTrayPos.x), window.innerWidth - 300);
             this.diceTrayPos.y = Math.min(Math.max(0, this.diceTrayPos.y), window.innerHeight - 100);
         },
@@ -188,24 +211,17 @@ function zeniteSystem() {
                 return;
             }
 
-            // LISTENER LEVE: Só atualiza variáveis locais. Zero reatividade Alpine.
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX;
                 cursorY = e.clientY;
-                
-                // Detecção de Hover otimizada
-                const target = e.target;
                 if(this.settings.mouseTrail) {
-                    isCursorHover = target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                    isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
                 }
             });
 
-            // RENDER LOOP: Roda a 60fps independente da lógica do app
             const renderLoop = () => {
                 if (this.settings.mouseTrail && trail && !this.settings.performanceMode) {
                     trail.style.transform = `translate3d(${cursorX - 8}px, ${cursorY - 8}px, 0)`;
-                    
-                    // Gerencia classes de hover sem forçar re-render do Alpine
                     if(isCursorHover) trail.classList.add('hover-active');
                     else trail.classList.remove('hover-active');
                     
@@ -213,14 +229,16 @@ function zeniteSystem() {
                 }
                 requestAnimationFrame(renderLoop);
             };
-            renderLoop(); // Start engine
+            renderLoop();
             
             document.body.classList.add('custom-cursor-active');
         },
 
-        // --- DRAGGABLE ---
+        // --- DRAGGABLE (Desktop Only) ---
         startDragTray(e) {
+            if(this.isMobile) return;
             if(e.target.closest('button') || e.target.closest('input')) return;
+            
             this.isDraggingTray = true;
             this.dragOffset.x = e.clientX - this.diceTrayPos.x;
             this.dragOffset.y = e.clientY - this.diceTrayPos.y;
@@ -365,11 +383,8 @@ function zeniteSystem() {
             s.current = newVal;
          },
 
-        // --- WIZARD FUNCIONAL ---
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
-            
-            // RESET COMPLETO para evitar abrir no passo errado
             this.wizardStep = 1;
             this.wizardPoints = 8;
             this.wizardData = { 
@@ -378,7 +393,8 @@ function zeniteSystem() {
             };
             this.wizardFocusAttr = '';
             
-            // Força o estado a ser true
+            // Empurra histórico para poder fechar com botão voltar
+            history.pushState({ modal: 'wizard' }, "Wizard", "#new");
             this.wizardOpen = true; 
         },
 
@@ -440,6 +456,9 @@ function zeniteSystem() {
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
             
             this.wizardOpen = false;
+            // Limpa o hash #new
+            if (window.location.hash === '#new') history.back();
+            
             this.loadCharacter(id);
             this.$nextTick(() => this.recalcDerivedStats());
             this.notify('Agente Inicializado.', 'success');
@@ -502,26 +521,36 @@ function zeniteSystem() {
             this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
                 .then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } });
         },
-        saveAndExit() {
+        saveAndExit(fromHistory = false) {
             if(this.char && this.activeCharId) { 
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
                 this.updateAgentCount();
             } 
             this.saveLocal();
             if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+            
             this.currentView = 'dashboard'; 
             this.activeCharId = null; 
             this.char = null; 
+            
+            // Só remove o histórico se o usuário NÃO clicou no botão voltar
+            if (!fromHistory && window.location.hash === '#sheet') {
+                history.back();
+            }
          },
         loadCharacter(id) {
              if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
+            
+            // Empurra estado no histórico
+            history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            
             this.loadingChar = true;
             this.activeCharId = id;
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                // Patch para chars antigos que não tinham inventário ou idade
+                // Patch data
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
-                if(!this.char.age) this.char.age = ""; // Evita undefined no input
+                if(!this.char.age) this.char.age = ""; 
                 
                 this.currentView = 'sheet';
                 this.activeTab = 'profile';
