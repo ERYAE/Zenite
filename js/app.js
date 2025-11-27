@@ -494,34 +494,65 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
+// --- FIXED CHART ANIMATIONS (FLUID MORPHING) ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id);
             if(!ctx) return;
+            
+            // Pega a cor atual do tema para manter consistência
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16);
             const g = parseInt(color.slice(3, 5), 16);
             const b = parseInt(color.slice(5, 7), 16);
             const rgb = `${r},${g},${b}`;
 
-            if(ctx.chart) ctx.chart.destroy();
-            
-            ctx.chart = new Chart(ctx, {
-                type: 'radar',
-                data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard?4:3 }] },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, 
-                    scales: { 
-                        r: { 
-                            min: -1, max: isWizard?4:6, 
-                            ticks: { display: false }, 
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            angleLines: { color: 'rgba(255,255,255,0.1)' }
-                        } 
-                    }, 
-                    plugins: { legend: { display: false } },
-                    animation: { duration: 800, easing: 'easeInOutQuad' } 
-                }
-            });
+            // A MÁGICA ESTÁ AQUI:
+            if (ctx.chart) {
+                // Se o gráfico já existe, ATUALIZA apenas os valores e as cores.
+                // O Chart.js vai calcular a interpolação (movimento) sozinho.
+                ctx.chart.data.datasets[0].data = data;
+                ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`;
+                ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`;
+                ctx.chart.update(); // Animação suave padrão do Chart.js
+            } else {
+                // Se não existe, CRIA do zero (só na primeira vez)
+                ctx.chart = new Chart(ctx, {
+                    type: 'radar',
+                    data: { 
+                        labels: ['FOR','AGI','INT','VON','POD'], 
+                        datasets: [{ 
+                            data: data, 
+                            backgroundColor: `rgba(${rgb}, 0.2)`, 
+                            borderColor: `rgba(${rgb}, 1)`, 
+                            borderWidth: 2, 
+                            pointBackgroundColor: '#fff', 
+                            pointRadius: isWizard ? 4 : 3 
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { 
+                            r: { 
+                                min: -1, 
+                                max: isWizard ? 4 : 6, 
+                                ticks: { display: false }, 
+                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                angleLines: { color: 'rgba(255,255,255,0.1)' }
+                            } 
+                        }, 
+                        plugins: { legend: { display: false } },
+                        // Configuração para deixar a transição "amanteigada"
+                        transitions: {
+                            active: {
+                                animation: {
+                                    duration: 600
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         },
 
         updateRadarChart() {
