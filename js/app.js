@@ -1,7 +1,7 @@
 /**
  * ZENITE OS - Core Application
- * Version: v50.0-Warlord
- * Features: Draggable Widgets, rAF Performance Loop, Extended Wizard
+ * Version: v51.0-GodMode-Restored
+ * Fixes: Mouse Loop Performance (Decoupled), Wizard State, Age Validation
  */
 
 const CONSTANTS = {
@@ -11,6 +11,12 @@ const CONSTANTS = {
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
+
+// --- PERFORMANCE VARIABLES (OUTSIDE ALPINE REACTIVITY) ---
+// Isso aqui salva sua CPU. O Alpine ignora essas vars, mas o renderLoop as lê.
+let cursorX = -100;
+let cursorY = -100;
+let isCursorHover = false;
 
 function debounce(func, wait) {
     let timeout;
@@ -22,7 +28,7 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- ESTADOS DO SISTEMA ---
+        // --- ESTADOS ---
         systemLoading: true,
         loadingChar: false,
         consoleOpen: false,
@@ -45,24 +51,18 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- WIDGETS & UI ---
-        // Dice Tray Flutuante
+        // --- WIDGETS ---
         diceTrayOpen: true,
         showDiceLog: false,
-        diceTrayPos: { x: 20, y: window.innerHeight - 150 }, // Posição inicial segura
+        diceTrayPos: { x: 20, y: window.innerHeight - 150 },
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
-        
         diceLog: [],
         lastRoll: '--',
         lastNatural: 0,
         lastFaces: 20,
         diceMod: 0,
         
-        // --- PERFORMANCE (MOUSE) ---
-        mousePos: { x: -100, y: -100 }, // Fora da tela inicialmente
-        mouseRafId: null,
-
         // --- MODAIS ---
         configModal: false,
         wizardOpen: false, 
@@ -70,16 +70,11 @@ function zeniteSystem() {
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // --- WIZARD (Criação) ---
+        // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
-        // Novos campos adicionados aqui
         wizardData: { 
-            class: '', 
-            name: '', 
-            identity: '', 
-            age: '', 
-            history: '',
+            class: '', name: '', identity: '', age: '', history: '',
             attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
         },
         wizardFocusAttr: '',
@@ -88,7 +83,7 @@ function zeniteSystem() {
         settings: {
             mouseTrail: true,
             compactMode: false,
-            performanceMode: false, // Se true, desativa rastro e blur
+            performanceMode: false,
             themeColor: 'cyan'
         },
         
@@ -132,9 +127,10 @@ function zeniteSystem() {
             }, 1000);
 
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            window.addEventListener('resize', () => this.ensureTrayOnScreen()); // Evita perder a janela
-            
-            this.setupCursorOptimized(); // Otimização GOD MODE
+            window.addEventListener('resize', () => this.ensureTrayOnScreen());
+
+            // Inicia o motor gráfico OTIMIZADO
+            this.setupCursorEngine(); 
             this.setupWatchers();
 
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -176,57 +172,56 @@ function zeniteSystem() {
             if(this.settings.performanceMode) document.body.classList.add('performance-mode');
             
             this.updateAgentCount();
-            
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
         ensureTrayOnScreen() {
-            // Garante que a bandeja não suma se redimensionar a tela
             this.diceTrayPos.x = Math.min(Math.max(0, this.diceTrayPos.x), window.innerWidth - 300);
             this.diceTrayPos.y = Math.min(Math.max(0, this.diceTrayPos.y), window.innerHeight - 100);
         },
 
-        // --- PERFORMANCE: MOUSE LOOP ---
-        setupCursorOptimized() {
+        // --- MOTOR GRÁFICO (DECOUPLED) ---
+        setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) {
                 if(trail) trail.style.display = 'none';
                 return;
             }
 
-            // 1. O evento mousemove apenas atualiza coordenadas (Levíssimo)
+            // LISTENER LEVE: Só atualiza variáveis locais. Zero reatividade Alpine.
             document.addEventListener('mousemove', (e) => { 
-                this.mousePos.x = e.clientX;
-                this.mousePos.y = e.clientY;
+                cursorX = e.clientX;
+                cursorY = e.clientY;
                 
-                // Detecção de Hover ainda precisa ser no evento para responsividade
-                if(trail && this.settings.mouseTrail) {
-                     const target = e.target;
-                     const isInteractive = target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle');
-                     if(isInteractive) trail.classList.add('hover-active');
-                     else trail.classList.remove('hover-active');
+                // Detecção de Hover otimizada
+                const target = e.target;
+                if(this.settings.mouseTrail) {
+                    isCursorHover = target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
                 }
             });
 
-            // 2. O requestAnimationFrame cuida do visual (Sincronizado com a tela)
+            // RENDER LOOP: Roda a 60fps independente da lógica do app
             const renderLoop = () => {
-                if (this.settings.mouseTrail && trail) {
-                    // Usar transform3d ativa aceleração de hardware
-                    trail.style.transform = `translate3d(${this.mousePos.x - 8}px, ${this.mousePos.y - 8}px, 0)`;
+                if (this.settings.mouseTrail && trail && !this.settings.performanceMode) {
+                    trail.style.transform = `translate3d(${cursorX - 8}px, ${cursorY - 8}px, 0)`;
+                    
+                    // Gerencia classes de hover sem forçar re-render do Alpine
+                    if(isCursorHover) trail.classList.add('hover-active');
+                    else trail.classList.remove('hover-active');
+                    
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 }
                 requestAnimationFrame(renderLoop);
             };
-            renderLoop(); // Inicia o loop eterno
+            renderLoop(); // Start engine
             
             document.body.classList.add('custom-cursor-active');
         },
 
-        // --- DRAGGABLE LOGIC ---
+        // --- DRAGGABLE ---
         startDragTray(e) {
-            if(e.target.closest('button') || e.target.closest('input')) return; // Não arrasta se clicar em botões
+            if(e.target.closest('button') || e.target.closest('input')) return;
             this.isDraggingTray = true;
-            // Calcula onde clicou relativo à janela para não "pular"
             this.dragOffset.x = e.clientX - this.diceTrayPos.x;
             this.dragOffset.y = e.clientY - this.diceTrayPos.y;
             
@@ -264,7 +259,6 @@ function zeniteSystem() {
                 try {
                     const parsed = JSON.parse(local);
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
-                    // Recuperar posição da bandeja se existir
                     if(parsed.trayPos) this.diceTrayPos = parsed.trayPos;
                     
                     const validChars = {};
@@ -277,12 +271,11 @@ function zeniteSystem() {
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            // Salva posição da bandeja também
             const payload = { ...this.chars, config: this.settings, trayPos: this.diceTrayPos };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        async fetchCloud() { /* (Mesmo código anterior) */
+        async fetchCloud() {
             if (!this.user || !this.supabase) return;
             let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
             if (error && error.code === 'PGRST116') {
@@ -307,7 +300,7 @@ function zeniteSystem() {
                 if (hasLocalOnly) { this.unsavedChanges = true; this.syncCloud(true); }
             }
         },
-        async syncCloud(silent = false) { /* (Mesmo código anterior) */
+        async syncCloud(silent = false) {
              if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
             this.isSyncing = true;
             if(!silent) this.notify('Sincronizando...', 'info');
@@ -325,8 +318,10 @@ function zeniteSystem() {
                 this.isSyncing = false;
             }
         },
+        
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-        recalcDerivedStats() { /* (Mesmo código anterior - Stats RPG) */ 
+        
+        recalcDerivedStats() { 
              if(!this.char) return; 
             const c = this.char;
             const cl = c.class || 'Titã';
@@ -353,7 +348,8 @@ function zeniteSystem() {
             c.stats.pf.max = newPf;
             c.stats.pdf.max = newPdf;
         },
-        modAttr(key, val) { /* (Mesmo código) */
+        
+        modAttr(key, val) {
             const c = this.char;
             if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) {
                 c.attrs[key] += val;
@@ -361,34 +357,33 @@ function zeniteSystem() {
                 this.updateRadarChart();
             }
          },
-        modStat(stat, val) { /* (Mesmo código) */
+         
+        modStat(stat, val) {
             if(!this.char || !this.char.stats[stat]) return;
             const s = this.char.stats[stat];
             const newVal = Math.max(0, Math.min(s.max, s.current + val));
             s.current = newVal;
          },
 
-        // --- WIZARD EXPANDIDO ---
+        // --- WIZARD FUNCIONAL ---
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
+            
+            // RESET COMPLETO para evitar abrir no passo errado
             this.wizardStep = 1;
             this.wizardPoints = 8;
-            // Reset completo dos dados
             this.wizardData = { 
-                class: '', 
-                name: '', 
-                identity: '', 
-                age: '', 
-                history: '',
+                class: '', name: '', identity: '', age: '', history: '',
                 attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
             };
             this.wizardFocusAttr = '';
+            
+            // Força o estado a ser true
             this.wizardOpen = true; 
         },
 
         selectArchetype(a) { 
             this.wizardData.class = a.class; 
-            // Reseta atributos ao trocar de classe
             this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; 
             this.wizardData.attrs[a.focus] = 0; 
             this.wizardFocusAttr = a.focus; 
@@ -404,9 +399,8 @@ function zeniteSystem() {
         },
 
         finishWizard() {
-            // Verifica se preencheu o básico
             if(!this.wizardData.name) {
-                this.notify("Defina um Codinome!", "warn");
+                this.notify("Codinome é obrigatório!", "warn");
                 return;
             }
 
@@ -429,7 +423,7 @@ function zeniteSystem() {
                 identity: base.identity, 
                 class: base.class, 
                 level: 1, 
-                age: base.age, // Novo campo
+                age: base.age,
                 photo: '', 
                 history: base.history, 
                 credits: 0,
@@ -451,7 +445,6 @@ function zeniteSystem() {
             this.notify('Agente Inicializado.', 'success');
         },
         
-        // --- OUTROS MÉTODOS UI ---
         toggleSystemLog() { this.configModal = false; this.consoleOpen = !this.consoleOpen; },
         toggleSetting(key, val=null) {
             if(val !== null) {
@@ -462,16 +455,13 @@ function zeniteSystem() {
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 if(key === 'performanceMode') {
                      document.body.classList.toggle('performance-mode', this.settings.performanceMode);
-                     // Se ativar performance, desativa rastro
-                     const trail = document.getElementById('mouse-trail');
-                     if(trail) trail.style.display = this.settings.performanceMode ? 'none' : 'block';
                 }
             }
             this.saveLocal();
             if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         
-        applyTheme(color) { /* (Mesmo código) */
+        applyTheme(color) {
             const root = document.documentElement;
             const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan'];
@@ -494,7 +484,7 @@ function zeniteSystem() {
             this.sysLogs.unshift({time, msg, type});
             if(this.sysLogs.length > 50) this.sysLogs.pop();
         },
-        async logout() { /* (Mesmo código) */ 
+        async logout() { 
              this.systemLoading = true;
             if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} }
             localStorage.removeItem('zenite_cached_db');
@@ -505,14 +495,14 @@ function zeniteSystem() {
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
-        doSocialAuth(provider) { /* (Mesmo código) */
+        doSocialAuth(provider) {
              if(!this.supabase) return this.notify("Erro de conexão.", "error");
             this.authLoading = true;
             this.authMsg = "Conectando...";
             this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
                 .then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } });
         },
-        saveAndExit() { /* (Mesmo código) */
+        saveAndExit() {
             if(this.char && this.activeCharId) { 
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
                 this.updateAgentCount();
@@ -523,13 +513,16 @@ function zeniteSystem() {
             this.activeCharId = null; 
             this.char = null; 
          },
-        loadCharacter(id) { /* (Mesmo código) */
+        loadCharacter(id) {
              if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
             this.loadingChar = true;
             this.activeCharId = id;
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
+                // Patch para chars antigos que não tinham inventário ou idade
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
+                if(!this.char.age) this.char.age = ""; // Evita undefined no input
+                
                 this.currentView = 'sheet';
                 this.activeTab = 'profile';
                 this.$nextTick(() => {
@@ -543,7 +536,7 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- GRÁFICOS OTIMIZADOS E PRECISOS ---
+        // --- GRÁFICOS OTIMIZADOS ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id);
             if(!ctx) return;
@@ -554,7 +547,6 @@ function zeniteSystem() {
             const rgb = `${r},${g},${b}`;
 
             if (ctx.chart) {
-                // Atualização Fluida
                 ctx.chart.data.datasets[0].data = data;
                 ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`;
                 ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`;
@@ -580,14 +572,8 @@ function zeniteSystem() {
                             r: { 
                                 min: -1, 
                                 max: isWizard ? 4 : 6, 
-                                ticks: { 
-                                    display: false, // Desliguei os números do eixo, polui muito
-                                    stepSize: 1     // ISSO AQUI garante linhas em cada número inteiro
-                                }, 
-                                grid: { 
-                                    color: 'rgba(255,255,255,0.1)',
-                                    circular: false // Mantém poligonal
-                                },
+                                ticks: { display: false, stepSize: 1 }, 
+                                grid: { color: 'rgba(255,255,255,0.1)', circular: false },
                                 angleLines: { color: 'rgba(255,255,255,0.1)' }
                             } 
                         }, 
@@ -600,7 +586,7 @@ function zeniteSystem() {
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
         
-        triggerFX(type) { /* (Mesmo código) */ const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
+        triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
