@@ -11,7 +11,6 @@
     --neon-purple: #d946ef;
 }
 
-/* Prevent FOUC (Flash of Unstyled Content) with Alpine */
 [x-cloak] { display: none !important; }
 
 body {
@@ -19,7 +18,6 @@ body {
     background-color: var(--bg-void);
     color: #e2e8f0;
     cursor: auto; 
-    /* Subtle grid background */
     background-image: 
         linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
@@ -29,52 +27,40 @@ body {
     padding-bottom: 120px;
 }
 
-/* --- ANIMATED NEBULA --- */
+/* NEBULA ANIMATION (Optimized) */
 .bg-nebula {
     background: radial-gradient(circle at 50% 50%, var(--neon-core), transparent 60%);
-    filter: blur(120px);
+    filter: blur(100px);
     opacity: 0.2;
     will-change: transform, opacity;
-    transform: translateZ(0); /* Hardware Acceleration */
-    animation: pulseNebula 20s ease-in-out infinite alternate;
+    transform: translateZ(0); /* Force GPU */
+    animation: pulseNebula 30s ease-in-out infinite alternate;
 }
-
 @keyframes pulseNebula {
     0% { opacity: 0.15; transform: scale(1); }
-    100% { opacity: 0.25; transform: scale(1.2); }
+    100% { opacity: 0.25; transform: scale(1.1); }
 }
 
-/* --- CURSOR SYSTEM --- */
-/* Hide default cursor only when trail is active */
-body.custom-cursor-active, 
-body.custom-cursor-active * { 
-    cursor: none !important; 
-}
-
+/* CURSOR CUSTOMIZADO */
+body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important; }
 #mouse-trail {
-    position: fixed;
-    top: 0; left: 0;
-    pointer-events: none;
-    transform: translate(-50%, -50%); /* Center on mouse */
-    transition: width 0.2s, height 0.2s, background-color 0.2s; /* Only animate size/color, NOT position */
-    z-index: 9999;
+    /* FIX: Transition removed for INSTANT feel */
+    transition: width 0.2s, height 0.2s, background-color 0.2s; 
 }
-
 #mouse-trail.hover-active {
-    width: 40px;
-    height: 40px;
     background: transparent !important;
     border: 2px solid var(--neon-core);
+    transform: scale(1.5); /* Scale handled via CSS, Position via JS */
     mix-blend-mode: normal !important;
 }
 
-/* Touch devices: Disable custom cursor */
+/* TOUCH DEVICES */
 @media (pointer: coarse) {
     #mouse-trail { display: none !important; }
     body.custom-cursor-active { cursor: auto !important; }
 }
 
-/* --- MODES --- */
+/* MODES */
 body.performance-mode .glass {
     backdrop-filter: none !important;
     background: #111 !important;
@@ -92,106 +78,48 @@ body.performance-mode .bg-nebula { display: none !important; }
 body.compact-mode { font-size: 0.85rem; }
 body.compact-mode .glass { padding: 8px !important; }
 
-/* --- UI COMPONENTS --- */
-.glass { 
-    background: var(--glass-panel); 
-    backdrop-filter: blur(12px); 
-    border: 1px solid var(--glass-border); 
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); 
+/* LOADER & UTILS */
+#app-loader {
+    position: fixed; inset: 0; background: var(--bg-void); z-index: 9000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: opacity 0.3s ease;
 }
-
-.input-cyber { 
-    background: rgba(0,0,0,0.5); 
-    border: 1px solid var(--glass-border); 
-    color: white; 
-    transition: all 0.3s ease; 
-    font-family: 'Rajdhani', sans-serif; 
-}
-
-.input-cyber:focus { 
-    border-color: var(--neon-core); 
-    box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); 
-    outline: none; 
-}
-
-/* Loader */
 .loader-spinner {
-    width: 50px; height: 50px; 
-    border: 3px solid rgba(14,165,233,0.1);
-    border-radius: 50%; 
-    border-top-color: var(--neon-core);
-    animation: spin 0.8s ease-in-out infinite; 
+    width: 50px; height: 50px; border: 3px solid rgba(14,165,233,0.1);
+    border-radius: 50%; border-top-color: var(--neon-core);
+    animation: spin 0.8s ease-in-out infinite; margin-bottom: 15px;
 }
+.glass { background: var(--glass-panel); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); }
+.input-cyber { background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: white; transition: all 0.3s ease; font-family: 'Rajdhani', sans-serif; }
+.input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); outline: none; }
 
-/* --- DICE TRAY --- */
+/* DICE TRAY */
 .dice-tray-suspended {
-    position: fixed; bottom: 30px; left: 50%; 
-    transform: translateX(-50%);
-    background: rgba(15, 15, 20, 0.95); 
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border); 
-    border-radius: 16px;
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border); border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-    padding: 10px; 
-    z-index: 40;
+    padding: 10px; z-index: 40;
     display: flex; 
     transition: all 0.3s ease;
     width: 95%; max-width: 95vw;
 }
+.dice-tray-suspended:hover { border-color: var(--neon-core); transform: translateX(-50%) translateY(-4px); }
+@media (min-width: 768px) { .dice-tray-suspended { bottom: 30px; border-radius: 50px; padding: 10px 30px; width: auto; max-width: 90vw; } }
 
-@media (min-width: 768px) { 
-    .dice-tray-suspended { 
-        bottom: 30px; 
-        border-radius: 50px; 
-        padding: 10px 30px; 
-        width: auto; 
-        max-width: 90vw; 
-    } 
-}
-
-/* --- ANIMATIONS & FX --- */
-@keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+/* ANIMATIONS */
+@keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.crit-success { 
-    text-shadow: 0 0 15px var(--neon-warn); 
-    color: var(--neon-warn) !important; 
-    animation: pulseGold 0.5s infinite; 
-}
-
-.crit-fail { 
-    text-shadow: 0 0 15px var(--neon-alert); 
-    color: var(--neon-alert) !important; 
-    animation: shake 0.3s; 
-}
-
+.crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
+.crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
 .animate-pulse-border { animation: border-pulse 2s infinite; }
-@keyframes border-pulse { 
-    0%, 100% { border-color: rgba(14, 165, 233, 0.3); } 
-    50% { border-color: rgba(14, 165, 233, 1); box-shadow: 0 0 20px rgba(14, 165, 233, 0.4); } 
-}
+@keyframes border-pulse { 0%, 100% { border-color: rgba(14, 165, 233, 0.3); } 50% { border-color: rgba(14, 165, 233, 1); box-shadow: 0 0 20px rgba(14, 165, 233, 0.4); } }
 
-/* Cropper Overrides */
 .cropper-view-box, .cropper-face { border-radius: 50%; }
 .cropper-container { width: 100% !important; height: 100% !important; }
-
-/* Custom Elements */
-.skill-dot { 
-    width: 12px; height: 12px; 
-    border-radius: 50%; 
-    border: 1px solid var(--glass-border); 
-    cursor: pointer; 
-    transition: all 0.2s; 
-}
-.skill-dot.active { 
-    background: var(--neon-core); 
-    box-shadow: 0 0 8px var(--neon-core); 
-    border-color: var(--neon-core); 
-}
-
-.font-brand { font-family: 'Orbitron', sans-serif; }
-.font-code { font-family: 'JetBrains Mono', monospace; }
-
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
+.skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
+#damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
+#damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
+#heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
