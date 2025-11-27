@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v34.0-Patch';
+const APP_VERSION = 'v35.0-Social-Only';
 
 function zeniteSystem() {
     return {
@@ -23,13 +23,8 @@ function zeniteSystem() {
         consoleOpen: false,
         sysLogs: [],
 
-        // --- LOGIN ---
-        authInput: { email: '', pass: '', key: '', newPass: '' }, 
-        authMode: 'login', authLoading: false, authMsg: '', authMsgType: '',
-        
-        // --- SECRET WORD MODAL ---
-        secretModalOpen: false,
-        newSecretWord: '',
+        // --- AUTH ---
+        authLoading: false, authMsg: '', authMsgType: '',
 
         // --- SYNC ---
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
@@ -57,13 +52,19 @@ function zeniteSystem() {
         async initSystem() {
             this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
             
+            // Força reset do loading state de auth caso o user tenha voltado
+            this.authLoading = false;
+
             // Recuperação de falha no load
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
 
-            // Tratamento de OAuth Redirect
-            if (window.location.hash && window.location.hash.includes('error=')) {
-                this.notify('Login social cancelado.', 'warn');
-                history.replaceState(null, null, ' ');
+            // Tratamento de OAuth Redirect (Cancelamento ou Erro)
+            if (window.location.hash) {
+                if(window.location.hash.includes('error=')) {
+                    this.notify('Login cancelado ou falhou.', 'warn');
+                    history.replaceState(null, null, ' ');
+                    this.authLoading = false;
+                }
             }
 
             // Verifica Guest
@@ -74,29 +75,32 @@ function zeniteSystem() {
                 this.sanitizeData();
                 this.systemLoading = false;
             } else {
+                // Checagem de Sessão Inicial
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
                     this.user = session.user;
                     await this.fetchData();
-                    // Checagem imediata se o usuário já tem perfil montado
-                    this.checkSecretWord(); 
                 }
                 this.systemLoading = false;
             }
 
-            // Auth Listener
+            // Auth Listener OTIMIZADO
             supabase.auth.onAuthStateChange(async (event, session) => {
                 this.log(`Auth Event: ${event}`, 'info');
-                
+
+                // Evita reload infinito ao trocar de aba (TOKEN_REFRESHED)
+                if (event === 'TOKEN_REFRESHED') return;
+
                 if (event === 'SIGNED_IN' && session) {
+                    // Se já estamos com esse usuário carregado, ignora
+                    if (this.user && this.user.id === session.user.id) return;
+
                     this.systemLoading = true;
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
                     
                     await this.fetchData();
-                    // FIX: Verificar palavra secreta no primeiro login social
-                    await this.checkSecretWord();
                     
                     this.systemLoading = false;
                     if(window.location.hash) history.replaceState(null, null, ' ');
@@ -136,102 +140,7 @@ function zeniteSystem() {
             if(this.sysLogs.length > 50) this.sysLogs.pop();
         },
 
-        // --- SECRET WORD LOGIC ---
-        async checkSecretWord() {
-            if (!this.user) return;
-            // Verifica se a coluna secret_key está vazia ou nula
-            const { data, error } = await supabase.from('profiles').select('secret_key').eq('id', this.user.id).single();
-            
-            if (error) {
-                this.log('Erro ao checar secret_key: ' + error.message, 'error');
-                return;
-            }
-
-            // Se não tem chave, abre o modal para obrigar/sugerir criação
-            if (data && !data.secret_key) {
-                this.log('Usuário sem Palavra Secreta. Abrindo modal.', 'warn');
-                this.secretModalOpen = true; 
-            }
-        },
-
-        async saveSecretWord() {
-            if (!this.newSecretWord || this.newSecretWord.length < 3) return this.notify('Chave muito curta.', 'warn');
-            
-            const { error } = await supabase.from('profiles').update({ secret_key: this.newSecretWord }).eq('id', this.user.id);
-            
-            if (error) {
-                this.notify('Erro ao salvar chave.', 'error');
-                this.log(error.message, 'error');
-            } else {
-                this.notify('Chave de Segurança definida!', 'success');
-                this.secretModalOpen = false;
-            }
-        },
-
         // --- AUTH FLOWS ---
-        async doAuth(action) {
-            let email = this.authInput.email; 
-            if (email && !email.includes('@')) email += '@zenite.os';
-
-            if(!email || (!this.authInput.pass && action !== 'reset')) return this.notify('Preencha os campos.', 'warn');
-            
-            this.authLoading = true;
-            try {
-                let error;
-                if (action === 'login') { 
-                    const { error: e } = await supabase.auth.signInWithPassword({ email, password: this.authInput.pass }); error = e; 
-                }
-                else if (action === 'register') { 
-                    // No registro, salvamos a chave no profile logo após criar
-                    const { data, error: e } = await supabase.auth.signUp({ email, password: this.authInput.pass }); 
-                    error = e; 
-                    if(!error && data.user && this.authInput.key) {
-                         // Grava a chave no perfil imediatamente
-                         setTimeout(async () => {
-                            await supabase.from('profiles').insert([{ id: data.user.id, data: {}, secret_key: this.authInput.key }]);
-                         }, 1000);
-                         this.notify('Conta criada! Faça login.', 'success'); 
-                         this.authMode = 'login'; 
-                         return; 
-                    }
-                }
-                else if (action === 'reset') { 
-                    // TENTA VIA RPC (PALAVRA SECRETA)
-                    if (this.authInput.key && this.authInput.newPass) {
-                        const { data, error: rpcError } = await supabase.rpc('reset_password_with_key', {
-                            target_email: email,
-                            check_key: this.authInput.key,
-                            new_password: this.authInput.newPass
-                        });
-                        
-                        if (data === true) {
-                            this.notify('Senha alterada com sucesso!', 'success');
-                            this.authMode = 'login';
-                            this.authLoading = false;
-                            return;
-                        } else {
-                            throw new Error('Palavra Secreta incorreta ou usuário não encontrado.');
-                        }
-                    } else {
-                        // FALLBACK: Email
-                        const { error: e } = await supabase.auth.resetPasswordForEmail(email); 
-                        error = e; 
-                        if(!error) this.notify('Email de recuperação enviado!', 'success'); 
-                    }
-                }
-                
-                if (error) throw error;
-                if (action === 'login') this.authInput = { email: '', pass: '' };
-
-            } catch (e) {
-                this.notify(e.message, 'error');
-                this.log(e.message, 'error');
-            } finally {
-                this.authLoading = false;
-            }
-        },
-
-        // FIX: LOGOUT BLINDADO
         async logout() {
             this.systemLoading = true;
             this.log('Iniciando logout...', 'info');
@@ -244,35 +153,33 @@ function zeniteSystem() {
                         this.syncCloud(true),
                         new Promise((_, r) => setTimeout(() => r('Timeout'), 2000))
                     ]);
-                } catch(e) {
-                    this.log('Save logout ignorado: ' + e, 'warn');
-                }
+                } catch(e) {}
             }
 
-            // 2. Limpeza local IMEDIATA para evitar estado zumbi
+            // 2. Limpeza local
             localStorage.removeItem('zenite_cached_db');
             localStorage.removeItem('zenite_is_guest');
             this.user = null;
             this.chars = {};
 
             // 3. Logout Supabase
-            try {
-                await supabase.auth.signOut();
-            } catch(e) {
-                this.log('Erro no signOut do Supabase', 'error');
-            }
-
-            // 4. Reload forçado para limpar memória
+            await supabase.auth.signOut();
             window.location.reload();
         },
 
         async doSocialAuth(provider) {
             this.authLoading = true;
-            const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
-            if (error) { this.notify(error.message, 'error'); this.authLoading = false; }
+            const { error } = await supabase.auth.signInWithOAuth({ 
+                provider, 
+                options: { redirectTo: window.location.origin } 
+            });
+            if (error) { 
+                this.notify(error.message, 'error'); 
+                this.authLoading = false; 
+            }
         },
 
-        // FIX: SYNC CLOUD ROBUSTO
+        // --- SYNC ---
         async syncCloud(silent = false) {
             if (!this.user || this.isGuest || this.isSyncing) return;
             
@@ -286,8 +193,6 @@ function zeniteSystem() {
                 
                 const payload = JSON.parse(JSON.stringify(this.chars));
                 
-                // IMPORTANTE: Adiciona updated_at para garantir que o banco processe a mudança se houver triggers
-                // E usa upsert garantindo que 'id' bata com o usuário
                 const { error } = await Promise.race([
                     supabase.from('profiles').upsert({ 
                         id: this.user.id, 
@@ -319,7 +224,6 @@ function zeniteSystem() {
             
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
             
-            // PGRST116 = Returns no rows (usuário novo sem perfil criado)
             if (error && error.code === 'PGRST116') { 
                 this.log('Perfil novo detectado. Criando entrada...', 'info');
                 await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); 
@@ -340,6 +244,7 @@ function zeniteSystem() {
 
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
+        enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocalData('zenite_guest_db'); this.sanitizeData(); },
         sanitizeData() { if (!this.chars || typeof this.chars !== 'object') this.chars = {}; Object.keys(this.chars).forEach(k => { if (!this.chars[k] || !this.chars[k].id) delete this.chars[k]; }); this.updateAgentCount(); },
         loadLocalData(key) { const local = localStorage.getItem(key); if(local) { try { let p = JSON.parse(local); this.chars = Array.isArray(p) ? {} : (p || {}); if(Array.isArray(p)) p.forEach(c => {if(c?.id) this.chars[c.id]=c}); this.sanitizeData(); } catch(e) {} } },
         saveAndExit() { if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; },
