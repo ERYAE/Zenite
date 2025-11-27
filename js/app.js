@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v35.0-Social-Only';
+const APP_VERSION = 'v36.0-EcoSave';
 
 function zeniteSystem() {
     return {
@@ -26,8 +26,8 @@ function zeniteSystem() {
         // --- AUTH ---
         authLoading: false, authMsg: '', authMsgType: '',
 
-        // --- SYNC ---
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
+        // --- SYNC (ECONOMIA DE DADOS) ---
+        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', saveTimeout: null,
 
         // --- DATA ---
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -51,17 +51,15 @@ function zeniteSystem() {
 
         async initSystem() {
             this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
-            
-            // Força reset do loading state de auth caso o user tenha voltado
             this.authLoading = false;
 
             // Recuperação de falha no load
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
 
-            // Tratamento de OAuth Redirect (Cancelamento ou Erro)
+            // OAuth Redirect Handler
             if (window.location.hash) {
                 if(window.location.hash.includes('error=')) {
-                    this.notify('Login cancelado ou falhou.', 'warn');
+                    this.notify('Login cancelado.', 'warn');
                     history.replaceState(null, null, ' ');
                     this.authLoading = false;
                 }
@@ -75,7 +73,6 @@ function zeniteSystem() {
                 this.sanitizeData();
                 this.systemLoading = false;
             } else {
-                // Checagem de Sessão Inicial
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
                     this.user = session.user;
@@ -84,24 +81,17 @@ function zeniteSystem() {
                 this.systemLoading = false;
             }
 
-            // Auth Listener OTIMIZADO
+            // Auth Listener
             supabase.auth.onAuthStateChange(async (event, session) => {
-                this.log(`Auth Event: ${event}`, 'info');
-
-                // Evita reload infinito ao trocar de aba (TOKEN_REFRESHED)
                 if (event === 'TOKEN_REFRESHED') return;
 
                 if (event === 'SIGNED_IN' && session) {
-                    // Se já estamos com esse usuário carregado, ignora
                     if (this.user && this.user.id === session.user.id) return;
-
                     this.systemLoading = true;
                     this.user = session.user;
                     this.isGuest = false;
                     localStorage.removeItem('zenite_is_guest');
-                    
                     await this.fetchData();
-                    
                     this.systemLoading = false;
                     if(window.location.hash) history.replaceState(null, null, ' ');
                 } else if (event === 'SIGNED_OUT') {
@@ -112,22 +102,32 @@ function zeniteSystem() {
                 }
             });
 
+            // Watcher de Mudanças
             this.$watch('char', (val) => {
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-                    localStorage.setItem(key, JSON.stringify(this.chars));
-                    if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
+                    localStorage.setItem(key, JSON.stringify(this.chars)); // Save Local Instantâneo
+                    
+                    if (!this.isGuest) { 
+                        this.unsavedChanges = true; 
+                        this.saveStatus = 'idle'; 
+                    }
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, { deep: true });
 
-            setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, 60000);
+            // Auto-Save Econômico (A cada 3 minutos, apenas se necessário)
+            setInterval(() => { 
+                if (this.user && this.unsavedChanges && !this.isSyncing) {
+                    this.log('Auto-save trigger', 'info');
+                    this.syncCloud(true);
+                }
+            }, 180000); 
         },
 
         // --- DIAGNOSTICS ---
         handleKeys(e) {
-            // CTRL + SHIFT + D abre o console
             if (e.ctrlKey && e.shiftKey && e.key === 'D') {
                 e.preventDefault();
                 this.consoleOpen = !this.consoleOpen;
@@ -143,26 +143,14 @@ function zeniteSystem() {
         // --- AUTH FLOWS ---
         async logout() {
             this.systemLoading = true;
-            this.log('Iniciando logout...', 'info');
-
-            // 1. Tenta salvar rapidamente
+            // Tenta salvar antes de sair
             if(this.unsavedChanges && !this.isGuest) {
                 try {
-                    this.notify('Salvando antes de sair...', 'info');
-                    await Promise.race([
-                        this.syncCloud(true),
-                        new Promise((_, r) => setTimeout(() => r('Timeout'), 2000))
-                    ]);
+                    await this.syncCloud(true);
                 } catch(e) {}
             }
-
-            // 2. Limpeza local
             localStorage.removeItem('zenite_cached_db');
             localStorage.removeItem('zenite_is_guest');
-            this.user = null;
-            this.chars = {};
-
-            // 3. Logout Supabase
             await supabase.auth.signOut();
             window.location.reload();
         },
@@ -179,20 +167,25 @@ function zeniteSystem() {
             }
         },
 
-        // --- SYNC ---
+        // --- SYNC OTIMIZADO ---
         async syncCloud(silent = false) {
-            if (!this.user || this.isGuest || this.isSyncing) return;
-            
+            // Regras de bloqueio para economia
+            if (!this.user || this.isGuest) return;
+            if (!this.unsavedChanges) return; // Não salva se não mudou nada
+            if (this.isSyncing) return; // Não encavala saves
+
             this.isSyncing = true; 
             if(!silent) this.notify('Sincronizando...', 'info');
             
-            const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Tempo limite excedido')), 10000));
+            // Timeout de segurança (10s)
+            const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), 10000));
             
             try {
+                // Prepara Payload
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
-                
                 const payload = JSON.parse(JSON.stringify(this.chars));
                 
+                // Envia ao Supabase
                 const { error } = await Promise.race([
                     supabase.from('profiles').upsert({ 
                         id: this.user.id, 
@@ -204,16 +197,18 @@ function zeniteSystem() {
 
                 if (error) throw error;
                 
+                // Sucesso
                 this.unsavedChanges = false; 
                 this.saveStatus = 'success';
-                if(!silent) this.notify('Salvo com sucesso!', 'success');
-                this.log('Dados sincronizados.', 'success');
+                if(!silent) this.notify('Dados salvos.', 'success');
+                this.log('Cloud Sync OK', 'success');
                 
                 setTimeout(() => { if(this.saveStatus === 'success') this.saveStatus = 'idle'; }, 2000);
+
             } catch (e) { 
                 this.saveStatus = 'error'; 
-                if(!silent) this.notify('Erro ao Salvar: ' + e.message, 'error'); 
-                this.log('Sync Error: ' + e.message, 'error');
+                if(!silent) this.notify('Erro no Save: ' + e.message, 'error'); 
+                this.log('Sync Fail: ' + e.message, 'error');
             } finally { 
                 this.isSyncing = false; 
             }
@@ -221,16 +216,13 @@ function zeniteSystem() {
 
         async fetchData() { 
             if (!this.user) return; 
-            
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
             
             if (error && error.code === 'PGRST116') { 
-                this.log('Perfil novo detectado. Criando entrada...', 'info');
+                // Cria perfil vazio se não existir
                 await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); 
                 data = { data: {} }; 
-            } else if (error) {
-                this.log('Erro ao baixar dados: ' + error.message, 'error');
-            }
+            } 
 
             if (data) { 
                 let c = data.data || {}; 
@@ -238,7 +230,6 @@ function zeniteSystem() {
                 this.chars = c; 
                 this.sanitizeData(); 
                 localStorage.setItem('zenite_cached_db', JSON.stringify(this.chars)); 
-                this.log('Dados carregados.', 'success');
             } 
         },
 
