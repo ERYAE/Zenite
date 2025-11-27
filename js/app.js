@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v36.1-Hotfix';
+const APP_VERSION = 'v36.2-AuthFix';
 
 function zeniteSystem() {
     return {
@@ -51,12 +51,20 @@ function zeniteSystem() {
 
         async initSystem() {
             this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
+            
+            // 1. Reseta estado inicial (Load normal)
             this.authLoading = false;
+
+            // 2. FIX: Reseta estado se voltar pelo histórico (Back Button / BFCache)
+            window.addEventListener('pageshow', (event) => {
+                this.authLoading = false;
+                this.log('Page Show: UI Unlocked', 'info');
+            });
 
             // Recuperação de falha no load
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
 
-            // OAuth Redirect Handler
+            // OAuth Redirect Handler (Se voltar com erro na URL)
             if (window.location.hash) {
                 if(window.location.hash.includes('error=')) {
                     this.notify('Login cancelado.', 'warn');
@@ -117,7 +125,7 @@ function zeniteSystem() {
                 }
             }, { deep: true });
 
-            // Auto-Save Econômico (A cada 3 minutos, apenas se necessário)
+            // Auto-Save Econômico
             setInterval(() => { 
                 if (this.user && this.unsavedChanges && !this.isSyncing) {
                     this.log('Auto-save trigger', 'info');
@@ -143,7 +151,6 @@ function zeniteSystem() {
         // --- AUTH FLOWS ---
         async logout() {
             this.systemLoading = true;
-            // Tenta salvar antes de sair
             if(this.unsavedChanges && !this.isGuest) {
                 try {
                     await this.syncCloud(true);
@@ -169,10 +176,9 @@ function zeniteSystem() {
 
         // --- SYNC OTIMIZADO ---
         async syncCloud(silent = false) {
-            // Regras de bloqueio para economia
             if (!this.user || this.isGuest) return;
-            if (!this.unsavedChanges) return; // Não salva se não mudou nada
-            if (this.isSyncing) return; // Não encavala saves
+            if (!this.unsavedChanges) return; 
+            if (this.isSyncing) return;
 
             this.isSyncing = true; 
             if(!silent) this.notify('Sincronizando...', 'info');
@@ -180,11 +186,10 @@ function zeniteSystem() {
             const timeout = new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), 10000));
             
             try {
-                // Prepara Payload
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
                 const payload = JSON.parse(JSON.stringify(this.chars));
                 
-                // Envia ao Supabase (CORRIGIDO: Removido updated_at)
+                // Envia ao Supabase
                 const { error } = await Promise.race([
                     supabase.from('profiles').upsert({ 
                         id: this.user.id, 
@@ -216,7 +221,6 @@ function zeniteSystem() {
             let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single(); 
             
             if (error && error.code === 'PGRST116') { 
-                // Cria perfil vazio se não existir
                 await supabase.from('profiles').insert([{ id: this.user.id, data: {} }]); 
                 data = { data: {} }; 
             } 
