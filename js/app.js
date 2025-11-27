@@ -9,7 +9,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     }
 });
 const MAX_AGENTS = 30;
-const APP_VERSION = 'v41.0-Polished';
+const APP_VERSION = 'v43.0-Pro';
 
 function zeniteSystem() {
     return {
@@ -18,14 +18,16 @@ function zeniteSystem() {
         user: null,
         isGuest: false,
         userMenuOpen: false,
-        loadingChar: false, // TRAVA DE SEGURANÇA PARA SAVE
+        loadingChar: false,
+        diceTrayOpen: true, // Novo estado para minimizar bandeja
         
         // --- SETTINGS ---
         consoleOpen: false,
         sysLogs: [],
         settings: {
             mouseTrail: true,
-            compactMode: false
+            compactMode: false,
+            performanceMode: false
         },
 
         // --- AUTH ---
@@ -55,46 +57,52 @@ function zeniteSystem() {
         ],
 
         async initSystem() {
-            this.log(`ZENITE ${APP_VERSION} INIT`, 'info');
+            this.log(`ZENITE ${APP_VERSION} BOOT`, 'info');
             this.authLoading = false;
             
-            // Mouse Trail Logic (Super Otimizado)
-            const trail = document.getElementById('mouse-trail');
-            let mouseX = 0, mouseY = 0;
-            let trailX = 0, trailY = 0;
-            
-            document.addEventListener('mousemove', (e) => {
-                mouseX = e.clientX;
-                mouseY = e.clientY;
-            });
-
-            // Loop de Animação Independente (requestAnimationFrame para 60fps lisos)
-            const animateTrail = () => {
-                if (this.settings.mouseTrail && trail) {
-                    // Interpolação linear para o efeito "delay/blur"
-                    trailX += (mouseX - trailX) * 0.15;
-                    trailY += (mouseY - trailY) * 0.15;
-                    trail.style.transform = `translate(${trailX}px, ${trailY}px)`;
-                    trail.style.opacity = '1';
-                } else if (trail) {
-                    trail.style.opacity = '0';
-                }
-                requestAnimationFrame(animateTrail);
+            // --- GLOBAL ERROR HANDLING (Feedback Automático) ---
+            window.onerror = (msg, url, line) => {
+                this.log(`CRITICAL: ${msg} @ Line ${line}`, 'error');
+                return false;
             };
-            animateTrail();
+            window.onunhandledrejection = (e) => {
+                this.log(`PROMISE ERROR: ${e.reason}`, 'error');
+            };
 
-            // UI Handling
+            // --- MOUSE TRAIL LOGIC (Corrigido e Centralizado) ---
+            const trail = document.getElementById('mouse-trail');
+            let mouseX = 0, mouseY = 0, trailX = 0, trailY = 0;
+            
+            // Detecta movimento apenas se não for touch (Performance)
+            if (window.matchMedia("(pointer: fine)").matches) {
+                document.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+                
+                const animateTrail = () => {
+                    // Só anima se ligado e fora do modo performance
+                    if (this.settings.mouseTrail && !this.settings.performanceMode && trail) {
+                        trailX += (mouseX - trailX) * 0.15;
+                        trailY += (mouseY - trailY) * 0.15;
+                        // Subtrai 8px (metade de 16px) para centralizar
+                        trail.style.transform = `translate(${trailX - 8}px, ${trailY - 8}px)`;
+                        trail.style.opacity = '1';
+                        // Adiciona classe ao body para esconder cursor nativo
+                        document.body.classList.add('custom-cursor-active');
+                    } else {
+                        if(trail) trail.style.opacity = '0';
+                        document.body.classList.remove('custom-cursor-active');
+                    }
+                    requestAnimationFrame(animateTrail);
+                };
+                animateTrail();
+            }
+
             window.addEventListener('pageshow', () => this.authLoading = false);
             window.addEventListener('beforeunload', (e) => {
-                if (this.unsavedChanges && !this.isGuest) {
-                    e.preventDefault();
-                    e.returnValue = 'Alterações pendentes.'; 
-                }
+                if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; }
             });
 
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
 
-            // Auth Logic
             if (window.location.hash && window.location.hash.includes('error=')) {
                 this.notify('Login cancelado.', 'warn');
                 history.replaceState(null, null, ' ');
@@ -116,7 +124,6 @@ function zeniteSystem() {
                 this.systemLoading = false;
             }
 
-            // Auth Listener
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'TOKEN_REFRESHED') return;
                 if (event === 'SIGNED_IN' && session) {
@@ -137,38 +144,25 @@ function zeniteSystem() {
                 }
             });
 
-            // Watcher principal com TRAVA DE LOAD
             this.$watch('char', (val) => {
-                // Se estiver carregando (loadingChar = true), IGNORA a mudança inicial
                 if (this.loadingChar) return;
-
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
                     localStorage.setItem(key, JSON.stringify(this.chars));
-                    
-                    if (!this.isGuest) { 
-                        this.unsavedChanges = true; 
-                        this.saveStatus = 'idle'; 
-                    }
+                    if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, { deep: true });
 
-            // Auto-Save
             setInterval(() => { 
-                if (this.user && this.unsavedChanges && !this.isSyncing) {
-                    this.syncCloud(true);
-                }
+                if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true);
             }, 180000); 
         },
 
-        // --- DIAGNOSTICS ---
+        // --- DIAGNOSTICS & SETTINGS ---
         handleKeys(e) {
-            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-                e.preventDefault();
-                this.toggleSystemLog();
-            }
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.consoleOpen = !this.consoleOpen; }
         },
         log(msg, type='info') {
             const time = new Date().toLocaleTimeString();
@@ -176,26 +170,16 @@ function zeniteSystem() {
             this.sysLogs.unshift({time, msg, type});
             if(this.sysLogs.length > 50) this.sysLogs.pop();
         },
-        toggleSystemLog() {
-            this.configModal = false;
-            this.consoleOpen = !this.consoleOpen;
-        },
-
-        // --- SETTINGS ---
         toggleSetting(key) {
             this.settings[key] = !this.settings[key];
-            if(key === 'compactMode') {
-                document.body.classList.toggle('compact-mode', this.settings.compactMode);
-            }
+            if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
+            if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
         },
 
         // --- IMPORT / EXPORT ---
         exportData() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars));
-            const a = document.createElement('a');
-            a.href = dataStr;
-            a.download = `zenite_bkp_${new Date().toISOString().slice(0,10)}.json`;
-            a.click(); a.remove();
+            const a = document.createElement('a'); a.href = dataStr; a.download = `zenite_bkp_${new Date().toISOString().slice(0,10)}.json`; a.click(); a.remove();
             this.notify('Backup baixado!', 'success');
         },
         triggerFileImport() { document.getElementById('import-file').click(); },
@@ -242,7 +226,6 @@ function zeniteSystem() {
             if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing) return;
             this.isSyncing = true; 
             if(!silent) this.notify('Sincronizando...', 'info');
-            
             try {
                 if (this.char && this.activeCharId) this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
                 const payload = JSON.parse(JSON.stringify(this.chars));
@@ -281,7 +264,35 @@ function zeniteSystem() {
             } 
         },
 
-        // --- HELPERS ---
+        // --- LOAD ---
+        loadCharacter(id) { 
+            if (!this.chars[id]) return this.notify('Ficha inválida.', 'error'); 
+            this.loadingChar = true; 
+            this.activeCharId = id; 
+            
+            // requestAnimationFrame para evitar "jank" visual
+            requestAnimationFrame(() => {
+                this.char = JSON.parse(JSON.stringify(this.chars[id])); 
+                
+                // Defaults
+                if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
+                if(!this.char.skills) this.char.skills = []; 
+                if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] }; 
+                if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} }; 
+                
+                this.currentView = 'sheet'; 
+                this.activeTab = 'profile'; 
+                
+                this.$nextTick(() => {
+                    this.updateRadarChart();
+                    setTimeout(() => { 
+                        this.loadingChar = false; 
+                        this.unsavedChanges = false; 
+                    }, 300);
+                });
+            });
+        },
+
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocalData('zenite_guest_db'); this.sanitizeData(); },
@@ -291,34 +302,6 @@ function zeniteSystem() {
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.sanitizeData(); const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'; localStorage.setItem(key, JSON.stringify(this.chars)); if(!this.isGuest) this.syncCloud(true); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Remove dados locais.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-        
-        // --- LOAD OTIMIZADO ---
-        loadCharacter(id) { 
-            if (!this.chars[id]) return this.notify('Ficha inválida.', 'error'); 
-            
-            this.loadingChar = true; // ATIVA TRAVA: Ignora watcher
-            this.activeCharId = id; 
-            
-            // Deep Clone
-            this.char = JSON.parse(JSON.stringify(this.chars[id])); 
-            
-            // Defaults (Safety Checks)
-            if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
-            if(!this.char.skills) this.char.skills = []; 
-            if(!this.char.powers) this.char.powers = { passive: '', active: '', techniques: [] }; 
-            if(!this.char.stats) this.char.stats = { pv: {current:10, max:10}, pf: {current:10, max:10}, pdf: {current:10, max:10} }; 
-            
-            this.currentView = 'sheet'; 
-            this.activeTab = 'profile'; 
-            
-            // Libera trava no próximo tick (renderização)
-            this.$nextTick(() => {
-                this.updateRadarChart();
-                this.loadingChar = false; 
-                this.unsavedChanges = false; // Garante status limpo ao entrar
-            });
-        },
-
         askConfirm(title, desc, type, action) { this.confirmTitle = title; this.confirmDesc = desc; this.confirmType = type; this.confirmAction = action; this.confirmOpen = true; }, confirmYes() { if (this.confirmAction) this.confirmAction(); this.confirmOpen = false; },
         recalcDerivedStats() { if(!this.char) return; const c = this.char; const lvl = Math.max(1, parseInt(c.level)||1); const getV = (v) => parseInt(v)||0; const FOR = getV(c.attrs.for), POD = getV(c.attrs.pod), VON = getV(c.attrs.von); c.stats.pv.max = Math.max(5, (12+FOR)+((2+FOR)*(lvl-1))); c.stats.pf.max = Math.max(5, (10+POD)+((2+POD)*(lvl-1))); c.stats.pdf.max = Math.max(5, (10+VON)+((2+VON)*(lvl-1))); },
         modStat(type, val) { if(!this.char) return; const s = this.char.stats[type]; const old = s.current; s.current = Math.min(Math.max(0, s.current + val), s.max); if(s.current < old && type==='pv') this.triggerFX('damage'); if(s.current > old) this.triggerFX('heal'); },

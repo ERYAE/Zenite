@@ -35,23 +35,19 @@
         </template>
     </div>
 
-    <div x-show="consoleOpen" class="fixed inset-0 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in" x-transition>
-        <div class="flex justify-between items-center px-4 py-3 bg-red-900/20 border-b border-red-500/30">
-            <span class="text-red-500 font-bold flex items-center gap-2"><i class="fa-solid fa-terminal"></i> ZENITE SYSTEM LOG</span>
-            <div class="flex gap-4">
-                <button @click="sysLogs=[]" class="text-gray-400 hover:text-white uppercase font-bold text-[10px]">LIMPAR</button>
-                <button @click="consoleOpen=false" class="text-white hover:text-red-500"><i class="fa-solid fa-xmark fa-lg"></i></button>
-            </div>
+    <div x-show="consoleOpen" class="fixed top-0 left-0 w-full h-40 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in border-b border-red-900/50" x-transition>
+        <div class="flex justify-between items-center px-4 py-2 bg-red-900/20">
+            <span class="text-red-500 font-bold flex items-center gap-2"><i class="fa-solid fa-bug"></i> DEBUG CONSOLE</span>
+            <button @click="consoleOpen=false" class="text-white hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="flex-grow overflow-y-auto p-4 space-y-2 font-code">
+        <div class="flex-grow overflow-y-auto p-2 space-y-1 font-code">
             <template x-for="(log, idx) in sysLogs" :key="idx">
-                <div class="border-b border-white/5 pb-1 flex gap-3">
-                    <span class="text-gray-600 w-16 flex-shrink-0" x-text="log.time"></span>
-                    <span :class="log.type==='error'?'text-red-500 font-bold':(log.type==='warn'?'text-yellow-500':'text-[var(--neon-success)]')" x-text="'['+log.type.toUpperCase()+']'" class="w-16 flex-shrink-0"></span>
+                <div class="border-b border-white/5 pb-1 flex gap-2">
+                    <span class="text-gray-600 w-12 flex-shrink-0" x-text="log.time"></span>
+                    <span :class="log.type==='error'?'text-red-500':(log.type==='warn'?'text-yellow-500':'text-[var(--neon-success)]')" x-text="'['+log.type+']'" class="uppercase font-bold w-12 flex-shrink-0"></span>
                     <span class="text-gray-300 break-all" x-text="log.msg"></span>
                 </div>
             </template>
-            <div x-show="sysLogs.length===0" class="text-gray-600 italic text-center py-10">Nenhum registro no sistema.</div>
         </div>
     </div>
 
@@ -106,7 +102,7 @@
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
                 </button>
-                <div x-show="userMenuOpen" class="absolute top-full left-0 md:left-auto md:right-0 mt-2 w-64 max-w-[80vw] glass rounded-lg overflow-hidden z-50 shadow-xl border border-white/10 origin-top-left md:origin-top-right" x-transition>
+                <div x-show="userMenuOpen" class="absolute top-full right-0 left-auto mt-2 w-64 max-w-[80vw] glass rounded-lg overflow-hidden z-50 shadow-xl border border-white/10 origin-top-right" x-transition>
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado como</p>
                         <p class="text-xs text-white font-bold break-all leading-tight" x-text="user.email"></p>
@@ -191,10 +187,10 @@
         </div>
     </div>
 
-    <div class="fixed bottom-0 left-0 w-full bg-black/0 p-3 z-50 pointer-events-none" x-show="currentView === 'sheet'">
-        <div class="dice-tray-suspended glass pointer-events-auto flex-col md:flex-row gap-3 md:gap-4 !px-4 !py-3">
-            
+    <div class="fixed bottom-0 left-0 w-full p-3 z-50 pointer-events-none" x-show="currentView === 'sheet'">
+        <div x-show="diceTrayOpen" x-transition class="dice-tray-suspended glass pointer-events-auto flex-col md:flex-row gap-3 md:gap-4 !px-4 !py-3">
             <div class="flex justify-between items-center w-full md:w-auto gap-3 border-b md:border-b-0 border-white/5 pb-2 md:pb-0">
+                <button @click="diceTrayOpen=false" class="text-gray-500 hover:text-white md:hidden"><i class="fa-solid fa-chevron-down"></i></button>
                 <div class="relative">
                     <button @click="showDiceLog=!showDiceLog" class="text-gray-500 hover:text-white p-2"><i class="fa-solid fa-clock-rotate-left"></i></button>
                     <div x-show="showDiceLog" @click.outside="showDiceLog=false" class="absolute bottom-12 left-0 w-64 bg-[#0a0a0a] border border-[var(--neon-core)] rounded-lg p-0 shadow-2xl max-h-60 overflow-hidden flex flex-col z-[100]" x-transition>
@@ -207,12 +203,16 @@
                 </div>
                 <div class="flex items-center bg-white/5 rounded-full px-3 py-1 border border-white/10"><span class="text-[8px] font-bold text-gray-500 mr-2">MOD</span><input type="number" x-model="diceMod" class="w-8 bg-transparent text-center text-sm font-bold text-[var(--neon-core)] outline-none"></div>
                 <div class="text-2xl font-bold font-brand w-12 text-center" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
+                <button @click="diceTrayOpen=false" class="text-gray-500 hover:text-white hidden md:block"><i class="fa-solid fa-minus"></i></button>
             </div>
-
             <div class="grid grid-cols-4 gap-2 md:flex md:gap-2 w-full md:w-auto">
                 <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="w-full md:w-9 h-8 md:h-9 rounded md:rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold hover:bg-[var(--neon-core)] hover:text-black hover:scale-110 transition-all shadow-lg" x-text="'D'+d"></button></template>
             </div>
         </div>
+
+        <button x-show="!diceTrayOpen" @click="diceTrayOpen=true" class="pointer-events-auto absolute bottom-4 left-4 glass w-12 h-12 rounded-full flex items-center justify-center border border-[var(--neon-core)] text-[var(--neon-core)] hover:bg-[var(--neon-core)] hover:text-black transition-all shadow-xl animate-fade-in">
+            <i class="fa-solid fa-dice"></i>
+        </button>
     </div>
     
     <div x-show="wizardOpen" class="fixed inset-0 z-[60] bg-black/95 backdrop-blur flex items-center justify-center p-4"><div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl"><div class="p-6 border-b border-white/10 flex justify-between items-center"><h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2><button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button></div><div class="flex-grow overflow-y-auto p-6"><div x-show="wizardStep === 1"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><template x-for="arch in archetypes"><div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center"><i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i><h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3><p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p></div></template></div></div><div x-show="wizardStep === 2"><div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg"><span class="text-2xl font-brand text-white" x-text="wizardData.class"></span><div class="text-right"><div class="text-[10px] text-gray-500">PONTOS</div><div class="text-3xl font-mono font-bold text-[var(--neon-success)]" x-text="wizardPoints"></div></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="space-y-4"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5"><span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span><div class="flex items-center gap-3"><button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button><span class="w-8 text-center font-mono font-bold text-lg" x-text="wizardData.attrs[key]"></span><button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button></div></div></template></div><div class="flex items-center justify-center bg-black/20 rounded-xl"><canvas id="wizChart"></canvas></div></div></div></div><div class="p-6 border-t border-white/10 bg-black/20 flex justify-between"><button x-show="wizardStep>1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5">VOLTAR</button><div class="flex-grow"></div><button x-show="wizardStep===2" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-success)] text-black font-bold rounded hover:scale-105 shadow-lg shadow-emerald-900/20">FINALIZAR</button></div></div></div>
@@ -222,24 +222,40 @@
     <div x-show="configModal" class="fixed inset-0 z-[70] bg-black/90 backdrop-blur flex items-center justify-center px-4"><div class="glass p-6 md:p-8 rounded-xl w-full max-w-md relative border border-white/10 shadow-2xl">
         <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
         <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
-        <div class="space-y-3">
-            <button @click="toggleSystemLog()" class="w-full py-3 bg-white/5 border border-white/10 text-gray-300 font-bold rounded text-xs flex items-center justify-between px-4 hover:bg-white/10">
-                <span><i class="fa-solid fa-terminal mr-2"></i> LOG DO SISTEMA</span>
-                <i class="fa-solid fa-chevron-right text-[10px]"></i>
-            </button>
-            <div class="grid grid-cols-2 gap-3">
-                <button @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500'">RASTRO MOUSE</button>
-                <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500'">MODO COMPACTO</button>
+        
+        <div class="space-y-4">
+            <div>
+                <p class="text-[10px] text-[var(--neon-core)] font-bold mb-2 uppercase tracking-widest">Visual</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold transition-all" :class="settings.mouseTrail ? 'bg-white/10 text-white border-white/30' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
+                    <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold transition-all" :class="settings.compactMode ? 'bg-white/10 text-white border-white/30' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO</button>
+                </div>
             </div>
-            <div class="grid grid-cols-2 gap-3 pt-2">
-                <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded text-xs hover:bg-blue-600/30"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
-                <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded text-xs hover:bg-emerald-600/30"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
-                <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+
+            <div>
+                <p class="text-[10px] text-purple-400 font-bold mb-2 uppercase tracking-widest">Sistema</p>
+                <div class="space-y-2">
+                    <button @click="toggleSetting('performanceMode')" class="w-full py-3 border border-white/10 rounded text-xs font-bold transition-all flex justify-between px-4" :class="settings.performanceMode ? 'bg-purple-900/30 text-purple-200 border-purple-500/50' : 'text-gray-500 hover:bg-white/5'">
+                        <span>MODO PERFORMANCE</span>
+                        <span x-show="settings.performanceMode" class="text-[10px] bg-purple-500 text-black px-2 rounded">ON</span>
+                    </button>
+                </div>
             </div>
-            <div class="border-t border-white/10 my-4"></div>
-            <div class="bg-red-900/10 p-4 rounded border border-red-500/20">
-                <p class="text-[10px] text-red-400 font-bold mb-2 uppercase">Zona de Perigo</p>
-                <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE LOCAL</button>
+
+            <div>
+                <p class="text-[10px] text-blue-400 font-bold mb-2 uppercase tracking-widest">Dados</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button @click="exportData()" class="py-3 bg-blue-600/10 border border-blue-500/30 text-blue-300 font-bold rounded text-xs hover:bg-blue-600/20"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
+                    <button @click="triggerFileImport()" class="py-3 bg-emerald-600/10 border border-emerald-500/30 text-emerald-300 font-bold rounded text-xs hover:bg-emerald-600/20"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
+                    <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                </div>
+            </div>
+
+            <div class="border-t border-white/10 my-2"></div>
+            
+            <div class="flex justify-between items-center">
+                <button @click="askHardReset()" class="text-[10px] text-red-500 hover:text-red-300 underline decoration-red-900">Limpar Cache Local</button>
+                <span class="text-[8px] text-gray-700 font-code">V43.0 PRO</span>
             </div>
         </div>
     </div></div>
