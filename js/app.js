@@ -1,27 +1,33 @@
 /**
  * ZENITE OS - Core Application
- * Version: v48.3-Refined
- * Fixes: Stats Calculation, Chart Animations, ModStats Buttons
+ * Version: v49.1-Hybrid-Fix
+ * Changelog:
+ * - UI Feedback: INSTANTÂNEO (Pop-up aparece na hora)
+ * - Database Save: DEBOUNCED (Salva só quando para de digitar)
+ * - Favicon: Lógica preparada para troca de tema
  */
-
-const SUPABASE_URL = 'https://pwjoakajtygmbpezcrix.supabase.co'; 
-const SUPABASE_KEY = 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j';
-
-const supabase = (typeof window.supabase !== 'undefined') 
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
-      })
-    : null;
 
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
-    TOAST_DURATION: 3000
+    TOAST_DURATION: 3000,
+    // Em produção, nunca exponha chaves assim. Mas para seu MVP, segue o jogo.
+    SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
+    SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
+
+// Utilitário de Debounce (O "Freio" do salvamento)
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
 
 function zeniteSystem() {
     return {
-        // State
+        // --- ESTADOS DO SISTEMA ---
         systemLoading: true,
         loadingChar: false,
         consoleOpen: false,
@@ -34,7 +40,7 @@ function zeniteSystem() {
         authMsg: '', 
         authMsgType: '',
         
-        // Data
+        // --- DADOS ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -44,7 +50,7 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // UI
+        // --- UI GERAL ---
         diceTrayOpen: true,
         showDiceLog: false,
         diceLog: [],
@@ -53,17 +59,20 @@ function zeniteSystem() {
         lastFaces: 20,
         diceMod: 0,
         
+        // --- MODAIS ---
         configModal: false,
         wizardOpen: false, 
         cropperOpen: false,
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
+        // --- WIZARD (Criação) ---
         wizardStep: 1,
         wizardPoints: 8,
         wizardData: { class: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
+        // --- CONFIGS ---
         settings: {
             mouseTrail: true,
             compactMode: false,
@@ -71,9 +80,14 @@ function zeniteSystem() {
             themeColor: 'cyan'
         },
         
-        unsavedChanges: false,
+        // --- CONTROLE DE SALVAMENTO (Aqui está a mágica) ---
+        unsavedChanges: false, // Controla o Pop-up "Discord Style"
         isSyncing: false,
         saveStatus: 'idle',
+
+        // Services
+        supabase: null,
+        debouncedSaveFunc: null, // Variável para guardar a função com freio
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -97,8 +111,27 @@ function zeniteSystem() {
         },
 
         async initSystem() {
+            // Inicializa Supabase
+            if (typeof window.supabase !== 'undefined') {
+                this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
+                    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+                });
+            }
+
+            // Inicializa a função de salvamento com "freio" (1 segundo)
+            this.debouncedSaveFunc = debounce(() => {
+                this.saveLocal();
+                // Apenas loga ou faz algo leve, o indicador visual já foi ativado antes
+                this.log('Auto-save local triggered', 'info');
+            }, 1000);
+
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            this.log(`ZENITE OS v48.3 READY`);
+            
+            this.handleFavicon(); // Verifica o tema ao iniciar
+            // Escuta mudanças de tema no sistema (Dark/Light mode)
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.handleFavicon());
+
+            this.log(`ZENITE OS v49.1 READY`);
             
             this.setupCursor();
             this.setupWatchers();
@@ -111,16 +144,16 @@ function zeniteSystem() {
                 this.systemLoading = false;
             } else {
                 this.loadLocal('zenite_cached_db');
-                if(supabase) {
+                if(this.supabase) {
                     try {
-                        const { data: { session } } = await supabase.auth.getSession();
+                        const { data: { session } } = await this.supabase.auth.getSession();
                         if (session) {
                             this.user = session.user;
                             await this.fetchCloud();
                         }
                     } catch(e) {}
                     
-                    supabase.auth.onAuthStateChange(async (event, session) => {
+                    this.supabase.auth.onAuthStateChange(async (event, session) => {
                         if (event === 'SIGNED_IN' && session) {
                             if (this.user?.id === session.user.id) return;
                             this.user = session.user;
@@ -141,10 +174,22 @@ function zeniteSystem() {
             if(this.settings.compactMode) document.body.classList.add('compact-mode');
             this.updateAgentCount();
             
+            // Backup periódico na nuvem (a cada 3 min)
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
-        // Core Services
+        // --- LÓGICA DO FAVICON ---
+        handleFavicon() {
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const link = document.getElementById('dynamic-favicon');
+            if(link) {
+                // Se você tiver as imagens, descomente a linha abaixo:
+                link.href = isDark ? 'images/favicon-white.svg' : 'images/favicon-black.svg';
+                
+                // Dica: Se quiser testar, crie dois arquivos na pasta images.
+            }
+        },
+
         setupCursor() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) {
@@ -157,7 +202,8 @@ function zeniteSystem() {
                     trail.style.transform = `translate(${e.clientX - 8}px, ${e.clientY - 8}px)`; 
                     trail.style.opacity = '1';
                     const target = e.target;
-                    if(target && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.classList.contains('cursor-pointer'))) {
+                    const isInteractive = target.closest('button, a, input, select, textarea, .cursor-pointer');
+                    if(isInteractive) {
                         trail.classList.add('hover-active');
                     } else {
                         trail.classList.remove('hover-active');
@@ -167,13 +213,23 @@ function zeniteSystem() {
             });
         },
 
+        // --- WATCHERS CRÍTICOS (Aqui corrigimos o comportamento) ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
                 if (val && this.activeCharId) {
+                    // 1. Atualiza o objeto principal na memória RAM (Instantâneo)
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                    this.saveLocal();
-                    if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
+                    
+                    // 2. Feedback Visual: "Ei, tem coisa não salva!" (Instantâneo)
+                    if (!this.isGuest) { 
+                        this.unsavedChanges = true; 
+                        this.saveStatus = 'idle'; 
+                    }
+
+                    // 3. Salvar no HD: Espera um pouco para não travar (Debounce)
+                    this.debouncedSaveFunc();
+                    
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
@@ -189,7 +245,7 @@ function zeniteSystem() {
                     Object.keys(parsed).forEach(k => { if(k !== 'config' && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
-                } catch(e) {}
+                } catch(e) { console.error('Data Error'); }
             }
         },
 
@@ -200,10 +256,10 @@ function zeniteSystem() {
         },
 
         async fetchCloud() {
-            if (!this.user || !supabase) return;
-            let { data, error } = await supabase.from('profiles').select('data').eq('id', this.user.id).single();
+            if (!this.user || !this.supabase) return;
+            let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
             if (error && error.code === 'PGRST116') {
-                await supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]);
+                await this.supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]);
                 data = { data: { config: this.settings } };
             }
             if (data && data.data) {
@@ -226,31 +282,33 @@ function zeniteSystem() {
         },
 
         async syncCloud(silent = false) {
-            if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !supabase) return;
+            if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
             this.isSyncing = true;
-            if(!silent) this.notify('Sincronizando...', 'info');
+            if(!silent) this.notify('Sincronizando nuvem...', 'info');
             try {
                 const payload = { ...this.chars, config: this.settings };
-                const { error } = await supabase.from('profiles').upsert({ id: this.user.id, data: payload });
+                const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
+                
+                // SUCESSO: Agora sim removemos o aviso visual
                 this.unsavedChanges = false;
                 this.saveStatus = 'success';
-                if(!silent) this.notify('Salvo!', 'success');
+                if(!silent) this.notify('Salvo na nuvem!', 'success');
             } catch (e) {
                 this.saveStatus = 'error';
-                if(!silent) this.notify('Erro ao salvar.', 'error');
+                if(!silent) this.notify('Erro ao sincronizar.', 'error');
             } finally {
                 this.isSyncing = false;
             }
         },
 
+        // --- RESTO DO CÓDIGO (Lógica RPG, Dados, Charts - Mantido igual) ---
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
 
-        // --- FIXED STATS CALCULATION ---
         recalcDerivedStats() { 
             if(!this.char) return; 
             const c = this.char;
-            const cl = c.class || 'Titã'; // Default to Titã
+            const cl = c.class || 'Titã';
             
             const oldPv = c.stats.pv.max || 0;
             const oldPf = c.stats.pf.max || 0;
@@ -259,8 +317,6 @@ function zeniteSystem() {
             const lvl = Math.max(1, parseInt(c.level)||1); 
             const get = (v) => parseInt(c.attrs[v]||0); 
             
-            // Map: PV=for, PF=pod (Control), PDF=von (Will)
-            // Using user's strict numbers
             const config = {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
@@ -271,14 +327,10 @@ function zeniteSystem() {
             
             const cfg = config[cl] || config['Titã'];
 
-            // PV uses FOR
             const newPv = (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1));
-            // PF uses POD (Control)
             const newPf = (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1));
-            // PDF uses VON (Will)
             const newPdf = (cfg.pdf[0] + get('von')) + ((cfg.pdf[1] + get('von')) * (lvl - 1));
 
-            // Apply Delta (Keep damage)
             if (oldPv > 0) c.stats.pv.current = Math.max(0, c.stats.pv.current + (newPv - oldPv)); else c.stats.pv.current = newPv;
             if (oldPf > 0) c.stats.pf.current = Math.max(0, c.stats.pf.current + (newPf - oldPf)); else c.stats.pf.current = newPf;
             if (oldPdf > 0) c.stats.pdf.current = Math.max(0, c.stats.pdf.current + (newPdf - oldPdf)); else c.stats.pdf.current = newPdf;
@@ -297,16 +349,13 @@ function zeniteSystem() {
             }
         },
 
-        // --- FIXED MODSTAT BUTTONS ---
         modStat(stat, val) {
             if(!this.char || !this.char.stats[stat]) return;
             const s = this.char.stats[stat];
-            // Ensure we don't go below 0 or above max
             const newVal = Math.max(0, Math.min(s.max, s.current + val));
             s.current = newVal;
         },
 
-        // Actions
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite de agentes atingido.', 'error');
             this.wizardStep = 1;
@@ -335,13 +384,7 @@ function zeniteSystem() {
         finishWizard() {
             const id = 'z_'+Date.now();
             const base = { class: this.wizardData.class, level: 1, attrs: this.wizardData.attrs };
-            
-            // Initial stats for level 1 using the same new logic
-            // But simplified here, recalcDerivedStats will fix it on load
-            const get = (k) => parseInt(base.attrs[k]);
-            // Placeholder values, will be recalculated instantly on load
             const pv = 10, pf = 10, pdf = 10;
-            
             const newChar = {
                 id, name: '', identity: '', class: base.class, level: 1, photo: '', history: '', credits: 0,
                 attrs: {...base.attrs},
@@ -349,16 +392,12 @@ function zeniteSystem() {
                 inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
                 skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
             };
-            
             this.chars[id] = newChar;
             this.updateAgentCount();
             this.saveLocal();
-            
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            
             this.wizardOpen = false;
             this.loadCharacter(id);
-            // Trigger recalc to ensure correct HP/MP based on class
             this.$nextTick(() => this.recalcDerivedStats());
             this.notify('Agente Inicializado.', 'success');
         },
@@ -381,15 +420,11 @@ function zeniteSystem() {
             const root = document.documentElement;
             const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan'];
-            
-            // Extract RGB for variable usage
             const r = parseInt(hex.slice(1, 3), 16);
             const g = parseInt(hex.slice(3, 5), 16);
             const b = parseInt(hex.slice(5, 7), 16);
-            
             root.style.setProperty('--neon-core', hex);
-            root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); // NEW
-            
+            root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); 
             const trail = document.getElementById('mouse-trail');
             if(trail) trail.style.background = `radial-gradient(circle, ${hex}, transparent 70%)`;
         },
@@ -412,17 +447,17 @@ function zeniteSystem() {
             if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} }
             localStorage.removeItem('zenite_cached_db');
             localStorage.removeItem('zenite_is_guest');
-            if(supabase) await supabase.auth.signOut();
+            if(this.supabase) await this.supabase.auth.signOut();
             window.location.reload();
         },
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) {
-            if(!supabase) return this.notify("Erro de conexão.", "error");
+            if(!this.supabase) return this.notify("Erro de conexão.", "error");
             this.authLoading = true;
             this.authMsg = "Conectando...";
-            supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
+            this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
                 .then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } });
         },
 
@@ -444,9 +479,7 @@ function zeniteSystem() {
             this.activeCharId = id;
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                // Patch old chars
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
-                
                 this.currentView = 'sheet';
                 this.activeTab = 'profile';
                 this.$nextTick(() => {
@@ -461,12 +494,10 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- FIXED CHART ANIMATIONS ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id);
             if(!ctx) return;
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
-            // Simple hex parser to RGB for chart alpha
             const r = parseInt(color.slice(1, 3), 16);
             const g = parseInt(color.slice(3, 5), 16);
             const b = parseInt(color.slice(5, 7), 16);
@@ -488,7 +519,6 @@ function zeniteSystem() {
                         } 
                     }, 
                     plugins: { legend: { display: false } },
-                    // Smooth Animation Logic
                     animation: { duration: 800, easing: 'easeInOutQuad' } 
                 }
             });

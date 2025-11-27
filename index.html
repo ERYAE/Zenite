@@ -3,14 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="ZENITE OS - Sistema de Gerenciamento de Agentes RPG Cyberpunk">
+    
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="ZENITE OS">
+    <meta property="og:description" content="Acesso Seguro ao Terminal Zenite.">
+    <meta property="og:image" content="images/zenite_logo.svg">
+
     <title>ZENITE OS</title>
-    <link rel="icon" href="images/favicon.svg" type="image/x-icon">
+    
+    <link rel="icon" id="dynamic-favicon" href="images/favicon.svg" type="image/x-icon">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     
@@ -26,7 +40,10 @@
         <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTAgMzhoNDB2MmIMVjM4ek0wIDBoNDB2MkgwVjB6Ii8+PC9nPjwvZz48L3N2Zz4=')]"></div>
     </div>
 
-    <div id="app-loader" x-show="systemLoading" x-transition.opacity><div class="loader-spinner"></div><p class="text-xs font-bold text-gray-500 tracking-widest">INICIALIZANDO...</p></div>
+    <div id="app-loader" x-show="systemLoading" x-transition.opacity>
+        <div class="loader-spinner"></div>
+        <p class="text-xs font-bold text-gray-500 tracking-widest animate-pulse">INICIALIZANDO PROTOCOLOS...</p>
+    </div>
 
     <div class="fixed top-5 right-5 z-[9999] space-y-2 pointer-events-none">
         <template x-for="n in notifications" :key="n.id">
@@ -43,7 +60,7 @@
     <div x-show="consoleOpen" class="fixed top-0 left-0 w-full h-40 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in border-b border-red-900/50" x-transition style="display: none;">
         <div class="flex justify-between items-center px-4 py-2 bg-red-900/20">
             <span class="text-red-500 font-bold flex items-center gap-2"><i class="fa-solid fa-bug"></i> DEBUG CONSOLE</span>
-            <button @click="consoleOpen=false" class="text-white hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+            <button @click="consoleOpen=false" class="text-white hover:text-red-500" aria-label="Fechar Console"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="flex-grow overflow-y-auto p-2 space-y-1 font-code">
             <template x-for="(log, idx) in sysLogs" :key="idx">
@@ -88,7 +105,10 @@
             <div class="text-4xl mb-4" :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'"><i class="fa-solid" :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"></i></div>
             <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title"></h3>
             <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc"></p>
-            <div class="flex gap-3"><button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button><button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button></div>
+            <div class="flex gap-3">
+                <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button>
+                <button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button>
+            </div>
         </div>
     </div>
 
@@ -100,7 +120,7 @@
             </div>
 
             <div x-show="user" class="relative md:ml-4" @click.outside="userMenuOpen=false">
-                <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+                <button @click="userMenuOpen=!userMenuOpen" aria-label="Menu do Usuário" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
@@ -118,7 +138,7 @@
         <div class="flex gap-3 items-center justify-center w-full md:w-auto">
             <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
             <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SAVING...</div>
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
+            <button @click="configModal=true" aria-label="Configurações" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
             <button x-show="currentView === 'dashboard'" @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO</span></button>
         </div>
     </header>
@@ -143,7 +163,7 @@
                         <h3 class="text-white font-bold truncate font-brand text-lg group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
                         <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
                     </div>
-                    <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
+                    <button @click.stop="askDeleteChar(id)" aria-label="Deletar Personagem" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             </template>
         </div>
@@ -172,7 +192,7 @@
                 <div class="lg:col-span-8 space-y-6">
                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="md:col-span-2"><input x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME"></div><div><input x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div><div><select x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm"><option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option></select></div></div>
                      <div class="glass p-6 rounded-xl border border-white/5 flex flex-col md:flex-row items-center gap-8"><div class="w-full md:w-1/2 space-y-2"><template x-for="key in ['for','agi','int','von','pod']"><div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5"><span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span><div class="flex items-center gap-3"><button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button><span class="font-mono font-bold text-lg w-6 text-center" x-text="char.attrs[key]"></span><button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button></div></div></template></div><div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div></div>
-                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
+                     <div class="glass p-6 rounded-xl border-l-2 border-yellow-500"><div class="flex justify-between mb-4 items-center"><h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3><button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><template x-for="(s, idx) in char.skills" :key="idx"><div class="bg-black/40 p-3 rounded flex justify-between items-center"><input x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome"><div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div><button @click="deleteSkill(idx)" aria-label="Remover Perícia" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button></div></template></div></div>
                      <div class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]"><textarea x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea></div>
                 </div>
             </div>
