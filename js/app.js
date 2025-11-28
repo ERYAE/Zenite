@@ -1,9 +1,19 @@
 /**
  * ZENITE OS - Core Application
- * Version: v55.1-Precision-Patch
+ * Version: v55.2-Stable-Bootloader
+ * Changelog:
+ * - Critical Fix: Infinite Loading Loop (Added try/finally & timeout fallback)
+ * - Fix: Cursor Precision & Mobile Logic
+ * - Feat: Robust Error Handling during Init
  */
 
-// ... (CONSTANTS e helper functions mantidos iguais)
+const CONSTANTS = {
+    MAX_AGENTS: 30,
+    SAVE_INTERVAL: 180000, 
+    TOAST_DURATION: 3000,
+    SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
+    SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
+};
 
 // --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
@@ -20,7 +30,7 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // ... (Todos os estados mantidos, sem alterações nas variáveis iniciais)
+        // --- STATES ---
         systemLoading: true,
         loadingChar: false,
         notifications: [],
@@ -29,6 +39,7 @@ function zeniteSystem() {
         userMenuOpen: false,
         authLoading: false, authMsg: '', authMsgType: '',
         
+        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -38,6 +49,7 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
+        // --- WIDGETS ---
         diceTrayOpen: false,
         showDiceLog: false,
         trayDockMode: 'float',
@@ -45,6 +57,7 @@ function zeniteSystem() {
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
         
+        // Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
 
@@ -55,9 +68,11 @@ function zeniteSystem() {
         diceMod: 0,
         isMobile: window.innerWidth < 768,
         
+        // --- MODALS ---
         configModal: false,
         wizardOpen: false, 
         
+        // Image Handling
         cropperOpen: false,
         cropperInstance: null,
         uploadContext: 'char',
@@ -65,11 +80,13 @@ function zeniteSystem() {
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
+        // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
+        // --- CONFIGS ---
         settings: {
             mouseTrail: true,
             compactMode: false,
@@ -102,65 +119,92 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            // ... (Lógica de inicialização mantida)
-            if (typeof window.supabase !== 'undefined') {
-                this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
-                    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
-                });
-            }
-
-            this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
-
-            window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            
-            window.addEventListener('resize', () => {
-                this.isMobile = window.innerWidth < 768;
-                this.ensureTrayOnScreen();
-            });
-
-            window.addEventListener('popstate', (event) => {
-                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
-                    if(this.currentView === 'sheet') this.saveAndExit(true); 
-                    this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
+            // SAFETY FALLBACK: Se o sistema não carregar em 5s, força a entrada
+            // Isso previne o loop infinito se houver erro de rede ou script
+            setTimeout(() => { 
+                if(this.systemLoading) {
+                    console.warn("Zenite OS: Forced Boot due to timeout.");
+                    this.systemLoading = false; 
                 }
-            });
+            }, 5000);
 
-            this.setupCursorEngine(); 
-            this.setupWatchers();
-
-            const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-            
-            if (isGuest) {
-                this.isGuest = true; this.loadLocal('zenite_guest_db'); this.systemLoading = false;
-            } else {
-                this.loadLocal('zenite_cached_db');
-                if(this.supabase) {
-                    try {
-                        const { data: { session } } = await this.supabase.auth.getSession();
-                        if (session) { this.user = session.user; await this.fetchCloud(); }
-                    } catch(e) {}
-                    
-                    this.supabase.auth.onAuthStateChange(async (event, session) => {
-                        if (event === 'SIGNED_IN' && session) {
-                            if (this.user?.id === session.user.id) return;
-                            this.user = session.user; this.isGuest = false;
-                            localStorage.removeItem('zenite_is_guest'); await this.fetchCloud();
-                        } else if (event === 'SIGNED_OUT') {
-                            this.user = null; this.chars = {}; this.currentView = 'dashboard';
-                        }
+            try {
+                // Setup Inicial
+                if (typeof window.supabase !== 'undefined') {
+                    this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
+                        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
+
+                this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
+
+                // Listeners Globais
+                window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+                
+                window.addEventListener('resize', () => {
+                    this.isMobile = window.innerWidth < 768;
+                    this.ensureTrayOnScreen();
+                });
+
+                window.addEventListener('popstate', (event) => {
+                    if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
+                        if(this.currentView === 'sheet') this.saveAndExit(true); 
+                        this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
+                    }
+                });
+
+                // Engines
+                this.setupCursorEngine(); 
+                this.setupWatchers();
+
+                // Lógica de Carregamento de Dados
+                const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
+                
+                if (isGuest) {
+                    this.isGuest = true; this.loadLocal('zenite_guest_db');
+                } else {
+                    this.loadLocal('zenite_cached_db');
+                    
+                    if(this.supabase) {
+                        // Isolamos a chamada de rede em um sub-try para não quebrar o boot
+                        try {
+                            const { data: { session } } = await this.supabase.auth.getSession();
+                            if (session) { this.user = session.user; await this.fetchCloud(); }
+                        } catch(e) {
+                            console.error("Zenite Auth Error:", e);
+                            this.notify("Modo Offline (Erro Auth)", "warn");
+                        }
+                        
+                        this.supabase.auth.onAuthStateChange(async (event, session) => {
+                            if (event === 'SIGNED_IN' && session) {
+                                if (this.user?.id === session.user.id) return;
+                                this.user = session.user; this.isGuest = false;
+                                localStorage.removeItem('zenite_is_guest'); await this.fetchCloud();
+                            } else if (event === 'SIGNED_OUT') {
+                                this.user = null; this.chars = {}; this.currentView = 'dashboard';
+                            }
+                        });
+                    }
+                }
+
+                // Configurações Visuais
+                this.applyTheme(this.settings.themeColor);
+                if(this.settings.compactMode) document.body.classList.add('compact-mode');
+                if(this.settings.performanceMode) document.body.classList.add('performance-mode');
+                
+                this.updateCursorState();
+                this.updateAgentCount();
+                
+                // Auto-Save Loop
+                setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+
+            } catch (err) {
+                console.error("CRITICAL BOOT ERROR:", err);
+                this.notify("Erro crítico na inicialização.", "error");
+            } finally {
+                // O GRANDE FINAL: Garante que o loader suma não importa o que aconteça
                 this.systemLoading = false;
             }
-
-            this.applyTheme(this.settings.themeColor);
-            if(this.settings.compactMode) document.body.classList.add('compact-mode');
-            if(this.settings.performanceMode) document.body.classList.add('performance-mode');
-            
-            this.updateCursorState();
-            this.updateAgentCount();
-            
-            setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
         ensureTrayOnScreen() {
@@ -171,7 +215,6 @@ function zeniteSystem() {
 
         // --- GRAPHICS & CURSOR ENGINE ---
         updateCursorState() {
-            // Garante que só ativa a classe se não for mobile E se a config estiver ativa
             if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
@@ -181,7 +224,6 @@ function zeniteSystem() {
 
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
-            // Check inicial se o dispositivo suporta ponteiro fino (mouse)
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
 
             document.addEventListener('mousemove', (e) => { 
@@ -194,14 +236,9 @@ function zeniteSystem() {
             const renderLoop = () => {
                 if (!trail) return;
 
-                // Lógica de visibilidade aprimorada
                 if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block';
-                    
-                    // OFFSET CORRIGIDO: 
-                    // O CSS define width/height como 20px. 
-                    // Para centralizar, subtraímos metade (10px).
-                    // Isso garante que o centro visual do cursor esteja exatamente no cursorX/Y.
+                    // OFFSET FIX: Centraliza o cursor (20px / 2 = 10px offset)
                     trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; 
                     
                     if(isCursorHover) trail.classList.add('hover-active'); 
@@ -242,7 +279,7 @@ function zeniteSystem() {
             document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
 
-        // --- CORE LOGIC (Watchers, Save, Load) ---
+        // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -466,16 +503,13 @@ function zeniteSystem() {
             const m = parseInt(this.diceMod || 0);
             this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
             
-            // Log Logic: Unshift (adiciona no topo)
             this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: `D${s}`, result: n+m, crit: n===s, fumble: n===1});
             
-            // Limit Logic (Modified for Desktop/Mobile)
+            // Histórico Infinito no Desktop, Limitado no Mobile
             if (this.isMobile) {
-                // Mobile: Strict limit
                 if (this.diceLog.length > 10) this.diceLog.pop();
             } else {
-                // Desktop: "Unlimited" (Soft cap of 100 to prevent memory leak, but feels unlimited in UI)
-                if (this.diceLog.length > 100) this.diceLog.pop();
+                if (this.diceLog.length > 100) this.diceLog.pop(); // Cap suave pra memória não explodir
             }
         },
 
