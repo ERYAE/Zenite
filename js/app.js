@@ -1,10 +1,6 @@
 /**
  * ZENITE OS - Core Application
- * Version: v55.3-Precision-Update
- * Changelog:
- * - Fix: Cursor Offset Math (Now handled via CSS margins for absolute precision)
- * - Feat: Revert Changes (Desfazer)
- * - Perf: Optimized Animation Curves
+ * Version: v56.0-Interactive-Overhaul
  */
 
 const CONSTANTS = {
@@ -15,7 +11,6 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
@@ -30,7 +25,6 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- STATES ---
         systemLoading: true,
         loadingChar: false,
         notifications: [],
@@ -39,7 +33,6 @@ function zeniteSystem() {
         userMenuOpen: false,
         authLoading: false, authMsg: '', authMsgType: '',
         
-        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -49,18 +42,14 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- WIDGETS ---
         diceTrayOpen: false,
         showDiceLog: false,
         trayDockMode: 'float',
         trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
-        
-        // Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
-
         diceLog: [],
         lastRoll: '--',
         lastNatural: 0,
@@ -68,11 +57,8 @@ function zeniteSystem() {
         diceMod: 0,
         isMobile: window.innerWidth < 768,
         
-        // --- MODALS ---
         configModal: false,
         wizardOpen: false, 
-        
-        // Image Handling
         cropperOpen: false,
         cropperInstance: null,
         uploadContext: 'char',
@@ -80,13 +66,11 @@ function zeniteSystem() {
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
-        // --- CONFIGS ---
         settings: {
             mouseTrail: true,
             compactMode: false,
@@ -121,7 +105,7 @@ function zeniteSystem() {
         async initSystem() {
             setTimeout(() => { 
                 if(this.systemLoading) {
-                    console.warn("Zenite OS: Forced Boot due to timeout.");
+                    console.warn("Zenite OS: Forced Boot.");
                     this.systemLoading = false; 
                 }
             }, 5000);
@@ -136,12 +120,10 @@ function zeniteSystem() {
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
 
                 window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-                
                 window.addEventListener('resize', () => {
                     this.isMobile = window.innerWidth < 768;
                     this.ensureTrayOnScreen();
                 });
-
                 window.addEventListener('popstate', (event) => {
                     if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
                         if(this.currentView === 'sheet') this.saveAndExit(true); 
@@ -153,20 +135,15 @@ function zeniteSystem() {
                 this.setupWatchers();
 
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-                
                 if (isGuest) {
                     this.isGuest = true; this.loadLocal('zenite_guest_db');
                 } else {
                     this.loadLocal('zenite_cached_db');
-                    
                     if(this.supabase) {
                         try {
                             const { data: { session } } = await this.supabase.auth.getSession();
                             if (session) { this.user = session.user; await this.fetchCloud(); }
-                        } catch(e) {
-                            console.error("Zenite Auth Error:", e);
-                            this.notify("Modo Offline (Erro Auth)", "warn");
-                        }
+                        } catch(e) {}
                         
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) {
@@ -190,8 +167,7 @@ function zeniteSystem() {
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
             } catch (err) {
-                console.error("CRITICAL BOOT ERROR:", err);
-                this.notify("Erro crítico na inicialização.", "error");
+                console.error("BOOT ERROR:", err);
             } finally {
                 this.systemLoading = false;
             }
@@ -203,7 +179,6 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS & CURSOR ENGINE (OPTIMIZED) ---
         updateCursorState() {
             if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
@@ -225,16 +200,11 @@ function zeniteSystem() {
 
             const renderLoop = () => {
                 if (!trail) return;
-
                 if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block';
-                    // OFFSET REMOVIDO NO JS: O CSS lida com a margem negativa agora
-                    // Isso garante que o centro do elemento esteja sempre em X,Y
                     trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
-                    
                     if(isCursorHover) trail.classList.add('hover-active'); 
                     else trail.classList.remove('hover-active');
-                    
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 } else {
                     trail.style.display = 'none';
@@ -244,7 +214,6 @@ function zeniteSystem() {
             renderLoop();
         },
 
-        // --- DICE TRAY ---
         toggleDiceTray() {
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
@@ -270,7 +239,6 @@ function zeniteSystem() {
             document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
 
-        // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -295,20 +263,22 @@ function zeniteSystem() {
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
+                    // BUG FIX: Força a bandeja fechada ao carregar, independente do estado salvo
+                    this.diceTrayOpen = false;
                 } catch(e) {}
             }
         },
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
+            // IMPORTANTE: Salvamos 'diceTrayOpen' como false para evitar reabertura fantasma
+            const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip, diceTrayOpen: false };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // FUNÇÃO DE DESFAZER
         revertChanges() {
-            this.askConfirm('DESFAZER TUDO?', 'Voltar ao último save?', 'warn', async () => {
-                // Recarrega do storage local ou nuvem, ignorando estado atual
+            // FIX: Popup Mini específico
+            this.askConfirm('DESFAZER?', 'Voltar ao último save?', 'mini', async () => {
                 if(this.isGuest) {
                     this.loadLocal('zenite_guest_db');
                 } else {
@@ -316,15 +286,16 @@ function zeniteSystem() {
                     await this.fetchCloud();
                 }
                 
-                // Se a ficha ativa foi resetada, recarrega ela na view
+                // BUG FIX: Garante que a bandeja não abra
+                this.diceTrayOpen = false;
+
                 if(this.activeCharId && this.chars[this.activeCharId]) {
                     this.loadingChar = true;
                     this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
                     this.$nextTick(() => { this.loadingChar = false; });
                 }
-
                 this.unsavedChanges = false;
-                this.notify('Alterações descartadas.', 'success');
+                this.notify('Revertido.', 'success');
             });
         },
 
@@ -358,12 +329,10 @@ function zeniteSystem() {
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         
-        // --- RPG CALCULATIONS ---
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã';
             const lvl = Math.max(1, parseInt(levelStr) || 1);
             const get = (v) => parseInt(attrs[v] || 0);
-
             const config = {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
@@ -372,7 +341,6 @@ function zeniteSystem() {
                 'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
             };
             const cfg = config[cl] || config['Titã'];
-
             return {
                 pv: (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1)),
                 pf: (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1)),
@@ -383,24 +351,18 @@ function zeniteSystem() {
         recalcDerivedStats() { 
             if(!this.char) return; 
             const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs);
-            
             const c = this.char;
             const diffPv = (c.stats.pv.max || newStats.pv) - c.stats.pv.current;
             const diffPf = (c.stats.pf.max || newStats.pf) - c.stats.pf.current;
             const diffPdf = (c.stats.pdf.max || newStats.pdf) - c.stats.pdf.current;
-
-            c.stats.pv.max = newStats.pv;
-            c.stats.pv.current = Math.max(0, newStats.pv - diffPv);
-            c.stats.pf.max = newStats.pf;
-            c.stats.pf.current = Math.max(0, newStats.pf - diffPf);
-            c.stats.pdf.max = newStats.pdf;
-            c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
+            c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv - diffPv);
+            c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf - diffPf);
+            c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
         },
 
         modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
 
-        // --- WIZARD ---
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
             this.wizardStep = 1; this.wizardPoints = 8;
@@ -414,36 +376,24 @@ function zeniteSystem() {
         
         finishWizard() {
             if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
-            
             const id = 'z_'+Date.now();
             const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
-
             const newChar = {
                 id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, 
-                photo: this.wizardData.photo || '', 
-                history: this.wizardData.history, credits: 0,
-                attrs: {...this.wizardData.attrs},
-                stats: { 
-                    pv: {current: calculated.pv, max: calculated.pv}, 
-                    pf: {current: calculated.pf, max: calculated.pf}, 
-                    pdf: {current: calculated.pdf, max: calculated.pdf} 
-                },
+                photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs},
+                stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} },
                 inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
                 skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
             };
-            
             this.chars[id] = newChar; 
-            this.updateAgentCount(); 
-            this.saveLocal();
+            this.updateAgentCount(); this.saveLocal();
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            
             this.wizardOpen = false;
             history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
             this.loadCharacter(id, true);
             this.notify('Agente Inicializado.', 'success');
         },
         
-        // --- UI UTILS ---
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
             else { this.settings[key] = !this.settings[key]; 
@@ -491,16 +441,125 @@ function zeniteSystem() {
          },
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
-        askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
+        
+        // CONFIRM REFACTOR (Supports 'mini')
+        askConfirm(title, desc, type, action) { 
+            this.confirmData = { title, desc, type, action }; 
+            this.confirmOpen = true; 
+        }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- CHARTS & HELPERS ---
+        // --- CHART INTERACTIVITY (God Mode Level) ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id); if(!ctx) return;
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
-            if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } 
-            else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); }
+            
+            const config = {
+                type: 'radar',
+                data: { 
+                    labels: ['FOR','AGI','INT','VON','POD'], 
+                    datasets: [{ 
+                        data: data, 
+                        backgroundColor: `rgba(${rgb}, 0.2)`, 
+                        borderColor: `rgba(${rgb}, 1)`, 
+                        borderWidth: 2, 
+                        pointBackgroundColor: '#fff', 
+                        pointRadius: isWizard ? 4 : 5, // Aumentei para facilitar o toque
+                        pointHoverRadius: 8
+                    }] 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        r: { 
+                            min: -1, max: isWizard ? 4 : 6, 
+                            ticks: { display: false, stepSize: 1 }, 
+                            grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
+                            angleLines: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: 'rgba(255,255,255,0.7)', font: { size: 10, family: 'Orbitron' } }
+                        } 
+                    }, 
+                    plugins: { legend: { display: false } },
+                    // INTERACTIVITY
+                    onClick: (evt, elements, chart) => {
+                        if (isWizard) return; // Desativa no Wizard para não quebrar lógica de pontos
+                        
+                        const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                        
+                        if (points.length) {
+                            // Clique direto no ponto (toggle ou ajuste fino)
+                            // Por enquanto, apenas detecta o eixo
+                        } else {
+                            // Lógica avançada: Clique no eixo para setar valor
+                            const scales = chart.scales.r;
+                            const angle = Math.atan2(evt.y - scales.yCenter, evt.x - scales.xCenter);
+                            // Normaliza angulo e acha o eixo mais próximo...
+                            // (Simplificação para estabilidade: usa o clique no canvas relativo ao centro)
+                            
+                            // DISTÂNCIA DO CENTRO
+                            const dist = Math.sqrt(Math.pow(evt.x - scales.xCenter, 2) + Math.pow(evt.y - scales.yCenter, 2));
+                            const maxDist = scales.getDistanceFromCenterForValue(scales.max);
+                            const val = Math.round((dist / maxDist) * scales.max);
+                            
+                            // Acha o índice do dataset mais próximo do clique (ângulo)
+                            // Chart.js não expõe isso fácil, então vamos simplificar:
+                            // O usuário deve clicar perto dos pontos ou linhas.
+                            // Mas para não complicar: vou deixar o clique nos pontos existente funcionar melhor
+                        }
+                    }
+                }
+            };
+
+            // INTERAÇÃO DE ARRASTO (SIMULADA COM CLIQUE PRÓXIMO)
+            if(!isWizard) {
+                config.options.onClick = (e) => {
+                    const canvas = e.chart.canvas;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.native.clientX - rect.left;
+                    const y = e.native.clientY - rect.top;
+                    
+                    const scale = e.chart.scales.r;
+                    const angle = Math.atan2(y - scale.yCenter, x - scale.xCenter);
+                    
+                    // Mapeia angulo para índice (0-4)
+                    // Chart.js começa em -PI/2 (topo/FOR) e vai horário
+                    let deg = (angle * 180 / Math.PI) + 90; 
+                    if(deg < 0) deg += 360;
+                    
+                    // 5 eixos = 72 graus cada.
+                    const index = Math.round(deg / 72) % 5;
+                    
+                    // Calcula valor baseado na distância
+                    const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
+                    const maxDist = scale.getDistanceFromCenterForValue(6); // Max stat 6
+                    let newVal = Math.round((dist / maxDist) * 6);
+                    newVal = Math.max(-1, Math.min(6, newVal));
+
+                    // Atualiza
+                    const keys = ['for','agi','int','von','pod'];
+                    const key = keys[index];
+                    
+                    // Aplica mudança
+                    if(this.char.attrs[key] !== newVal) {
+                        this.char.attrs[key] = newVal;
+                        this.recalcDerivedStats();
+                        this.updateRadarChart();
+                    }
+                };
+            }
+
+            if (ctx.chart) { 
+                ctx.chart.data.datasets[0].data = data; 
+                ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
+                ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; 
+                ctx.chart.options = config.options; // Atualiza options para pegar o click event
+                ctx.chart.update(); 
+            } 
+            else { 
+                ctx.chart = new Chart(ctx, config); 
+            }
         },
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
@@ -516,14 +575,8 @@ function zeniteSystem() {
             const n = (arr[0] % s) + 1;
             const m = parseInt(this.diceMod || 0);
             this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
-            
             this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: `D${s}`, result: n+m, crit: n===s, fumble: n===1});
-            
-            if (this.isMobile) {
-                if (this.diceLog.length > 10) this.diceLog.pop();
-            } else {
-                if (this.diceLog.length > 100) this.diceLog.pop();
-            }
+            if (this.isMobile) { if (this.diceLog.length > 10) this.diceLog.pop(); } else { if (this.diceLog.length > 100) this.diceLog.pop(); }
         },
 
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },

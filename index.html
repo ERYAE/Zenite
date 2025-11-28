@@ -74,7 +74,7 @@
         </div>
     </div>
 
-    <div x-show="confirmOpen" class="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4" x-transition.opacity>
+    <div x-show="confirmOpen && confirmData.type !== 'mini'" class="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4" x-transition.opacity>
         <div class="glass p-6 rounded-xl max-w-sm w-full text-center border" :class="confirmData.type==='danger'?'border-red-500/50':'border-[var(--neon-core)]'">
             <div class="text-4xl mb-4" :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'"><i class="fa-solid" :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"></i></div>
             <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title"></h3>
@@ -83,6 +83,20 @@
                 <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button>
                 <button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button>
             </div>
+        </div>
+    </div>
+
+    <div x-show="confirmOpen && confirmData.type === 'mini'" class="modal-mini" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-y-10 opacity-0" x-transition:enter-end="translate-y-0 opacity-100">
+        <div class="flex items-center gap-4">
+            <i class="fa-solid fa-rotate-left text-2xl text-[var(--neon-warn)]"></i>
+            <div class="text-left">
+                <div class="text-xs font-bold text-white uppercase tracking-wider" x-text="confirmData.title"></div>
+                <div class="text-[10px] text-gray-400" x-text="confirmData.desc"></div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button @click="confirmOpen=false" class="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10"><i class="fa-solid fa-xmark"></i></button>
+            <button @click="confirmYes()" class="w-8 h-8 rounded-full bg-[var(--neon-warn)] text-black flex items-center justify-center font-bold hover:scale-110 transition-transform"><i class="fa-solid fa-check"></i></button>
         </div>
     </div>
 
@@ -178,21 +192,17 @@
         </main>
     </template>
 
-    <div x-show="diceTrayOpen && currentView === 'sheet'" 
-         class="z-[80] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass"
+    <div x-show="currentView === 'sheet'" 
+         class="fixed z-[80] transition-all border border-white/10 shadow-2xl glass genie-transition"
          :class="{
-            'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile,
-            'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left',
-            'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right',
-            'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'
+            'bottom-0 left-0 w-full rounded-t-xl': isMobile,
+            'top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left',
+            'top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right',
+            'rounded-xl w-80': !isMobile && trayDockMode === 'float',
+            'genie-hidden': !diceTrayOpen,
+            'genie-visible': diceTrayOpen
          }"
-         :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 scale-95"
-         x-transition:enter-end="opacity-100 scale-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 scale-100"
-         x-transition:leave-end="opacity-0 scale-95 translate-y-10">
+         :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''">
         
         <div @mousedown="startDragTray($event)" 
              class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none"
@@ -210,7 +220,7 @@
             <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col">
+        <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col h-full">
             <div class="flex justify-between items-center mb-4 bg-white/5 p-3 rounded-lg border border-white/5">
                 <div class="flex items-center gap-2">
                      <span class="text-[10px] font-bold text-gray-500 uppercase">MOD</span>
