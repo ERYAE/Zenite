@@ -21,11 +21,10 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     padding-bottom: 120px;
-    /* Cursor Padrão (será sobrescrito pelo JS se o rastro estiver ativo) */
-    cursor: auto; 
+    cursor: auto; /* Fallback */
 }
 
-/* --- CYBER GRID BACKGROUND (Static & Light) --- */
+/* --- CYBER GRID BACKGROUND --- */
 .bg-grid {
     background-image: 
         linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -36,24 +35,46 @@ body {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
 }
 
-/* CURSOR SYSTEM */
-/* Só esconde o cursor nativo se a classe estiver ativa no body */
-body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important; }
+/* --- GOD MODE CURSOR SYSTEM --- */
+body.custom-cursor-active, body.custom-cursor-active * { 
+    cursor: none !important; 
+}
 
 #mouse-trail {
-    transition: width 0.2s, height 0.2s, background-color 0.2s;
-    will-change: transform;
     pointer-events: none;
     position: fixed; top: 0; left: 0; z-index: 10002;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: radial-gradient(circle, var(--neon-core), transparent 70%);
+    /* Design aprimorado: Menor, mais brilhante, com núcleo sólido */
+    width: 20px; height: 20px; 
+    border-radius: 50%;
+    border: 1px solid var(--neon-core);
+    background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
+    box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.5);
+    transform: translate3d(-100px, -100px, 0); /* Começa fora da tela */
+    will-change: transform;
+    transition: width 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                height 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                background-color 0.2s;
     mix-blend-mode: screen;
 }
+
+/* Ponto central para precisão */
+#mouse-trail::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px; height: 4px;
+    background-color: white;
+    border-radius: 50%;
+    box-shadow: 0 0 4px var(--neon-core);
+}
+
 #mouse-trail.hover-active {
-    background: transparent !important;
-    border: 2px solid var(--neon-core);
-    transform: scale(1.5);
-    mix-blend-mode: normal !important;
+    width: 40px; height: 40px;
+    background: rgba(var(--neon-rgb), 0.1);
+    border-color: white;
+    box-shadow: 0 0 20px rgba(var(--neon-rgb), 0.8);
+    mix-blend-mode: normal;
 }
 
 @media (pointer: coarse) {

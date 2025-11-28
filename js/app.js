@@ -1,12 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v54.0-Stable-Foundation
+ * Version: v55.0-GodMode-Refactor
  * Changelog:
- * - Fix: Stat Calculation on Creation (No more 10/10/10 bug)
- * - Fix: Wizard Redirection Logic
- * - Fix: Mouse Trail Toggle & Performance
- * - Removed: Debug Console (Legacy)
- * - Improved: RNG (Crypto)
+ * - Fix: Cursor Artifacts (Agora some de verdade)
+ * - Feat: Wizard Photo Upload (Já sai bonito na foto)
+ * - Style: Improved Cursor Visuals
  */
 
 const CONSTANTS = {
@@ -35,7 +33,7 @@ function zeniteSystem() {
         // --- STATES ---
         systemLoading: true,
         loadingChar: false,
-        notifications: [], // Console logs moved to dev tools only
+        notifications: [],
         user: null,
         isGuest: false,
         userMenuOpen: false,
@@ -73,14 +71,20 @@ function zeniteSystem() {
         // --- MODALS ---
         configModal: false,
         wizardOpen: false, 
+        
+        // Image Handling
         cropperOpen: false,
+        cropperInstance: null,
+        uploadContext: 'char', // 'char' | 'wizard' - Para saber onde salvar a imagem
+
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
         // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
-        wizardData: { class: '', name: '', identity: '', age: '', history: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+        // Adicionado campo 'photo'
+        wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
         // --- CONFIGS ---
@@ -171,10 +175,9 @@ function zeniteSystem() {
             if(this.settings.compactMode) document.body.classList.add('compact-mode');
             if(this.settings.performanceMode) document.body.classList.add('performance-mode');
             
-            // Initial check for mouse trail
             this.updateCursorState();
-
             this.updateAgentCount();
+            
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
@@ -184,7 +187,7 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS & CURSOR ENGINE ---
+        // --- GRAPHICS & CURSOR ENGINE (FIXED) ---
         updateCursorState() {
             if (this.settings.mouseTrail && !this.settings.performanceMode) {
                 document.body.classList.add('custom-cursor-active');
@@ -203,11 +206,19 @@ function zeniteSystem() {
             });
 
             const renderLoop = () => {
-                // Só roda o loop visual se necessário
-                if (this.settings.mouseTrail && trail && !this.settings.performanceMode) {
-                    trail.style.transform = `translate3d(${cursorX - 8}px, ${cursorY - 8}px, 0)`;
-                    if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
+                // BUG FIX: Se estiver desligado, ESCONDA o elemento. Antes ele só parava de atualizar a posição.
+                if (!trail) return;
+
+                if (this.settings.mouseTrail && !this.settings.performanceMode) {
+                    trail.style.display = 'block'; // Garante visibilidade
+                    trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; // Ajustado para o novo tamanho (20px/2)
+                    
+                    if(isCursorHover) trail.classList.add('hover-active'); 
+                    else trail.classList.remove('hover-active');
+                    
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
+                } else {
+                    trail.style.display = 'none'; // Garante sumiço
                 }
                 renderRafId = requestAnimationFrame(renderLoop);
             };
@@ -305,8 +316,7 @@ function zeniteSystem() {
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         
-        // --- RPG CALCULATIONS (FIXED) ---
-        // Helper unificado para garantir que a criação e a atualização usem a MESMA lógica
+        // --- RPG CALCULATIONS ---
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã';
             const lvl = Math.max(1, parseInt(levelStr) || 1);
@@ -332,7 +342,6 @@ function zeniteSystem() {
             if(!this.char) return; 
             const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs);
             
-            // Mantém a diferença de dano/gasto atual
             const c = this.char;
             const diffPv = (c.stats.pv.max || newStats.pv) - c.stats.pv.current;
             const diffPf = (c.stats.pf.max || newStats.pf) - c.stats.pf.current;
@@ -340,10 +349,8 @@ function zeniteSystem() {
 
             c.stats.pv.max = newStats.pv;
             c.stats.pv.current = Math.max(0, newStats.pv - diffPv);
-
             c.stats.pf.max = newStats.pf;
             c.stats.pf.current = Math.max(0, newStats.pf - diffPf);
-
             c.stats.pdf.max = newStats.pdf;
             c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
         },
@@ -355,7 +362,7 @@ function zeniteSystem() {
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
             this.wizardStep = 1; this.wizardPoints = 8;
-            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
             this.wizardFocusAttr = '';
             history.pushState({ modal: 'wizard' }, "Wizard", "#new");
             this.wizardOpen = true; 
@@ -367,13 +374,14 @@ function zeniteSystem() {
             if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
             
             const id = 'z_'+Date.now();
-            // CALCULA STATUS CORRETAMENTE AQUI
             const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
 
             const newChar = {
-                id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: '', history: this.wizardData.history, credits: 0,
+                id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, 
+                // Associa a foto do wizard
+                photo: this.wizardData.photo || '', 
+                history: this.wizardData.history, credits: 0,
                 attrs: {...this.wizardData.attrs},
-                // Usa os valores calculados
                 stats: { 
                     pv: {current: calculated.pv, max: calculated.pv}, 
                     pf: {current: calculated.pf, max: calculated.pf}, 
@@ -388,13 +396,9 @@ function zeniteSystem() {
             this.saveLocal();
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
             
-            // REDIRECIONAMENTO SEGURO
             this.wizardOpen = false;
-            // Substitui o estado atual (wizard) pelo da ficha, impedindo o loop de voltar para o wizard
             history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-            
-            // Carrega diretamente
-            this.loadCharacter(id, true); // true = skip pushState inside loadCharacter
+            this.loadCharacter(id, true);
             this.notify('Agente Inicializado.', 'success');
         },
         
@@ -405,14 +409,14 @@ function zeniteSystem() {
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
             }
-            this.updateCursorState(); // Atualiza cursor
+            this.updateCursorState(); 
             this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
             root.style.setProperty('--neon-core', hex); root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); 
-            const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, ${hex}, transparent 70%)`;
+            const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
         },
         toggleFullscreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } else if (document.exitFullscreen) { document.exitFullscreen(); } },
         handleKeys(e) { /* Console toggle removed */ },
@@ -476,9 +480,42 @@ function zeniteSystem() {
         },
 
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
-        openImageEditor() { document.getElementById('file-input').click(); }, 
-        initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); }, 
-        applyCrop() { if(!this.cropperInstance) return; this.char.photo = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); this.cropperOpen = false; this.notify('Foto salva.', 'success'); },
+        
+        // --- IMAGE HANDLING REFACTORED ---
+        openImageEditor(context = 'sheet') { 
+            this.uploadContext = context; // Define quem chamou (sheet ou wizard)
+            document.getElementById('file-input').click(); 
+        }, 
+        initCropper(e) { 
+            const file = e.target.files[0]; if(!file) return; 
+            const reader = new FileReader(); 
+            reader.onload = (evt) => { 
+                document.getElementById('crop-target').src = evt.target.result; 
+                this.cropperOpen = true; 
+                this.$nextTick(() => { 
+                    if(this.cropperInstance) this.cropperInstance.destroy(); 
+                    this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); 
+                }); 
+            }; 
+            reader.readAsDataURL(file); 
+            // Reset input to allow re-selection of same file
+            e.target.value = '';
+        }, 
+        applyCrop() { 
+            if(!this.cropperInstance) return; 
+            const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8);
+            
+            // Lógica condicional: Onde salvar a foto?
+            if (this.uploadContext === 'wizard') {
+                this.wizardData.photo = result;
+            } else if (this.char) {
+                this.char.photo = result;
+            }
+            
+            this.cropperOpen = false; 
+            this.notify('Foto processada.', 'success'); 
+        },
+        
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
         triggerFileImport() { document.getElementById('import-file').click(); },
         processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); }
