@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v60.0-Titanium-Core
+ * Version: v61.0-Stable-Redemption
  * Changelog:
- * - Refactor: Complete Chart Interaction Overhaul (Manual DOM Events)
- * - Fix: Drag & Drop works everywhere (Wizard & Sheet)
- * - Fix: Math Scale -1 to 6 is now pixel-perfect
- * - Fix: Animation smoothness restored
+ * - CRITICAL FIX: Decoupled Chart.js instance from Alpine reactivity (Fixed crash/lag)
+ * - Fix: Data Loading (Agents should reappear now that the script doesn't crash)
+ * - Feat: Smooth Drag & Drop for Attributes (-1 to 6 scale)
+ * - Feat: Wizard & Sheet full interactivity
  */
 
 const CONSTANTS = {
@@ -16,9 +16,13 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
+// --- GLOBAL NON-REACTIVE STATE ---
+// Importante: Mantemos a instância do gráfico FORA do Alpine para evitar proxying pesado
+let radarInstance = null;
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 
+// Helpers
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -76,9 +80,8 @@ function zeniteSystem() {
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
         supabase: null, debouncedSaveFunc: null,
 
-        // --- CHART STATE MANAGER ---
-        // Armazena estado de drag fora do escopo reativo do Alpine para performance
-        activeDrag: { active: false, chart: null, index: null, context: null },
+        // DRAG STATE (Simplified inside Alpine, heavy lifting is external)
+        isChartDragging: false,
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -100,78 +103,30 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 5000);
+            // Failsafe para loader
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
+
             try {
                 if (typeof window.supabase !== 'undefined') {
                     this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
+
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
 
                 window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
                 window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
                 
-                // GLOBAL DRAG RELEASE
-                const endDrag = () => {
-                    if (this.activeDrag.active) {
-                        this.activeDrag.active = false;
-                        document.body.style.cursor = '';
-                        if (this.activeDrag.chart) this.activeDrag.chart.update(); // Final snap animation
-                    }
-                };
-                window.addEventListener('mouseup', endDrag);
-                window.addEventListener('touchend', endDrag);
-
-                // GLOBAL DRAG MOVE
-                const moveDrag = (e) => {
-                    if (!this.activeDrag.active || !this.activeDrag.chart) return;
-                    e.preventDefault(); // Impede scroll no mobile
-                    
-                    const chart = this.activeDrag.chart;
-                    const index = this.activeDrag.index;
-                    const context = this.activeDrag.context;
-                    
-                    // Coordinates
-                    const rect = chart.canvas.getBoundingClientRect();
-                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                    const x = clientX - rect.left;
-                    const y = clientY - rect.top;
-
-                    const scale = chart.scales.r;
-                    const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
-                    
-                    // MATH: Scale -1 to 6
-                    const maxDist = scale.getDistanceFromCenterForValue(6);
-                    // Mapeia 0..maxDist para -1..6
-                    let val = -1 + (dist / maxDist) * 7;
-                    val = Math.round(val);
-                    val = Math.max(-1, Math.min(6, val));
-
-                    // Aplica valor
-                    const keys = ['for','agi','int','von','pod'];
-                    const key = keys[index];
-                    const target = context === 'wizard' ? this.wizardData : this.char;
-
-                    if (target.attrs[key] !== val) {
-                        target.attrs[key] = val;
-                        chart.data.datasets[0].data[index] = val;
-                        chart.update('none'); // Update rápido
-                        
-                        if (context === 'char') this.recalcDerivedStats();
-                        // No wizard, poderíamos recalcular pontos aqui
-                    }
-                };
-                window.addEventListener('mousemove', moveDrag);
-                window.addEventListener('touchmove', moveDrag, {passive: false});
-
+                // Cursor & Watchers
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
+                // Load Data
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-                if (isGuest) { this.isGuest = true; this.loadLocal('zenite_guest_db'); } 
-                else {
+                if (isGuest) { 
+                    this.isGuest = true; this.loadLocal('zenite_guest_db'); 
+                } else {
                     this.loadLocal('zenite_cached_db');
                     if(this.supabase) {
                         try { const { data: { session } } = await this.supabase.auth.getSession(); if (session) { this.user = session.user; await this.fetchCloud(); } } catch(e) {}
@@ -184,9 +139,11 @@ function zeniteSystem() {
 
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode) document.body.classList.add('compact-mode');
+                if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
                 this.updateCursorState();
                 this.updateAgentCount();
+                
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
             } catch (err) { console.error("BOOT ERROR:", err); } finally { this.systemLoading = false; }
@@ -223,93 +180,7 @@ function zeniteSystem() {
             renderLoop();
         },
 
-        // --- CHARTS (GOD MODE) ---
-        _renderChart(id, data, isWizard=false) {
-            const ctx = document.getElementById(id); if(!ctx) return;
-            const contextType = isWizard ? 'wizard' : 'char';
-
-            // REUSE: Se o gráfico já existe, só atualiza os dados e retorna
-            // Isso preserva os event listeners anexados ao canvas
-            if (ctx.chart) {
-                // Só atualiza se NÃO estivermos arrastando (evita conflito de update)
-                if (!this.activeDrag.active || this.activeDrag.context !== contextType) {
-                    ctx.chart.data.datasets[0].data = data;
-                    ctx.chart.update();
-                }
-                return;
-            }
-
-            // CRIAÇÃO (Acontece 1x por sessão por canvas)
-            const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
-            const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
-            
-            const config = {
-                type: 'radar',
-                data: { 
-                    labels: ['FOR','AGI','INT','VON','POD'], 
-                    datasets: [{ 
-                        data: data, 
-                        backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, 
-                        pointBackgroundColor: '#fff', pointRadius: 6, pointHoverRadius: 9, pointHitRadius: 25
-                    }] 
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { 
-                        r: { 
-                            min: -1, max: 6, ticks: { display: false, stepSize: 1 }, 
-                            grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
-                            angleLines: { color: 'rgba(255,255,255,0.1)' },
-                            pointLabels: { color: 'rgba(255,255,255,0.7)', font: { size: 10, family: 'Orbitron' } }
-                        } 
-                    }, 
-                    plugins: { legend: { display: false } },
-                    onHover: (e, el) => { e.chart.canvas.style.cursor = el.length ? 'grab' : 'default'; }
-                }
-            };
-
-            const chart = new Chart(ctx, config);
-            ctx.chart = chart; // Anexa instância ao DOM
-
-            // START DRAG LISTENER
-            const startDrag = (e) => {
-                const points = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-                if (points.length) {
-                    this.activeDrag.active = true;
-                    this.activeDrag.chart = chart;
-                    this.activeDrag.index = points[0].index;
-                    this.activeDrag.context = contextType;
-                    document.body.style.cursor = 'grabbing';
-                    e.preventDefault();
-                }
-            };
-            ctx.addEventListener('mousedown', startDrag);
-            ctx.addEventListener('touchstart', startDrag, {passive: false});
-        },
-
-        updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d, false); },
-        updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
-
-        // --- UTILS ---
-        toggleDiceTray() {
-            this.diceTrayOpen = !this.diceTrayOpen;
-            if(this.diceTrayOpen) { this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal(); this.ensureTrayOnScreen(); }
-        },
-        setDockMode(mode) {
-            this.trayDockMode = mode;
-            if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
-        },
-        startDragTray(e) {
-            if(this.isMobile || this.trayDockMode !== 'float') return;
-            if(e.target.closest('button') || e.target.closest('input')) return;
-            this.isDraggingTray = true;
-            this.dragOffset.x = e.clientX - this.trayPosition.x;
-            this.dragOffset.y = e.clientY - this.trayPosition.y;
-            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
-            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
-            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
-        },
-
+        // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -317,7 +188,8 @@ function zeniteSystem() {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     this.debouncedSaveFunc();
-                    if (this.activeTab === 'profile' && !this.activeDrag.active) this.updateRadarChart();
+                    // Só atualiza o gráfico se NÃO estiver arrastando (evita loop visual)
+                    if (this.activeTab === 'profile' && !this.isChartDragging) this.updateRadarChart();
                 }
             }, {deep: true});
         },
@@ -334,7 +206,7 @@ function zeniteSystem() {
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip','diceTrayOpen'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
-                    this.diceTrayOpen = false; 
+                    this.diceTrayOpen = false;
                 } catch(e) {}
             }
         },
@@ -358,10 +230,37 @@ function zeniteSystem() {
                 this.notify('Revertido.', 'success');
             });
         },
-        
-        askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
-        confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
+        async fetchCloud() {
+            if (!this.user || !this.supabase) return;
+            let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
+            if (error && error.code === 'PGRST116') {
+                await this.supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]);
+                data = { data: { config: this.settings } };
+            }
+            if (data && data.data) {
+                const cloudData = data.data;
+                if(cloudData.config) { this.settings = { ...this.settings, ...cloudData.config }; this.applyTheme(this.settings.themeColor); }
+                let merged = { ...this.chars }; let hasLocalOnly = false;
+                Object.keys(cloudData).forEach(k => { if(!['config'].includes(k)) merged[k] = cloudData[k]; });
+                Object.keys(this.chars).forEach(localId => { if (!cloudData[localId] && localId !== 'config') { merged[localId] = this.chars[localId]; hasLocalOnly = true; } });
+                this.chars = merged; this.updateAgentCount(); this.saveLocal();
+                if (hasLocalOnly) { this.unsavedChanges = true; this.syncCloud(true); }
+            }
+        },
+        async syncCloud(silent = false) {
+             if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
+            this.isSyncing = true; if(!silent) this.notify('Sincronizando...', 'info');
+            try {
+                const payload = { ...this.chars, config: this.settings };
+                const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
+                if (error) throw error;
+                this.unsavedChanges = false; this.saveStatus = 'success'; if(!silent) this.notify('Salvo!', 'success');
+            } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
+        },
+        
+        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+        
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã';
             const lvl = Math.max(1, parseInt(levelStr) || 1);
@@ -433,7 +332,8 @@ function zeniteSystem() {
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
             }
-            this.updateCursorState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
+            this.updateCursorState(); 
+            this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
@@ -456,7 +356,155 @@ function zeniteSystem() {
             this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
          },
+        askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
+        askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         
+        askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
+        confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
+
+        // --- DICE TRAY UTILS ---
+        toggleDiceTray() {
+            this.diceTrayOpen = !this.diceTrayOpen;
+            if(this.diceTrayOpen) { this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal(); this.ensureTrayOnScreen(); }
+        },
+        setDockMode(mode) {
+            this.trayDockMode = mode;
+            if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
+        },
+        startDragTray(e) {
+            if(this.isMobile || this.trayDockMode !== 'float') return;
+            if(e.target.closest('button') || e.target.closest('input')) return;
+            this.isDraggingTray = true;
+            this.dragOffset.x = e.clientX - this.trayPosition.x;
+            this.dragOffset.y = e.clientY - this.trayPosition.y;
+            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
+            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
+            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
+        },
+
+        // --- CHART ENGINE (EXTERNAL INSTANCE) ---
+        _renderChart(id, data, isWizard=false) {
+            const ctx = document.getElementById(id); if(!ctx) return;
+            
+            // SETUP LISTENERS ONCE
+            if(!ctx.hasDragListeners) {
+                this.setupDragListeners(ctx, isWizard);
+                ctx.hasDragListeners = true;
+            }
+
+            const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
+            const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
+            
+            if (radarInstance && ctx.id === radarInstance.canvas.id) {
+                radarInstance.data.datasets[0].data = data;
+                radarInstance.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
+                radarInstance.data.datasets[0].borderColor = `rgba(${rgb}, 1)`;
+                radarInstance.update(); // Animação padrão (exceto durante drag)
+            } else {
+                if(radarInstance) radarInstance.destroy(); // Limpa anterior
+                
+                radarInstance = new Chart(ctx, {
+                    type: 'radar',
+                    data: { 
+                        labels: ['FOR','AGI','INT','VON','POD'], 
+                        datasets: [{ 
+                            data: data, 
+                            backgroundColor: `rgba(${rgb}, 0.2)`, 
+                            borderColor: `rgba(${rgb}, 1)`, 
+                            borderWidth: 2, 
+                            pointBackgroundColor: '#fff', 
+                            pointRadius: 6, 
+                            pointHoverRadius: 9,
+                            pointHitRadius: 25
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false,
+                        animation: { duration: 500 }, // Smooth entry
+                        scales: { 
+                            r: { 
+                                min: -1, max: 6, ticks: { display: false, stepSize: 1 }, 
+                                grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
+                                angleLines: { color: 'rgba(255,255,255,0.1)' },
+                                pointLabels: { color: 'rgba(255,255,255,0.7)', font: { size: 10, family: 'Orbitron' } }
+                            } 
+                        }, 
+                        plugins: { legend: { display: false } },
+                        onHover: (e, el) => { e.chart.canvas.style.cursor = el.length ? 'grab' : 'default'; }
+                    }
+                });
+            }
+        },
+
+        updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d, false); },
+        updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
+
+        // --- MANUAL DOM DRAG HANDLERS ---
+        setupDragListeners(canvas, isWizard) {
+            let isDragging = false;
+            let dataIndex = null;
+
+            const start = (e) => {
+                if(!radarInstance) return;
+                const points = radarInstance.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+                if (points.length) {
+                    isDragging = true;
+                    this.isChartDragging = true; // Tell Alpine to pause watchers
+                    dataIndex = points[0].index;
+                    canvas.style.cursor = 'grabbing';
+                    e.preventDefault();
+                }
+            };
+
+            const move = (e) => {
+                if (!isDragging || !radarInstance) return;
+                e.preventDefault();
+
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                const scale = radarInstance.scales.r;
+                const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
+                const maxDist = scale.getDistanceFromCenterForValue(6);
+                
+                // MATH: Mapeia distância para -1 a 6
+                let val = -1 + (dist / maxDist) * 7;
+                val = Math.round(val);
+                val = Math.max(-1, Math.min(6, val));
+
+                const keys = ['for','agi','int','von','pod'];
+                const key = keys[dataIndex];
+                const target = isWizard ? this.wizardData : this.char;
+
+                if (target.attrs[key] !== val) {
+                    target.attrs[key] = val;
+                    radarInstance.data.datasets[0].data[dataIndex] = val;
+                    radarInstance.update('none'); // Instant update
+                    
+                    if (!isWizard) this.recalcDerivedStats();
+                }
+            };
+
+            const end = () => {
+                if(isDragging) {
+                    isDragging = false;
+                    this.isChartDragging = false; // Resume watchers
+                    canvas.style.cursor = 'default';
+                    if(radarInstance) radarInstance.update(); // Snap animation
+                }
+            };
+
+            canvas.addEventListener('mousedown', start);
+            canvas.addEventListener('touchstart', start, {passive: false});
+            window.addEventListener('mousemove', move);
+            window.addEventListener('touchmove', move, {passive: false});
+            window.addEventListener('mouseup', end);
+            window.addEventListener('touchend', end);
+        },
+
         triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
