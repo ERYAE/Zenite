@@ -255,15 +255,11 @@
         </button>
     </div>
 
-    <div x-show="unsavedChanges && !isGuest" 
-         class="fixed bottom-32 md:bottom-12 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto z-[9990] flex justify-center pointer-events-none md:pointer-events-auto" 
-         x-transition.opacity>
-         <div class="bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-10 py-5 flex items-center gap-6 animate-pulse-border shadow-2xl pointer-events-auto">
-            <span class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-circle-exclamation text-lg text-[var(--neon-core)]"></i>NÃO SALVO
-            </span>
-            <button @click="syncCloud()" class="px-6 py-2 bg-[var(--neon-core)] text-black text-xs font-bold rounded-full hover:bg-white transition-colors shadow-lg hover:scale-105 active:scale-95">
-                <span x-show="!isSyncing">SALVAR AGORA</span><span x-show="isSyncing">SALVANDO...</span>
+    <div x-show="unsavedChanges && !isGuest" class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9990] flex justify-center pointer-events-none" x-transition.opacity>
+         <div class="bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-10 py-4 flex items-center gap-6 animate-pulse-border shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all hover:scale-105">
+            <span class="text-xs md:text-sm font-bold text-white uppercase tracking-widest"><i class="fa-solid fa-floppy-disk mr-3 text-[var(--neon-core)] animate-bounce"></i>ALTERAÇÕES PENDENTES</span>
+            <button @click="syncCloud()" class="px-6 py-2 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all">
+                <span x-show="!isSyncing">SALVAR AGORA</span><span x-show="isSyncing">SINCRONIZANDO...</span>
             </button>
         </div>
     </div>
@@ -283,7 +279,6 @@
             <div class="border-t border-white/10"></div>
             <div class="grid grid-cols-2 gap-3">
                 <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
-                
                 <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'" :class="{'col-span-2': isMobile}">MODO COMPACTO</button>
                 <button @click="toggleSetting('performanceMode')" class="py-3 border border-white/10 rounded text-xs font-bold col-span-2" :class="settings.performanceMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO PERFORMANCE (MOBILE)</button>
             </div>
