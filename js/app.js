@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v58.0-Stable-Interactive
+ * Version: v59.0-GodMode-FinalChart
  * Changelog:
- * - Fix: Radar Chart Animation & Drag Stability (Removed destroy loop)
- * - Fix: Drag Math (-1 to 6 scale properly mapped)
- * - Fix: Wizard Interaction Enabled
- * - Perf: Optimized Render Loop
+ * - Refactor: Implemented 'DraggableRadarPlugin' (Native Chart.js plugin)
+ * - Fix: Drag events are now tied to chart lifecycle (No more broken listeners)
+ * - Fix: Scale Math (-1 to 6 mapped correctly)
+ * - Fix: Animation restored (Smooth entry, instant drag)
  */
 
 const CONSTANTS = {
@@ -16,10 +16,85 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- PERFORMANCE ENGINE ---
-let cursorX = -100, cursorY = -100;
-let isCursorHover = false;
-let renderRafId = null;
+// --- CHART.JS PLUGIN: DRAGGABLE RADAR ---
+// Este plugin vive fora do escopo Alpine para performance máxima e reutilização
+const DraggableRadarPlugin = {
+    id: 'draggableRadar',
+    afterInit: (chart) => {
+        chart.dragState = {
+            isDragging: false,
+            datasetIndex: 0,
+            dataIndex: null,
+            targetAttr: null
+        };
+    },
+    beforeEvent: (chart, args) => {
+        const { event } = args;
+        const state = chart.dragState;
+
+        // Mapeamento de índices para atributos
+        const attrMap = ['for', 'agi', 'int', 'von', 'pod'];
+
+        if (event.type === 'mousedown' || event.type === 'touchstart') {
+            const elements = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true, axis: 'r' }, false);
+            if (elements.length) {
+                state.isDragging = true;
+                state.dataIndex = elements[0].index;
+                state.targetAttr = attrMap[state.dataIndex];
+                chart.canvas.style.cursor = 'grabbing';
+                return false; // Stop propagation
+            }
+        }
+        else if (event.type === 'mousemove' || event.type === 'touchmove') {
+            if (state.isDragging) {
+                const x = event.x;
+                const y = event.y;
+                const scale = chart.scales.r;
+                
+                // Distância do centro
+                const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
+                
+                // Escala Math: -1 a 6
+                // O raio total representa o valor 6. O centro é -1.
+                // Chart.js desenha o centro como o valor mínimo da escala.
+                const maxDist = scale.getDistanceFromCenterForValue(6);
+                
+                // Normaliza a distância para o range da escala (7 passos: -1,0,1,2,3,4,5,6)
+                // Range total = Max(6) - Min(-1) = 7
+                let rawValue = -1 + (dist / maxDist) * 7;
+                let newVal = Math.round(rawValue);
+                
+                // Clamp
+                newVal = Math.max(-1, Math.min(6, newVal));
+
+                // Callback para o Alpine atualizar o estado (se mudou)
+                if (chart.config.options.onDragUpdate) {
+                    chart.config.options.onDragUpdate(state.targetAttr, newVal);
+                }
+                
+                // Feedback Visual Instantâneo
+                chart.data.datasets[0].data[state.dataIndex] = newVal;
+                chart.update('none'); // Update sem animação
+                return false;
+            } else {
+                // Hover cursor
+                const elements = chart.getElementsAtEventForMode(event, 'nearest', { intersect: true, axis: 'r' }, false);
+                chart.canvas.style.cursor = elements.length ? 'grab' : 'default';
+            }
+        }
+        else if (event.type === 'mouseup' || event.type === 'touchend' || event.type === 'mouseout') {
+            if (state.isDragging) {
+                state.isDragging = false;
+                chart.canvas.style.cursor = 'default';
+                chart.update(); // Animação final de "snap"
+            }
+        }
+    }
+};
+
+// Registra o plugin globalmente
+Chart.register(DraggableRadarPlugin);
+
 
 function debounce(func, wait) {
     let timeout;
@@ -28,6 +103,9 @@ function debounce(func, wait) {
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
 }
+
+let cursorX = -100, cursorY = -100;
+let isCursorHover = false;
 
 function zeniteSystem() {
     return {
@@ -90,14 +168,6 @@ function zeniteSystem() {
             themeColor: 'cyan'
         },
         
-        // --- CHART STATE (GLOBAL CONTROL) ---
-        chartState: {
-            isDragging: false,
-            dataIndex: null, // 0-4 (FOR, AGI, etc)
-            context: null,   // 'char' or 'wizard'
-            chartInstance: null
-        },
-        
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
         supabase: null, debouncedSaveFunc: null,
 
@@ -145,10 +215,6 @@ function zeniteSystem() {
                         this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
                     }
                 });
-
-                // GLOBAL DRAG RELEASE (Safety Net)
-                window.addEventListener('mouseup', () => this.stopChartDrag());
-                window.addEventListener('touchend', () => this.stopChartDrag());
 
                 this.setupCursorEngine(); 
                 this.setupWatchers();
@@ -261,8 +327,16 @@ function zeniteSystem() {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     this.debouncedSaveFunc();
-                    // Só atualiza o gráfico se NÃO estivermos arrastando ele (evita loop)
-                    if (this.activeTab === 'profile' && !this.chartState.isDragging) this.updateRadarChart();
+                    // Atualiza gráfico apenas se não estivermos no meio de um drag (o plugin cuida do visual)
+                    // Mas como o plugin atualiza o Alpine, o Alpine dispara o watcher.
+                    // Precisamos garantir que isso não cause loop. 
+                    // O plugin já faz o update visual, então aqui podemos apenas sincronizar se a aba estiver correta.
+                    if (this.activeTab === 'profile') {
+                        // Verifica se o gráfico precisa de update (pode ser redundante mas seguro)
+                        // this.updateRadarChart(); 
+                        // Melhor: Deixar o plugin cuidar da renderização durante o drag.
+                        // O Watcher cuida de salvar no DB.
+                    }
                 }
             }, {deep: true});
         },
@@ -453,82 +527,22 @@ function zeniteSystem() {
         }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- GOD MODE CHART ENGINE ---
-        stopChartDrag() {
-            if (!this.chartState.isDragging) return;
-            this.chartState.isDragging = false;
-            this.chartState.dataIndex = null;
-            this.chartState.context = null;
-            document.body.classList.remove('chart-grabbing');
-            if (this.chartState.chartInstance) {
-                // Ao soltar, faz update normal para animar a "fixação" se necessário
-                this.chartState.chartInstance.update();
-            }
-        },
-
-        handleChartMove(e, chart, context) {
-            if (!this.chartState.isDragging || this.chartState.dataIndex === null) return;
-
-            const canvas = chart.canvas;
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-            
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-            
-            const scale = chart.scales.r;
-            // Distância do centro do gráfico
-            const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
-            
-            // MATH FIX: Mapeamento de pixel para valor (-1 a 6)
-            // A escala total é 7 unidades (-1, 0, 1, 2, 3, 4, 5, 6)
-            const maxDist = scale.getDistanceFromCenterForValue(6);
-            
-            // Fórmula: Valor = Min + (DistânciaAtual / DistânciaMáxima) * (Max - Min)
-            // Min = -1, Max = 6, Intervalo = 7
-            let newVal = Math.round(-1 + (dist / maxDist) * 7);
-            newVal = Math.max(-1, Math.min(6, newVal)); // Clamp rigoroso
-
-            const keys = ['for','agi','int','von','pod'];
-            const key = keys[this.chartState.dataIndex];
-            
-            const target = context === 'wizard' ? this.wizardData : this.char;
-            
-            if (target.attrs[key] !== newVal) {
-                target.attrs[key] = newVal;
-                
-                // Atualiza o gráfico VISUALMENTE
-                chart.data.datasets[0].data[this.chartState.dataIndex] = newVal;
-                chart.update('none'); // Update rápido sem animação (drag performance)
-                
-                if (context === 'char') {
-                    this.recalcDerivedStats();
-                } else if (context === 'wizard') {
-                    // Recalcula pontos (se necessário para a UI, embora o finishWizard valide)
-                    // (Opcional: atualizar this.wizardPoints em tempo real)
-                    let totalUsed = Object.values(target.attrs).reduce((a,b)=>a+Math.max(0, b), 0); 
-                    // Lógica simplificada de pontos para feedback visual
-                }
-            }
-        },
-
+        // --- CHART RENDER (Simplified) ---
+        // Agora usamos o Plugin, não precisamos de lógica manual de drag aqui
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id); if(!ctx) return;
-            
-            // UPDATE EXISTENTE: A Chave da Performance
-            if (ctx.chart) {
-                ctx.chart.data.datasets[0].data = data;
-                // Se estiver arrastando, 'none'. Se for carregamento normal, 'default' (animado).
-                const animMode = this.chartState.isDragging ? 'none' : 'default';
-                ctx.chart.update(animMode);
-                return;
-            }
-
-            // CRIAÇÃO INICIAL (Executa uma vez)
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
             
+            // Callback do Plugin para atualizar o Alpine Data
+            const onDragUpdate = (attr, val) => {
+                const target = isWizard ? this.wizardData : this.char;
+                if(target.attrs[attr] !== val) {
+                    target.attrs[attr] = val;
+                    if(!isWizard) this.recalcDerivedStats();
+                }
+            };
+
             const config = {
                 type: 'radar',
                 data: { 
@@ -541,12 +555,13 @@ function zeniteSystem() {
                         pointBackgroundColor: '#fff', 
                         pointRadius: 6, 
                         pointHoverRadius: 8,
-                        pointHitRadius: 20 // Área de toque generosa
+                        pointHitRadius: 25 // Área de pega grande
                     }] 
                 },
                 options: { 
                     responsive: true, 
                     maintainAspectRatio: false, 
+                    // Animação ativada (padrão) - O plugin desativa apenas durante o drag
                     scales: { 
                         r: { 
                             min: -1, max: 6, 
@@ -557,45 +572,26 @@ function zeniteSystem() {
                         } 
                     }, 
                     plugins: { legend: { display: false } },
-                    onHover: (e, el) => {
-                        const canvas = e.chart.canvas;
-                        canvas.style.cursor = el.length ? 'grab' : 'default';
-                        if(this.chartState.isDragging) canvas.style.cursor = 'grabbing';
-                    }
+                    onDragUpdate: onDragUpdate // Passa o callback para o plugin
                 }
             };
 
-            const chart = new Chart(ctx, config);
-            ctx.chart = chart; // Armazena instância no DOM element
-
-            // DRAG EVENT LISTENERS (Anexados uma única vez na criação)
-            const canvas = chart.canvas;
-            const context = isWizard ? 'wizard' : 'char';
-
-            const startDrag = (e) => {
-                const points = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-                if (points.length) {
-                    this.chartState.isDragging = true;
-                    this.chartState.dataIndex = points[0].index;
-                    this.chartState.context = context;
-                    this.chartState.chartInstance = chart;
-                    document.body.classList.add('chart-grabbing');
-                    e.preventDefault(); // Impede scroll em touch
+            if (ctx.chart) { 
+                // Apenas atualiza dados
+                ctx.chart.data.datasets[0].data = data; 
+                ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
+                ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; 
+                // Garante que o callback esteja atualizado (caso mude de wizard pra char)
+                ctx.chart.options.onDragUpdate = onDragUpdate;
+                
+                // Se NÃO estiver arrastando, anima. Se estiver, o plugin cuida do update.
+                if (!ctx.chart.dragState?.isDragging) {
+                    ctx.chart.update();
                 }
-            };
-
-            const moveDrag = (e) => {
-                // Apenas processa se for este o gráfico sendo arrastado
-                if (this.chartState.isDragging && this.chartState.chartInstance === chart) {
-                    this.handleChartMove(e, chart, context);
-                }
-            };
-
-            canvas.addEventListener('mousedown', startDrag);
-            canvas.addEventListener('touchstart', startDrag, {passive: false});
-            
-            window.addEventListener('mousemove', moveDrag);
-            window.addEventListener('touchmove', moveDrag, {passive: false});
+            } 
+            else { 
+                ctx.chart = new Chart(ctx, config); 
+            }
         },
         
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d, false); },
