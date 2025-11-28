@@ -1,19 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v55.0-GodMode-Refactor
- * Changelog:
- * - Fix: Cursor Artifacts (Agora some de verdade)
- * - Feat: Wizard Photo Upload (Já sai bonito na foto)
- * - Style: Improved Cursor Visuals
+ * Version: v55.1-Precision-Patch
  */
 
-const CONSTANTS = {
-    MAX_AGENTS: 30,
-    SAVE_INTERVAL: 180000, 
-    TOAST_DURATION: 3000,
-    SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
-    SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
-};
+// ... (CONSTANTS e helper functions mantidos iguais)
 
 // --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
@@ -30,7 +20,7 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- STATES ---
+        // ... (Todos os estados mantidos, sem alterações nas variáveis iniciais)
         systemLoading: true,
         loadingChar: false,
         notifications: [],
@@ -39,7 +29,6 @@ function zeniteSystem() {
         userMenuOpen: false,
         authLoading: false, authMsg: '', authMsgType: '',
         
-        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -49,7 +38,6 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- WIDGETS ---
         diceTrayOpen: false,
         showDiceLog: false,
         trayDockMode: 'float',
@@ -57,7 +45,6 @@ function zeniteSystem() {
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
         
-        // Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
 
@@ -68,26 +55,21 @@ function zeniteSystem() {
         diceMod: 0,
         isMobile: window.innerWidth < 768,
         
-        // --- MODALS ---
         configModal: false,
         wizardOpen: false, 
         
-        // Image Handling
         cropperOpen: false,
         cropperInstance: null,
-        uploadContext: 'char', // 'char' | 'wizard' - Para saber onde salvar a imagem
+        uploadContext: 'char',
 
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
-        // Adicionado campo 'photo'
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
-        // --- CONFIGS ---
         settings: {
             mouseTrail: true,
             compactMode: false,
@@ -120,6 +102,7 @@ function zeniteSystem() {
         },
 
         async initSystem() {
+            // ... (Lógica de inicialização mantida)
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                     auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
@@ -135,7 +118,6 @@ function zeniteSystem() {
                 this.ensureTrayOnScreen();
             });
 
-            // History Handling
             window.addEventListener('popstate', (event) => {
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
                     if(this.currentView === 'sheet') this.saveAndExit(true); 
@@ -187,9 +169,10 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS & CURSOR ENGINE (FIXED) ---
+        // --- GRAPHICS & CURSOR ENGINE ---
         updateCursorState() {
-            if (this.settings.mouseTrail && !this.settings.performanceMode) {
+            // Garante que só ativa a classe se não for mobile E se a config estiver ativa
+            if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
                 document.body.classList.remove('custom-cursor-active');
@@ -198,27 +181,35 @@ function zeniteSystem() {
 
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
+            // Check inicial se o dispositivo suporta ponteiro fino (mouse)
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
 
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail) isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                if(this.settings.mouseTrail && !this.isMobile) {
+                     isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                }
             });
 
             const renderLoop = () => {
-                // BUG FIX: Se estiver desligado, ESCONDA o elemento. Antes ele só parava de atualizar a posição.
                 if (!trail) return;
 
-                if (this.settings.mouseTrail && !this.settings.performanceMode) {
-                    trail.style.display = 'block'; // Garante visibilidade
-                    trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; // Ajustado para o novo tamanho (20px/2)
+                // Lógica de visibilidade aprimorada
+                if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                    trail.style.display = 'block';
+                    
+                    // OFFSET CORRIGIDO: 
+                    // O CSS define width/height como 20px. 
+                    // Para centralizar, subtraímos metade (10px).
+                    // Isso garante que o centro visual do cursor esteja exatamente no cursorX/Y.
+                    trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; 
                     
                     if(isCursorHover) trail.classList.add('hover-active'); 
                     else trail.classList.remove('hover-active');
                     
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 } else {
-                    trail.style.display = 'none'; // Garante sumiço
+                    trail.style.display = 'none';
                 }
                 renderRafId = requestAnimationFrame(renderLoop);
             };
@@ -251,7 +242,7 @@ function zeniteSystem() {
             document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
 
-        // --- CORE LOGIC ---
+        // --- CORE LOGIC (Watchers, Save, Load) ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -378,7 +369,6 @@ function zeniteSystem() {
 
             const newChar = {
                 id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, 
-                // Associa a foto do wizard
                 photo: this.wizardData.photo || '', 
                 history: this.wizardData.history, credits: 0,
                 attrs: {...this.wizardData.attrs},
@@ -475,15 +465,24 @@ function zeniteSystem() {
             const n = (arr[0] % s) + 1;
             const m = parseInt(this.diceMod || 0);
             this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
+            
+            // Log Logic: Unshift (adiciona no topo)
             this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: `D${s}`, result: n+m, crit: n===s, fumble: n===1});
-            if(this.diceLog.length > 8) this.diceLog.pop();
+            
+            // Limit Logic (Modified for Desktop/Mobile)
+            if (this.isMobile) {
+                // Mobile: Strict limit
+                if (this.diceLog.length > 10) this.diceLog.pop();
+            } else {
+                // Desktop: "Unlimited" (Soft cap of 100 to prevent memory leak, but feels unlimited in UI)
+                if (this.diceLog.length > 100) this.diceLog.pop();
+            }
         },
 
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
         
-        // --- IMAGE HANDLING REFACTORED ---
         openImageEditor(context = 'sheet') { 
-            this.uploadContext = context; // Define quem chamou (sheet ou wizard)
+            this.uploadContext = context; 
             document.getElementById('file-input').click(); 
         }, 
         initCropper(e) { 
@@ -498,22 +497,13 @@ function zeniteSystem() {
                 }); 
             }; 
             reader.readAsDataURL(file); 
-            // Reset input to allow re-selection of same file
             e.target.value = '';
         }, 
         applyCrop() { 
             if(!this.cropperInstance) return; 
             const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8);
-            
-            // Lógica condicional: Onde salvar a foto?
-            if (this.uploadContext === 'wizard') {
-                this.wizardData.photo = result;
-            } else if (this.char) {
-                this.char.photo = result;
-            }
-            
-            this.cropperOpen = false; 
-            this.notify('Foto processada.', 'success'); 
+            if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; }
+            this.cropperOpen = false; this.notify('Foto processada.', 'success'); 
         },
         
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },

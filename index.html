@@ -278,8 +278,9 @@
             </div>
             <div class="border-t border-white/10"></div>
             <div class="grid grid-cols-2 gap-3">
-                <button @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
-                <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO</button>
+                <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
+                
+                <button @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded text-xs font-bold" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'" :class="{'col-span-2': isMobile}">MODO COMPACTO</button>
                 <button @click="toggleSetting('performanceMode')" class="py-3 border border-white/10 rounded text-xs font-bold col-span-2" :class="settings.performanceMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO PERFORMANCE (MOBILE)</button>
             </div>
             <div class="grid grid-cols-2 gap-3 pt-2">
