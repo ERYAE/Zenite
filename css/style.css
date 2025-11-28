@@ -27,6 +27,9 @@ body {
     cursor: auto; 
 }
 
+/* FIX: Impede que o browser tente rolar a tela enquanto arrasta o gráfico */
+canvas { touch-action: none !important; }
+
 /* SPINNERS FIX */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
@@ -119,6 +122,5 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
 .font-brand { font-family: 'Orbitron', sans-serif; }
 .font-code { font-family: 'JetBrains Mono', monospace; }
 
-/* CHART INTERACTION CURSOR */
 .chart-grabbable { cursor: grab !important; }
 .chart-grabbing { cursor: grabbing !important; }
