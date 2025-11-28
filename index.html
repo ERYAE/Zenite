@@ -25,14 +25,11 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/app.js"></script>
 </head>
-<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
+<body x-data="zeniteSystem()" x-init="initSystem()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div id="mouse-trail" class="fixed top-0 left-0 w-4 h-4 rounded-full pointer-events-none z-[10002]" style="background: radial-gradient(circle, var(--neon-core), transparent 70%); mix-blend-mode: screen; opacity: 0;"></div>
 
-    <div class="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-black">
-        <div class="absolute inset-0 bg-nebula"></div>
-        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTAgMzhoNDB2MmIMVjM4ek0wIDBoNDB2MkgwVjB6Ii8+PC9nPjwvZz48L3N2Zz4=')]"></div>
-    </div>
+    <div class="bg-grid"></div>
 
     <div id="app-loader" x-show="systemLoading" x-transition.opacity>
         <div class="loader-spinner"></div>
@@ -49,22 +46,6 @@
                 <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
             </div>
         </template>
-    </div>
-
-    <div x-show="consoleOpen" class="fixed top-0 left-0 w-full h-40 z-[10000] bg-black/95 flex flex-col font-mono text-xs shadow-2xl animate-fade-in border-b border-red-900/50" x-transition style="display: none;">
-        <div class="flex justify-between items-center px-4 py-2 bg-red-900/20">
-            <span class="text-red-500 font-bold flex items-center gap-2"><i class="fa-solid fa-bug"></i> DEBUG CONSOLE</span>
-            <button @click="consoleOpen=false" class="text-white hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="flex-grow overflow-y-auto p-2 space-y-1 font-code">
-            <template x-for="(log, idx) in sysLogs" :key="idx">
-                <div class="border-b border-white/5 pb-1 flex gap-2">
-                    <span class="text-gray-600 w-12 flex-shrink-0" x-text="log.time"></span>
-                    <span :class="log.type==='error'?'text-red-500':(log.type==='warn'?'text-yellow-500':'text-[var(--neon-success)]')" x-text="'['+log.type+']'" class="uppercase font-bold w-12 flex-shrink-0"></span>
-                    <span class="text-gray-300 break-all" x-text="log.msg"></span>
-                </div>
-            </template>
-        </div>
     </div>
 
     <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[200] bg-black flex items-center justify-center p-4">
@@ -307,10 +288,7 @@
                 <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
             </div>
             <div class="border-t border-white/10 my-4"></div>
-            <div class="flex gap-2">
-                <button @click="toggleSystemLog()" class="flex-1 py-2 border border-gray-700 text-gray-500 rounded text-[10px] font-bold hover:bg-gray-800"><i class="fa-solid fa-bug mr-2"></i>CONSOLE</button>
-                <button @click="askHardReset()" class="flex-1 py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE</button>
-            </div>
+            <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded text-[10px] font-bold hover:bg-red-500/10">LIMPAR CACHE LOCAL</button>
         </div>
     </div></div>
     
