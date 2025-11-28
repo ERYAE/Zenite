@@ -193,14 +193,16 @@
     </template>
 
     <div x-show="currentView === 'sheet'" 
-         class="fixed z-[80] transition-all border border-white/10 shadow-2xl glass genie-transition"
+         class="fixed z-[80] transition-all duration-300 ease-out border border-white/10 shadow-2xl glass"
          :class="{
-            'bottom-0 left-0 w-full rounded-t-xl': isMobile,
-            'top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left',
-            'top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right',
-            'rounded-xl w-80': !isMobile && trayDockMode === 'float',
-            'genie-hidden': !diceTrayOpen,
-            'genie-visible': diceTrayOpen
+            'bottom-0 left-0 w-full rounded-t-xl translate-y-0': isMobile && diceTrayOpen,
+            'bottom-0 left-0 w-full rounded-t-xl translate-y-full': isMobile && !diceTrayOpen,
+            'top-0 left-0 h-full w-80 rounded-r-xl border-r translate-x-0': !isMobile && trayDockMode === 'dock-left' && diceTrayOpen,
+            'top-0 left-0 h-full w-80 rounded-r-xl border-r -translate-x-full': !isMobile && trayDockMode === 'dock-left' && !diceTrayOpen,
+            'top-0 right-0 h-full w-80 rounded-l-xl border-l translate-x-0': !isMobile && trayDockMode === 'dock-right' && diceTrayOpen,
+            'top-0 right-0 h-full w-80 rounded-l-xl border-l translate-x-full': !isMobile && trayDockMode === 'dock-right' && !diceTrayOpen,
+            'rounded-xl w-80 opacity-100 scale-100 pointer-events-auto': !isMobile && trayDockMode === 'float' && diceTrayOpen,
+            'rounded-xl w-80 opacity-0 scale-95 pointer-events-none': !isMobile && trayDockMode === 'float' && !diceTrayOpen
          }"
          :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''">
         

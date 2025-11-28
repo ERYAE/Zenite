@@ -11,7 +11,6 @@
     --neon-warn: #f59e0b;
     --neon-purple: #d946ef;
     
-    /* CURVAS DE ANIMAÇÃO ELITE */
     --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
     --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -28,8 +27,7 @@ body {
     cursor: auto; 
 }
 
-/* --- FIX DE SPINNERS NATIVOS (Input Number) --- */
-/* Força a exibição das setas em WebKit/Mobile se o OS permitir */
+/* SPINNERS FIX */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
   opacity: 1 !important;
@@ -37,7 +35,7 @@ input[type=number]::-webkit-outer-spin-button {
   -webkit-appearance: inner-spin-button !important;
 }
 
-/* --- CYBER GRID BACKGROUND --- */
+/* BG */
 .bg-grid {
     background-image: 
         linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -48,14 +46,14 @@ input[type=number]::-webkit-outer-spin-button {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
 }
 
-/* --- GOD MODE CURSOR SYSTEM --- */
+/* CURSOR SYSTEM */
 body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important; }
 
 #mouse-trail {
     pointer-events: none;
     position: fixed; top: 0; left: 0; z-index: 10002;
     width: 20px; height: 20px; 
-    margin-top: -10px; margin-left: -10px; /* Centro perfeito */
+    margin-top: -10px; margin-left: -10px;
     border-radius: 50%;
     border: 1px solid var(--neon-core);
     background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
@@ -79,22 +77,7 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
     body.custom-cursor-active { cursor: auto !important; }
 }
 
-/* --- GENIE EFFECT (macOS Style) --- */
-.genie-transition {
-    transform-origin: bottom right; /* Origem no botão da bandeja */
-    transition: transform 0.5s var(--ease-smooth), opacity 0.4s var(--ease-smooth);
-}
-.genie-hidden {
-    transform: scale(0.1) translate(200px, 200px); /* Sugado para o botão */
-    opacity: 0;
-    pointer-events: none;
-}
-.genie-visible {
-    transform: scale(1) translate(0, 0);
-    opacity: 1;
-}
-
-/* --- MODALS --- */
+/* UTILS */
 .glass { background: var(--glass-panel); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); transition: all 0.3s var(--ease-smooth); }
 .input-cyber { background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: white; transition: all 0.3s ease; font-family: 'Rajdhani', sans-serif; }
 .input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(14, 165, 233, 0.2); outline: none; }
@@ -109,18 +92,22 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
     display: flex; align-items: center; justify-content: space-between; gap: 20px;
 }
 
-/* ANIMATIONS & UTILS */
+/* LOADING & ANIMATIONS */
 #app-loader { position: fixed; inset: 0; background: var(--bg-void); z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s var(--ease-smooth); }
 .loader-spinner { width: 50px; height: 50px; border: 3px solid rgba(14,165,233,0.1); border-radius: 50%; border-top-color: var(--neon-core); animation: spin 0.8s ease-in-out infinite; margin-bottom: 15px; }
+
 @keyframes pulseGold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes border-pulse { 0%, 100% { border-color: rgba(var(--neon-rgb), 0.3); } 50% { border-color: rgba(var(--neon-rgb), 1); } }
+
 .crit-success { text-shadow: 0 0 15px var(--neon-warn); color: var(--neon-warn) !important; animation: pulseGold 0.5s infinite; }
 .crit-fail { text-shadow: 0 0 15px var(--neon-alert); color: var(--neon-alert) !important; animation: shake 0.3s; }
 .animate-pulse-border { animation: border-pulse 2s infinite; }
 .animate-fade-in { animation: fadeIn 0.4s var(--ease-smooth); }
+
+/* HELPERS */
 .cropper-view-box, .cropper-face { border-radius: 50%; }
 .cropper-container { width: 100% !important; height: 100% !important; }
 .skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
@@ -128,5 +115,10 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
 #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
 #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
 #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
+
 .font-brand { font-family: 'Orbitron', sans-serif; }
 .font-code { font-family: 'JetBrains Mono', monospace; }
+
+/* CHART INTERACTION CURSOR */
+.chart-grabbable { cursor: grab !important; }
+.chart-grabbing { cursor: grabbing !important; }

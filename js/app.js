@@ -1,6 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.0-Interactive-Overhaul
+ * Version: v57.0-Performance-Edition
+ * Changelog:
+ * - Removed: Genie Effect (Caused lag)
+ * - Feat: Radar Chart Drag & Drop (-1 to 6 scale)
+ * - Fix: Tray Animation Performance
  */
 
 const CONSTANTS = {
@@ -80,6 +84,9 @@ function zeniteSystem() {
         
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
         supabase: null, debouncedSaveFunc: null,
+        
+        // CHART STATE
+        chartDrag: { isDragging: false, elementIndex: null, chartInstance: null },
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -103,12 +110,7 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            setTimeout(() => { 
-                if(this.systemLoading) {
-                    console.warn("Zenite OS: Forced Boot.");
-                    this.systemLoading = false; 
-                }
-            }, 5000);
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 5000);
 
             try {
                 if (typeof window.supabase !== 'undefined') {
@@ -130,6 +132,10 @@ function zeniteSystem() {
                         this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
                     }
                 });
+
+                // Global Mouse Up for Chart Dragging safety
+                window.addEventListener('mouseup', () => { if(this.chartDrag.isDragging) this.stopChartDrag(); });
+                window.addEventListener('touchend', () => { if(this.chartDrag.isDragging) this.stopChartDrag(); });
 
                 this.setupCursorEngine(); 
                 this.setupWatchers();
@@ -166,11 +172,7 @@ function zeniteSystem() {
                 
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
-            } catch (err) {
-                console.error("BOOT ERROR:", err);
-            } finally {
-                this.systemLoading = false;
-            }
+            } catch (err) { console.error("BOOT ERROR:", err); } finally { this.systemLoading = false; }
         },
 
         ensureTrayOnScreen() {
@@ -246,7 +248,8 @@ function zeniteSystem() {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     this.debouncedSaveFunc();
-                    if (this.activeTab === 'profile') this.updateRadarChart();
+                    // Chart update is handled manually in drag events, but we need it here for other inputs
+                    if (this.activeTab === 'profile' && !this.chartDrag.isDragging) this.updateRadarChart();
                 }
             }, {deep: true});
         },
@@ -263,7 +266,6 @@ function zeniteSystem() {
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
-                    // BUG FIX: Força a bandeja fechada ao carregar, independente do estado salvo
                     this.diceTrayOpen = false;
                 } catch(e) {}
             }
@@ -271,24 +273,14 @@ function zeniteSystem() {
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            // IMPORTANTE: Salvamos 'diceTrayOpen' como false para evitar reabertura fantasma
             const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip, diceTrayOpen: false };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
         revertChanges() {
-            // FIX: Popup Mini específico
             this.askConfirm('DESFAZER?', 'Voltar ao último save?', 'mini', async () => {
-                if(this.isGuest) {
-                    this.loadLocal('zenite_guest_db');
-                } else {
-                    this.loadLocal('zenite_cached_db');
-                    await this.fetchCloud();
-                }
-                
-                // BUG FIX: Garante que a bandeja não abra
+                if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
                 this.diceTrayOpen = false;
-
                 if(this.activeCharId && this.chars[this.activeCharId]) {
                     this.loadingChar = true;
                     this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
@@ -442,14 +434,57 @@ function zeniteSystem() {
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         
-        // CONFIRM REFACTOR (Supports 'mini')
         askConfirm(title, desc, type, action) { 
             this.confirmData = { title, desc, type, action }; 
             this.confirmOpen = true; 
         }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- CHART INTERACTIVITY (God Mode Level) ---
+        // --- CHART DRAG LOGIC (God Mode) ---
+        stopChartDrag() {
+            if (!this.chartDrag.isDragging) return;
+            this.chartDrag.isDragging = false;
+            this.chartDrag.elementIndex = null;
+            document.body.classList.remove('chart-grabbing');
+            if (this.chartDrag.chartInstance) {
+                this.chartDrag.chartInstance.update(); // Final full update
+            }
+        },
+
+        handleChartMove(e, chart) {
+            if (!this.chartDrag.isDragging || this.chartDrag.elementIndex === null) return;
+
+            const canvas = chart.canvas;
+            const rect = canvas.getBoundingClientRect();
+            // Suporte para Mouse e Touch
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            
+            const scale = chart.scales.r;
+            const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
+            
+            // Calcula o valor baseado no raio (max 6, min -1)
+            const maxDist = scale.getDistanceFromCenterForValue(6);
+            
+            // Lógica de projeção simples: distância linear
+            let newVal = Math.round((dist / maxDist) * 6);
+            newVal = Math.max(-1, Math.min(6, newVal)); // Clamp -1 to 6
+
+            const keys = ['for','agi','int','von','pod'];
+            const key = keys[this.chartDrag.elementIndex];
+            
+            if (this.char.attrs[key] !== newVal) {
+                this.char.attrs[key] = newVal;
+                // Atualiza dataset localmente para performance
+                chart.data.datasets[0].data[this.chartDrag.elementIndex] = newVal;
+                chart.update('none'); // Render update sem animação
+                this.recalcDerivedStats(); // Atualiza stats derivados em tempo real
+            }
+        },
+
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id); if(!ctx) return;
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
@@ -465,8 +500,9 @@ function zeniteSystem() {
                         borderColor: `rgba(${rgb}, 1)`, 
                         borderWidth: 2, 
                         pointBackgroundColor: '#fff', 
-                        pointRadius: isWizard ? 4 : 5, // Aumentei para facilitar o toque
-                        pointHoverRadius: 8
+                        pointRadius: 6, 
+                        pointHoverRadius: 8,
+                        pointHitRadius: 15 // Área de "pega" maior
                     }] 
                 },
                 options: { 
@@ -474,7 +510,7 @@ function zeniteSystem() {
                     maintainAspectRatio: false, 
                     scales: { 
                         r: { 
-                            min: -1, max: isWizard ? 4 : 6, 
+                            min: -1, max: 6, // ESCALA FIXA -1 A 6
                             ticks: { display: false, stepSize: 1 }, 
                             grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
                             angleLines: { color: 'rgba(255,255,255,0.1)' },
@@ -482,83 +518,54 @@ function zeniteSystem() {
                         } 
                     }, 
                     plugins: { legend: { display: false } },
-                    // INTERACTIVITY
-                    onClick: (evt, elements, chart) => {
-                        if (isWizard) return; // Desativa no Wizard para não quebrar lógica de pontos
-                        
-                        const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-                        
-                        if (points.length) {
-                            // Clique direto no ponto (toggle ou ajuste fino)
-                            // Por enquanto, apenas detecta o eixo
-                        } else {
-                            // Lógica avançada: Clique no eixo para setar valor
-                            const scales = chart.scales.r;
-                            const angle = Math.atan2(evt.y - scales.yCenter, evt.x - scales.xCenter);
-                            // Normaliza angulo e acha o eixo mais próximo...
-                            // (Simplificação para estabilidade: usa o clique no canvas relativo ao centro)
-                            
-                            // DISTÂNCIA DO CENTRO
-                            const dist = Math.sqrt(Math.pow(evt.x - scales.xCenter, 2) + Math.pow(evt.y - scales.yCenter, 2));
-                            const maxDist = scales.getDistanceFromCenterForValue(scales.max);
-                            const val = Math.round((dist / maxDist) * scales.max);
-                            
-                            // Acha o índice do dataset mais próximo do clique (ângulo)
-                            // Chart.js não expõe isso fácil, então vamos simplificar:
-                            // O usuário deve clicar perto dos pontos ou linhas.
-                            // Mas para não complicar: vou deixar o clique nos pontos existente funcionar melhor
-                        }
+                    onHover: (e, el) => {
+                        if (isWizard) return;
+                        const canvas = e.chart.canvas;
+                        canvas.style.cursor = el.length ? 'grab' : 'default';
+                        if(this.chartDrag.isDragging) canvas.style.cursor = 'grabbing';
                     }
                 }
             };
 
-            // INTERAÇÃO DE ARRASTO (SIMULADA COM CLIQUE PRÓXIMO)
-            if(!isWizard) {
-                config.options.onClick = (e) => {
-                    const canvas = e.chart.canvas;
-                    const rect = canvas.getBoundingClientRect();
-                    const x = e.native.clientX - rect.left;
-                    const y = e.native.clientY - rect.top;
-                    
-                    const scale = e.chart.scales.r;
-                    const angle = Math.atan2(y - scale.yCenter, x - scale.xCenter);
-                    
-                    // Mapeia angulo para índice (0-4)
-                    // Chart.js começa em -PI/2 (topo/FOR) e vai horário
-                    let deg = (angle * 180 / Math.PI) + 90; 
-                    if(deg < 0) deg += 360;
-                    
-                    // 5 eixos = 72 graus cada.
-                    const index = Math.round(deg / 72) % 5;
-                    
-                    // Calcula valor baseado na distância
-                    const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
-                    const maxDist = scale.getDistanceFromCenterForValue(6); // Max stat 6
-                    let newVal = Math.round((dist / maxDist) * 6);
-                    newVal = Math.max(-1, Math.min(6, newVal));
-
-                    // Atualiza
-                    const keys = ['for','agi','int','von','pod'];
-                    const key = keys[index];
-                    
-                    // Aplica mudança
-                    if(this.char.attrs[key] !== newVal) {
-                        this.char.attrs[key] = newVal;
-                        this.recalcDerivedStats();
-                        this.updateRadarChart();
-                    }
-                };
+            if (!isWizard) {
+                // DRAG LOGIC - LISTENERS
+                // Chart.js não tem evento de drag nativo fácil, usamos HTML events no canvas
+                // Mas precisamos anexar APENAS UMA VEZ
             }
 
             if (ctx.chart) { 
                 ctx.chart.data.datasets[0].data = data; 
                 ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
                 ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; 
-                ctx.chart.options = config.options; // Atualiza options para pegar o click event
                 ctx.chart.update(); 
             } 
             else { 
                 ctx.chart = new Chart(ctx, config); 
+                
+                // EVENTOS MANUAIS PARA DRAG (Só adiciona se não for wizard e for novo gráfico)
+                if(!isWizard) {
+                    const canvas = ctx.chart.canvas;
+                    
+                    const startDrag = (e) => {
+                        const points = ctx.chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+                        if (points.length) {
+                            this.chartDrag.isDragging = true;
+                            this.chartDrag.elementIndex = points[0].index;
+                            this.chartDrag.chartInstance = ctx.chart;
+                            document.body.classList.add('chart-grabbing');
+                            // Desabilita seleção de texto durante drag
+                            e.preventDefault();
+                        }
+                    };
+
+                    const moveDrag = (e) => this.handleChartMove(e, ctx.chart);
+                    
+                    canvas.addEventListener('mousedown', startDrag);
+                    canvas.addEventListener('touchstart', startDrag, {passive: false});
+                    
+                    canvas.addEventListener('mousemove', moveDrag);
+                    canvas.addEventListener('touchmove', moveDrag, {passive: false});
+                }
             }
         },
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
