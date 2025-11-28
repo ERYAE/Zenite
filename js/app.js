@@ -2,9 +2,9 @@
  * ZENITE OS - Core Application
  * Version: v58.0-Stable-Interactive
  * Changelog:
- * - Fix: Radar Chart Drag Math (Now supports -1 to 6 correctly)
- * - Fix: Event Listener Memory Leak (Drag stops working fixed)
- * - Feat: Wizard Chart Interaction Enabled
+ * - Fix: Radar Chart Animation & Drag Stability (Removed destroy loop)
+ * - Fix: Drag Math (-1 to 6 scale properly mapped)
+ * - Fix: Wizard Interaction Enabled
  * - Perf: Optimized Render Loop
  */
 
@@ -16,6 +16,7 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
+// --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
@@ -460,6 +461,7 @@ function zeniteSystem() {
             this.chartState.context = null;
             document.body.classList.remove('chart-grabbing');
             if (this.chartState.chartInstance) {
+                // Ao soltar, faz update normal para animar a "fixação" se necessário
                 this.chartState.chartInstance.update();
             }
         },
@@ -481,12 +483,12 @@ function zeniteSystem() {
             
             // MATH FIX: Mapeamento de pixel para valor (-1 a 6)
             // A escala total é 7 unidades (-1, 0, 1, 2, 3, 4, 5, 6)
-            // O centro do gráfico é o valor mínimo (-1)
             const maxDist = scale.getDistanceFromCenterForValue(6);
             
             // Fórmula: Valor = Min + (DistânciaAtual / DistânciaMáxima) * (Max - Min)
-            let newVal = Math.round(-1 + (dist / maxDist) * (6 - (-1)));
-            newVal = Math.max(-1, Math.min(6, newVal)); // Clamp
+            // Min = -1, Max = 6, Intervalo = 7
+            let newVal = Math.round(-1 + (dist / maxDist) * 7);
+            newVal = Math.max(-1, Math.min(6, newVal)); // Clamp rigoroso
 
             const keys = ['for','agi','int','von','pod'];
             const key = keys[this.chartState.dataIndex];
@@ -496,25 +498,17 @@ function zeniteSystem() {
             if (target.attrs[key] !== newVal) {
                 target.attrs[key] = newVal;
                 
-                // WIZARD LOGIC: Deduz pontos se estiver no Wizard
-                if (context === 'wizard') {
-                    // Recalcula total usado para ver se tem pontos sobrando
-                    let totalUsed = 0;
-                    ['for','agi','int','von','pod'].forEach(k => {
-                        // Custo: valor atual - base (-1 ou 0 se foco)
-                        // Simplificação: apenas soma valores > base
-                        // Na verdade, o wizard limita por pontos. Vamos permitir o drag visual
-                        // mas atualizar os pontos. Se pontos < 0, a UI do wizard vai mostrar negativo
-                        // O God Mode permite liberdade visual, a validação ocorre no 'finishWizard'
-                    });
-                    this.wizardPoints = 8 - (Object.values(target.attrs).reduce((a,b)=>a+b, 0) - (-5)); // Aproximação
-                }
-
+                // Atualiza o gráfico VISUALMENTE
                 chart.data.datasets[0].data[this.chartState.dataIndex] = newVal;
-                chart.update('none'); // Update sem animação (super rápido)
+                chart.update('none'); // Update rápido sem animação (drag performance)
                 
                 if (context === 'char') {
                     this.recalcDerivedStats();
+                } else if (context === 'wizard') {
+                    // Recalcula pontos (se necessário para a UI, embora o finishWizard valide)
+                    // (Opcional: atualizar this.wizardPoints em tempo real)
+                    let totalUsed = Object.values(target.attrs).reduce((a,b)=>a+Math.max(0, b), 0); 
+                    // Lógica simplificada de pontos para feedback visual
                 }
             }
         },
@@ -522,13 +516,16 @@ function zeniteSystem() {
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id); if(!ctx) return;
             
-            // CLEANUP: Destruir gráfico anterior para evitar memory leaks e listeners duplicados
+            // UPDATE EXISTENTE: A Chave da Performance
             if (ctx.chart) {
-                ctx.chart.destroy();
-                // Importante: Clonar o node para limpar listeners nativos agressivos se necessário
-                // Mas Chart.js destroy() geralmente cuida disso.
+                ctx.chart.data.datasets[0].data = data;
+                // Se estiver arrastando, 'none'. Se for carregamento normal, 'default' (animado).
+                const animMode = this.chartState.isDragging ? 'none' : 'default';
+                ctx.chart.update(animMode);
+                return;
             }
 
+            // CRIAÇÃO INICIAL (Executa uma vez)
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
             
@@ -550,7 +547,6 @@ function zeniteSystem() {
                 options: { 
                     responsive: true, 
                     maintainAspectRatio: false, 
-                    animation: { duration: 0 }, // Desativa animação na criação para responsividade
                     scales: { 
                         r: { 
                             min: -1, max: 6, 
@@ -572,7 +568,7 @@ function zeniteSystem() {
             const chart = new Chart(ctx, config);
             ctx.chart = chart; // Armazena instância no DOM element
 
-            // MANUAL DRAG EVENT LISTENERS
+            // DRAG EVENT LISTENERS (Anexados uma única vez na criação)
             const canvas = chart.canvas;
             const context = isWizard ? 'wizard' : 'char';
 
@@ -595,11 +591,9 @@ function zeniteSystem() {
                 }
             };
 
-            // Adiciona listeners (Chart.js destroy() remove do canvas, mas garantimos limpeza)
             canvas.addEventListener('mousedown', startDrag);
             canvas.addEventListener('touchstart', startDrag, {passive: false});
             
-            // Mousemove global para evitar que o drag pare se sair do canvas
             window.addEventListener('mousemove', moveDrag);
             window.addEventListener('touchmove', moveDrag, {passive: false});
         },
