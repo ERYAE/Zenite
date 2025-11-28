@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v61.0-Stable-Redemption
+ * Version: v62.0-Stable-Foundation
  * Changelog:
- * - CRITICAL FIX: Decoupled Chart.js instance from Alpine reactivity (Fixed crash/lag)
- * - Fix: Data Loading (Agents should reappear now that the script doesn't crash)
- * - Feat: Smooth Drag & Drop for Attributes (-1 to 6 scale)
- * - Feat: Wizard & Sheet full interactivity
+ * - Removed: Radar Chart Dragging (Source of instability)
+ * - Fix: Crash causing agents to disappear (Alpine Reactivity Loop fixed)
+ * - Fix: Data Corruption Handling (Safe Load)
+ * - Perf: Maximum stability mode
  */
 
 const CONSTANTS = {
@@ -16,13 +16,11 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- GLOBAL NON-REACTIVE STATE ---
-// Importante: Mantemos a instância do gráfico FORA do Alpine para evitar proxying pesado
+// --- GLOBAL INSTANCE (Non-Reactive) ---
 let radarInstance = null;
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 
-// Helpers
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -80,9 +78,6 @@ function zeniteSystem() {
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
         supabase: null, debouncedSaveFunc: null,
 
-        // DRAG STATE (Simplified inside Alpine, heavy lifting is external)
-        isChartDragging: false,
-
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
             { class: 'Estrategista', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500', desc: 'Análise tática e liderança.' },
@@ -103,8 +98,7 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            // Failsafe para loader
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 4000);
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 3000);
 
             try {
                 if (typeof window.supabase !== 'undefined') {
@@ -118,11 +112,9 @@ function zeniteSystem() {
                 window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
                 window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
                 
-                // Cursor & Watchers
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
-                // Load Data
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
                 if (isGuest) { 
                     this.isGuest = true; this.loadLocal('zenite_guest_db'); 
@@ -146,7 +138,13 @@ function zeniteSystem() {
                 
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
-            } catch (err) { console.error("BOOT ERROR:", err); } finally { this.systemLoading = false; }
+            } catch (err) { 
+                console.error("BOOT ERROR:", err); 
+                // Se der erro fatal, força a UI a aparecer
+                this.systemLoading = false;
+            } finally { 
+                this.systemLoading = false; 
+            }
         },
 
         ensureTrayOnScreen() {
@@ -165,13 +163,13 @@ function zeniteSystem() {
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle, canvas') !== null;
+                if(this.settings.mouseTrail && !this.isMobile) isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
             });
             const renderLoop = () => {
                 if (!trail) return;
                 if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block';
-                    trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
+                    trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; 
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 } else { trail.style.display = 'none'; }
@@ -180,7 +178,25 @@ function zeniteSystem() {
             renderLoop();
         },
 
-        // --- CORE LOGIC ---
+        toggleDiceTray() {
+            this.diceTrayOpen = !this.diceTrayOpen;
+            if(this.diceTrayOpen) { this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal(); this.ensureTrayOnScreen(); }
+        },
+        setDockMode(mode) {
+            this.trayDockMode = mode;
+            if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
+        },
+        startDragTray(e) {
+            if(this.isMobile || this.trayDockMode !== 'float') return;
+            if(e.target.closest('button') || e.target.closest('input')) return;
+            this.isDraggingTray = true;
+            this.dragOffset.x = e.clientX - this.trayPosition.x;
+            this.dragOffset.y = e.clientY - this.trayPosition.y;
+            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
+            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
+            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
+        },
+
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -188,8 +204,7 @@ function zeniteSystem() {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
                     this.debouncedSaveFunc();
-                    // Só atualiza o gráfico se NÃO estiver arrastando (evita loop visual)
-                    if (this.activeTab === 'profile' && !this.isChartDragging) this.updateRadarChart();
+                    if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
         },
@@ -199,15 +214,25 @@ function zeniteSystem() {
             if(local) {
                 try {
                     const parsed = JSON.parse(local);
+                    // Safe Data Recovery
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                     if(parsed.hasSeenTip) this.hasSeenDiceTip = parsed.hasSeenTip;
+                    
                     const validChars = {};
-                    Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip','diceTrayOpen'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
+                    Object.keys(parsed).forEach(k => { 
+                        // Ignora chaves de config e verifica integridade
+                        if(!['config','trayPos','hasSeenTip','diceTrayOpen'].includes(k) && parsed[k] && parsed[k].id) {
+                            validChars[k] = parsed[k];
+                        }
+                    });
                     this.chars = validChars;
                     this.updateAgentCount();
                     this.diceTrayOpen = false;
-                } catch(e) {}
+                } catch(e) {
+                    console.error("Data Corruption detected:", e);
+                    this.notify("Dados locais corrompidos.", "error");
+                }
             }
         },
 
@@ -362,36 +387,10 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        // --- DICE TRAY UTILS ---
-        toggleDiceTray() {
-            this.diceTrayOpen = !this.diceTrayOpen;
-            if(this.diceTrayOpen) { this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal(); this.ensureTrayOnScreen(); }
-        },
-        setDockMode(mode) {
-            this.trayDockMode = mode;
-            if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
-        },
-        startDragTray(e) {
-            if(this.isMobile || this.trayDockMode !== 'float') return;
-            if(e.target.closest('button') || e.target.closest('input')) return;
-            this.isDraggingTray = true;
-            this.dragOffset.x = e.clientX - this.trayPosition.x;
-            this.dragOffset.y = e.clientY - this.trayPosition.y;
-            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
-            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
-            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
-        },
-
-        // --- CHART ENGINE (EXTERNAL INSTANCE) ---
+        // --- CHART ENGINE (PURE VISUALIZATION) ---
         _renderChart(id, data, isWizard=false) {
             const ctx = document.getElementById(id); if(!ctx) return;
             
-            // SETUP LISTENERS ONCE
-            if(!ctx.hasDragListeners) {
-                this.setupDragListeners(ctx, isWizard);
-                ctx.hasDragListeners = true;
-            }
-
             const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
             const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
             
@@ -399,9 +398,9 @@ function zeniteSystem() {
                 radarInstance.data.datasets[0].data = data;
                 radarInstance.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
                 radarInstance.data.datasets[0].borderColor = `rgba(${rgb}, 1)`;
-                radarInstance.update(); // Animação padrão (exceto durante drag)
+                radarInstance.update();
             } else {
-                if(radarInstance) radarInstance.destroy(); // Limpa anterior
+                if(radarInstance) radarInstance.destroy();
                 
                 radarInstance = new Chart(ctx, {
                     type: 'radar',
@@ -413,14 +412,12 @@ function zeniteSystem() {
                             borderColor: `rgba(${rgb}, 1)`, 
                             borderWidth: 2, 
                             pointBackgroundColor: '#fff', 
-                            pointRadius: 6, 
-                            pointHoverRadius: 9,
-                            pointHitRadius: 25
+                            pointRadius: 4 // Menor e não interativo
                         }] 
                     },
                     options: { 
                         responsive: true, maintainAspectRatio: false,
-                        animation: { duration: 500 }, // Smooth entry
+                        animation: { duration: 500 },
                         scales: { 
                             r: { 
                                 min: -1, max: 6, ticks: { display: false, stepSize: 1 }, 
@@ -429,8 +426,10 @@ function zeniteSystem() {
                                 pointLabels: { color: 'rgba(255,255,255,0.7)', font: { size: 10, family: 'Orbitron' } }
                             } 
                         }, 
-                        plugins: { legend: { display: false } },
-                        onHover: (e, el) => { e.chart.canvas.style.cursor = el.length ? 'grab' : 'default'; }
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        // Interação Desativada
+                        hover: { mode: null },
+                        interaction: { mode: null }
                     }
                 });
             }
@@ -438,72 +437,6 @@ function zeniteSystem() {
 
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d, false); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
-
-        // --- MANUAL DOM DRAG HANDLERS ---
-        setupDragListeners(canvas, isWizard) {
-            let isDragging = false;
-            let dataIndex = null;
-
-            const start = (e) => {
-                if(!radarInstance) return;
-                const points = radarInstance.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-                if (points.length) {
-                    isDragging = true;
-                    this.isChartDragging = true; // Tell Alpine to pause watchers
-                    dataIndex = points[0].index;
-                    canvas.style.cursor = 'grabbing';
-                    e.preventDefault();
-                }
-            };
-
-            const move = (e) => {
-                if (!isDragging || !radarInstance) return;
-                e.preventDefault();
-
-                const rect = canvas.getBoundingClientRect();
-                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-
-                const scale = radarInstance.scales.r;
-                const dist = Math.sqrt(Math.pow(x - scale.xCenter, 2) + Math.pow(y - scale.yCenter, 2));
-                const maxDist = scale.getDistanceFromCenterForValue(6);
-                
-                // MATH: Mapeia distância para -1 a 6
-                let val = -1 + (dist / maxDist) * 7;
-                val = Math.round(val);
-                val = Math.max(-1, Math.min(6, val));
-
-                const keys = ['for','agi','int','von','pod'];
-                const key = keys[dataIndex];
-                const target = isWizard ? this.wizardData : this.char;
-
-                if (target.attrs[key] !== val) {
-                    target.attrs[key] = val;
-                    radarInstance.data.datasets[0].data[dataIndex] = val;
-                    radarInstance.update('none'); // Instant update
-                    
-                    if (!isWizard) this.recalcDerivedStats();
-                }
-            };
-
-            const end = () => {
-                if(isDragging) {
-                    isDragging = false;
-                    this.isChartDragging = false; // Resume watchers
-                    canvas.style.cursor = 'default';
-                    if(radarInstance) radarInstance.update(); // Snap animation
-                }
-            };
-
-            canvas.addEventListener('mousedown', start);
-            canvas.addEventListener('touchstart', start, {passive: false});
-            window.addEventListener('mousemove', move);
-            window.addEventListener('touchmove', move, {passive: false});
-            window.addEventListener('mouseup', end);
-            window.addEventListener('touchend', end);
-        },
 
         triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
