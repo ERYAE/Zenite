@@ -1,7 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v53.1-GodMode-Patch
- * Fixes: Dice Tray State Leaks, Debug Console Restoration, D3 Guarantee
+ * Version: v55.3-Precision-Update
+ * Changelog:
+ * - Fix: Cursor Offset Math (Now handled via CSS margins for absolute precision)
+ * - Feat: Revert Changes (Desfazer)
+ * - Perf: Optimized Animation Curves
  */
 
 const CONSTANTS = {
@@ -12,9 +15,10 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- MOTOR GRÁFICO (Zero Lag) ---
+// --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
+let renderRafId = null;
 
 function debounce(func, wait) {
     let timeout;
@@ -26,18 +30,16 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- ESTADOS GERAIS ---
+        // --- STATES ---
         systemLoading: true,
         loadingChar: false,
-        consoleOpen: false,
-        sysLogs: [],
         notifications: [],
         user: null,
         isGuest: false,
         userMenuOpen: false,
         authLoading: false, authMsg: '', authMsgType: '',
         
-        // --- DADOS ---
+        // --- DATA ---
         chars: {},
         activeCharId: null,
         char: null,
@@ -47,11 +49,10 @@ function zeniteSystem() {
         logisticsTab: 'inventory',
         searchQuery: '',
         
-        // --- BANDEJA DE DADOS (DICE TRAY) ---
+        // --- WIDGETS ---
         diceTrayOpen: false,
         showDiceLog: false,
-        trayDockMode: 'float', // 'float', 'dock-left', 'dock-right'
-        // Posição inicial segura (Canto inferior direito, mas visível)
+        trayDockMode: 'float',
         trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
@@ -67,17 +68,22 @@ function zeniteSystem() {
         diceMod: 0,
         isMobile: window.innerWidth < 768,
         
-        // --- MODAIS ---
+        // --- MODALS ---
         configModal: false,
         wizardOpen: false, 
+        
+        // Image Handling
         cropperOpen: false,
+        cropperInstance: null,
+        uploadContext: 'char',
+
         confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
         // --- WIZARD ---
         wizardStep: 1,
         wizardPoints: 8,
-        wizardData: { class: '', name: '', identity: '', age: '', history: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+        wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         wizardFocusAttr: '',
         
         // --- CONFIGS ---
@@ -113,142 +119,158 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            if (typeof window.supabase !== 'undefined') {
-                this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
-                    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
-                });
-            }
-
-            this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
-
-            window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            
-            // Responsividade
-            window.addEventListener('resize', () => {
-                this.isMobile = window.innerWidth < 768;
-                this.ensureTrayOnScreen();
-            });
-
-            // Botão Voltar (History API)
-            window.addEventListener('popstate', (event) => {
-                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
-                    if(this.currentView === 'sheet') this.saveAndExit(true); 
-                    this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
+            setTimeout(() => { 
+                if(this.systemLoading) {
+                    console.warn("Zenite OS: Forced Boot due to timeout.");
+                    this.systemLoading = false; 
                 }
-            });
+            }, 5000);
 
-            this.setupCursorEngine(); 
-            this.setupWatchers();
-
-            const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-            
-            if (isGuest) {
-                this.isGuest = true; this.loadLocal('zenite_guest_db'); this.systemLoading = false;
-            } else {
-                this.loadLocal('zenite_cached_db');
-                if(this.supabase) {
-                    try {
-                        const { data: { session } } = await this.supabase.auth.getSession();
-                        if (session) { this.user = session.user; await this.fetchCloud(); }
-                    } catch(e) {}
-                    
-                    this.supabase.auth.onAuthStateChange(async (event, session) => {
-                        if (event === 'SIGNED_IN' && session) {
-                            if (this.user?.id === session.user.id) return;
-                            this.user = session.user; this.isGuest = false;
-                            localStorage.removeItem('zenite_is_guest'); await this.fetchCloud();
-                        } else if (event === 'SIGNED_OUT') {
-                            this.user = null; this.chars = {}; this.currentView = 'dashboard';
-                        }
+            try {
+                if (typeof window.supabase !== 'undefined') {
+                    this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
+                        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
+
+                this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
+
+                window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+                
+                window.addEventListener('resize', () => {
+                    this.isMobile = window.innerWidth < 768;
+                    this.ensureTrayOnScreen();
+                });
+
+                window.addEventListener('popstate', (event) => {
+                    if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
+                        if(this.currentView === 'sheet') this.saveAndExit(true); 
+                        this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
+                    }
+                });
+
+                this.setupCursorEngine(); 
+                this.setupWatchers();
+
+                const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
+                
+                if (isGuest) {
+                    this.isGuest = true; this.loadLocal('zenite_guest_db');
+                } else {
+                    this.loadLocal('zenite_cached_db');
+                    
+                    if(this.supabase) {
+                        try {
+                            const { data: { session } } = await this.supabase.auth.getSession();
+                            if (session) { this.user = session.user; await this.fetchCloud(); }
+                        } catch(e) {
+                            console.error("Zenite Auth Error:", e);
+                            this.notify("Modo Offline (Erro Auth)", "warn");
+                        }
+                        
+                        this.supabase.auth.onAuthStateChange(async (event, session) => {
+                            if (event === 'SIGNED_IN' && session) {
+                                if (this.user?.id === session.user.id) return;
+                                this.user = session.user; this.isGuest = false;
+                                localStorage.removeItem('zenite_is_guest'); await this.fetchCloud();
+                            } else if (event === 'SIGNED_OUT') {
+                                this.user = null; this.chars = {}; this.currentView = 'dashboard';
+                            }
+                        });
+                    }
+                }
+
+                this.applyTheme(this.settings.themeColor);
+                if(this.settings.compactMode) document.body.classList.add('compact-mode');
+                if(this.settings.performanceMode) document.body.classList.add('performance-mode');
+                
+                this.updateCursorState();
+                this.updateAgentCount();
+                
+                setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+
+            } catch (err) {
+                console.error("CRITICAL BOOT ERROR:", err);
+                this.notify("Erro crítico na inicialização.", "error");
+            } finally {
                 this.systemLoading = false;
             }
-
-            this.applyTheme(this.settings.themeColor);
-            if(this.settings.compactMode) document.body.classList.add('compact-mode');
-            if(this.settings.performanceMode) document.body.classList.add('performance-mode');
-            
-            this.updateAgentCount();
-            setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
-            // Garante que a bandeja nunca nasça fora da tela
             this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- MOTOR GRÁFICO ---
+        // --- GRAPHICS & CURSOR ENGINE (OPTIMIZED) ---
+        updateCursorState() {
+            if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                document.body.classList.add('custom-cursor-active');
+            } else {
+                document.body.classList.remove('custom-cursor-active');
+            }
+        },
+
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
 
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail) isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                if(this.settings.mouseTrail && !this.isMobile) {
+                     isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                }
             });
 
             const renderLoop = () => {
-                if (this.settings.mouseTrail && trail && !this.settings.performanceMode) {
-                    trail.style.transform = `translate3d(${cursorX - 8}px, ${cursorY - 8}px, 0)`;
-                    if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
+                if (!trail) return;
+
+                if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                    trail.style.display = 'block';
+                    // OFFSET REMOVIDO NO JS: O CSS lida com a margem negativa agora
+                    // Isso garante que o centro do elemento esteja sempre em X,Y
+                    trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
+                    
+                    if(isCursorHover) trail.classList.add('hover-active'); 
+                    else trail.classList.remove('hover-active');
+                    
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
+                } else {
+                    trail.style.display = 'none';
                 }
-                requestAnimationFrame(renderLoop);
+                renderRafId = requestAnimationFrame(renderLoop);
             };
             renderLoop();
-            document.body.classList.add('custom-cursor-active');
         },
 
-        // --- LÓGICA DA BANDEJA DE DADOS ---
+        // --- DICE TRAY ---
         toggleDiceTray() {
             this.diceTrayOpen = !this.diceTrayOpen;
-            
             if(this.diceTrayOpen) {
-                // Se abriu, fecha o tooltip e marca como visto
-                this.showDiceTip = false;
-                this.hasSeenDiceTip = true;
-                this.saveLocal();
-                this.ensureTrayOnScreen(); // Garante posição visível
+                this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal();
+                this.ensureTrayOnScreen();
             }
         },
-
         setDockMode(mode) {
             this.trayDockMode = mode;
             if(mode === 'float') {
-                // Ao soltar, centraliza levemente
                 this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 };
                 this.ensureTrayOnScreen();
             }
         },
-
         startDragTray(e) {
             if(this.isMobile || this.trayDockMode !== 'float') return;
             if(e.target.closest('button') || e.target.closest('input')) return;
-            
             this.isDraggingTray = true;
             this.dragOffset.x = e.clientX - this.trayPosition.x;
             this.dragOffset.y = e.clientY - this.trayPosition.y;
-            
-            const moveHandler = (ev) => {
-                if(!this.isDraggingTray) return;
-                this.trayPosition.x = ev.clientX - this.dragOffset.x;
-                this.trayPosition.y = ev.clientY - this.dragOffset.y;
-            };
-            
-            const upHandler = () => {
-                this.isDraggingTray = false;
-                document.removeEventListener('mousemove', moveHandler);
-                document.removeEventListener('mouseup', upHandler);
-            };
-            
-            document.addEventListener('mousemove', moveHandler);
-            document.addEventListener('mouseup', upHandler);
+            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
+            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
+            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
 
-        // --- SISTEMA PADRÃO ---
+        // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar) return;
@@ -269,7 +291,6 @@ function zeniteSystem() {
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                     if(parsed.hasSeenTip) this.hasSeenDiceTip = parsed.hasSeenTip;
-                    
                     const validChars = {};
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
@@ -280,16 +301,33 @@ function zeniteSystem() {
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            const payload = { 
-                ...this.chars, 
-                config: this.settings, 
-                trayPos: this.trayPosition,
-                hasSeenTip: this.hasSeenDiceTip 
-            };
+            const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- CLOUD ---
+        // FUNÇÃO DE DESFAZER
+        revertChanges() {
+            this.askConfirm('DESFAZER TUDO?', 'Voltar ao último save?', 'warn', async () => {
+                // Recarrega do storage local ou nuvem, ignorando estado atual
+                if(this.isGuest) {
+                    this.loadLocal('zenite_guest_db');
+                } else {
+                    this.loadLocal('zenite_cached_db');
+                    await this.fetchCloud();
+                }
+                
+                // Se a ficha ativa foi resetada, recarrega ela na view
+                if(this.activeCharId && this.chars[this.activeCharId]) {
+                    this.loadingChar = true;
+                    this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
+                    this.$nextTick(() => { this.loadingChar = false; });
+                }
+
+                this.unsavedChanges = false;
+                this.notify('Alterações descartadas.', 'success');
+            });
+        },
+
         async fetchCloud() {
             if (!this.user || !this.supabase) return;
             let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
@@ -320,12 +358,12 @@ function zeniteSystem() {
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         
-        // --- RPG LOGIC ---
-        recalcDerivedStats() { 
-             if(!this.char) return; 
-            const c = this.char; const cl = c.class || 'Titã';
-            const oldPv = c.stats.pv.max || 0; const oldPf = c.stats.pf.max || 0; const oldPdf = c.stats.pdf.max || 0;
-            const lvl = Math.max(1, parseInt(c.level)||1); const get = (v) => parseInt(c.attrs[v]||0); 
+        // --- RPG CALCULATIONS ---
+        calculateBaseStats(className, levelStr, attrs) {
+            const cl = className || 'Titã';
+            const lvl = Math.max(1, parseInt(levelStr) || 1);
+            const get = (v) => parseInt(attrs[v] || 0);
+
             const config = {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
@@ -334,14 +372,31 @@ function zeniteSystem() {
                 'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
             };
             const cfg = config[cl] || config['Titã'];
-            const newPv = (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1));
-            const newPf = (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1));
-            const newPdf = (cfg.pdf[0] + get('von')) + ((cfg.pdf[1] + get('von')) * (lvl - 1));
-            if (oldPv > 0) c.stats.pv.current = Math.max(0, c.stats.pv.current + (newPv - oldPv)); else c.stats.pv.current = newPv;
-            if (oldPf > 0) c.stats.pf.current = Math.max(0, c.stats.pf.current + (newPf - oldPf)); else c.stats.pf.current = newPf;
-            if (oldPdf > 0) c.stats.pdf.current = Math.max(0, c.stats.pdf.current + (newPdf - oldPdf)); else c.stats.pdf.current = newPdf;
-            c.stats.pv.max = newPv; c.stats.pf.max = newPf; c.stats.pdf.max = newPdf;
+
+            return {
+                pv: (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1)),
+                pf: (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1)),
+                pdf: (cfg.pdf[0] + get('von')) + ((cfg.pdf[1] + get('von')) * (lvl - 1))
+            };
         },
+
+        recalcDerivedStats() { 
+            if(!this.char) return; 
+            const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs);
+            
+            const c = this.char;
+            const diffPv = (c.stats.pv.max || newStats.pv) - c.stats.pv.current;
+            const diffPf = (c.stats.pf.max || newStats.pf) - c.stats.pf.current;
+            const diffPdf = (c.stats.pdf.max || newStats.pdf) - c.stats.pdf.current;
+
+            c.stats.pv.max = newStats.pv;
+            c.stats.pv.current = Math.max(0, newStats.pv - diffPv);
+            c.stats.pf.max = newStats.pf;
+            c.stats.pf.current = Math.max(0, newStats.pf - diffPf);
+            c.stats.pdf.max = newStats.pdf;
+            c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
+        },
+
         modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
 
@@ -349,47 +404,63 @@ function zeniteSystem() {
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
             this.wizardStep = 1; this.wizardPoints = 8;
-            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
             this.wizardFocusAttr = '';
             history.pushState({ modal: 'wizard' }, "Wizard", "#new");
             this.wizardOpen = true; 
         },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
+        
         finishWizard() {
             if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
+            
             const id = 'z_'+Date.now();
+            const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
+
             const newChar = {
-                id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: '', history: this.wizardData.history, credits: 0,
+                id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, 
+                photo: this.wizardData.photo || '', 
+                history: this.wizardData.history, credits: 0,
                 attrs: {...this.wizardData.attrs},
-                stats: { pv: {current: 10, max: 10}, pf: {current: 10, max: 10}, pdf: {current: 10, max: 10} }, // Dummy values fixed by recalc
+                stats: { 
+                    pv: {current: calculated.pv, max: calculated.pv}, 
+                    pf: {current: calculated.pf, max: calculated.pf}, 
+                    pdf: {current: calculated.pdf, max: calculated.pdf} 
+                },
                 inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} },
                 skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
             };
-            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal();
+            
+            this.chars[id] = newChar; 
+            this.updateAgentCount(); 
+            this.saveLocal();
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false; if (window.location.hash === '#new') history.back();
-            this.loadCharacter(id); this.$nextTick(() => this.recalcDerivedStats()); this.notify('Agente Inicializado.', 'success');
+            
+            this.wizardOpen = false;
+            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            this.loadCharacter(id, true);
+            this.notify('Agente Inicializado.', 'success');
         },
         
         // --- UI UTILS ---
-        toggleSystemLog() { this.configModal = false; this.consoleOpen = !this.consoleOpen; },
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
             else { this.settings[key] = !this.settings[key]; 
                 if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode);
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode);
             }
+            this.updateCursorState(); 
             this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
             root.style.setProperty('--neon-core', hex); root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); 
-            const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, ${hex}, transparent 70%)`;
+            const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
         },
         toggleFullscreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } else if (document.exitFullscreen) { document.exitFullscreen(); } },
-        handleKeys(e) { if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); this.toggleSystemLog(); } },
+        handleKeys(e) { /* Console toggle removed */ },
         async logout() { this.systemLoading = true; if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); if(this.supabase) await this.supabase.auth.signOut(); window.location.reload(); },
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
@@ -399,28 +470,22 @@ function zeniteSystem() {
         saveAndExit(fromHistory = false) {
             if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
             this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-            
-            // RESETAR ESTADOS DA UI PARA A DASHBOARD
-            this.diceTrayOpen = false; // Fecha a bandeja!
-            this.showDiceTip = false;
-            
+            this.diceTrayOpen = false; this.showDiceTip = false;
             this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
          },
-        loadCharacter(id) {
+        loadCharacter(id, skipPush = false) {
              if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
-            history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            
             this.loadingChar = true; this.activeCharId = id;
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
                 if(!this.char.age) this.char.age = ""; 
                 this.currentView = 'sheet'; this.activeTab = 'profile';
-                
-                // Exibe dica se não viu e garante que a bandeja esteja fechada inicialmente
                 this.diceTrayOpen = false; 
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
-
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
             });
          },
@@ -451,14 +516,43 @@ function zeniteSystem() {
             const n = (arr[0] % s) + 1;
             const m = parseInt(this.diceMod || 0);
             this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
+            
             this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: `D${s}`, result: n+m, crit: n===s, fumble: n===1});
-            if(this.diceLog.length > 8) this.diceLog.pop();
+            
+            if (this.isMobile) {
+                if (this.diceLog.length > 10) this.diceLog.pop();
+            } else {
+                if (this.diceLog.length > 100) this.diceLog.pop();
+            }
         },
 
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
-        openImageEditor() { document.getElementById('file-input').click(); }, 
-        initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); }, 
-        applyCrop() { if(!this.cropperInstance) return; this.char.photo = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); this.cropperOpen = false; this.notify('Foto salva.', 'success'); },
+        
+        openImageEditor(context = 'sheet') { 
+            this.uploadContext = context; 
+            document.getElementById('file-input').click(); 
+        }, 
+        initCropper(e) { 
+            const file = e.target.files[0]; if(!file) return; 
+            const reader = new FileReader(); 
+            reader.onload = (evt) => { 
+                document.getElementById('crop-target').src = evt.target.result; 
+                this.cropperOpen = true; 
+                this.$nextTick(() => { 
+                    if(this.cropperInstance) this.cropperInstance.destroy(); 
+                    this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); 
+                }); 
+            }; 
+            reader.readAsDataURL(file); 
+            e.target.value = '';
+        }, 
+        applyCrop() { 
+            if(!this.cropperInstance) return; 
+            const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8);
+            if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; }
+            this.cropperOpen = false; this.notify('Foto processada.', 'success'); 
+        },
+        
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
         triggerFileImport() { document.getElementById('import-file').click(); },
         processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); }
