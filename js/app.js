@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v57.0-Phoenix-Revert
+ * Version: v58.0-TimeLock
  * Changelog:
- * - Feat: Nova animação de Revert (Desmontar/Remontar) substituindo a tela de loading.
- * - UX: Feedback visual mais fluido e "Cyberpunk".
- * - Core: Mantido o fix da bandeja (view nuke) dentro da nova animação.
+ * - Fix Critical: 'toggleDiceTray' agora possui um bloqueio temporal (TimeLock) baseado em 'lastRevertTime'.
+ * Isso impede que cliques fantasmas abram a bandeja após o botão de Revert desaparecer.
+ * - Fix Animation: performRevert não ativa mais systemLoading imediatamente, permitindo que a animação CSS apareça.
  */
 
 const CONSTANTS = {
@@ -61,6 +61,7 @@ function zeniteSystem() {
         showDiceTip: false, 
         hasSeenDiceTip: false,
         revertConfirmMode: false,
+        lastRevertTime: 0, // <--- O SEGREDO DO BLOQUEIO
 
         diceLog: [],
         lastRoll: '--',
@@ -245,7 +246,14 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // PERMISSIVO: Permite abrir/fechar. A proteção contra duplo clique está garantida pelo reset de view.
+            // TRAVA TEMPORAL (TIME LOCK) 🛑
+            // Se você usou o Revert há menos de 1.5 segundos, IGNORA qualquer tentativa de abrir a bandeja.
+            // Isso mata o "Ghost Click" e qualquer clique acidental.
+            if (Date.now() - this.lastRevertTime < 1500) return;
+
+            // Se o sistema estiver carregando, também ignora
+            if (this.systemLoading || this.loadingChar) return; 
+            
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
                 this.showDiceTip = false; 
@@ -322,38 +330,42 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 0. Setup Inicial
+            // 1. INICIA O BLOQUEIO TEMPORAL (TIME LOCK)
+            // Define o momento exato do revert. A bandeja está proibida de abrir por 1.5s a partir de AGORA.
+            this.lastRevertTime = Date.now(); 
             this.revertConfirmMode = false;
             this.diceTrayOpen = false;
-            
-            // 1. INICIA A ANIMAÇÃO DE SAÍDA (DESMONTAR)
-            // Pegamos o elemento principal da ficha para animar
+
+            // 2. ANIMAÇÃO DE SAÍDA (Sem tela preta ainda!)
             const mainEl = document.querySelector('main');
             if(mainEl) mainEl.classList.add('animate-out');
 
-            // 2. Espera a animação terminar (400ms)
+            // 3. AGUARDA A ANIMAÇÃO (400ms)
             setTimeout(async () => {
                 try {
-                    // 3. O "NUKE" (Void View) - Essencial para resetar a bandeja fantasma
-                    // Isso remove o HTML da ficha antiga completamente
+                    // 4. LIMPEZA TOTAL (Void)
                     const tempCharId = this.activeCharId;
                     this.currentView = 'void';
                     
-                    // 4. Reset de Dados (Backend/Local)
+                    // 5. CARREGA DADOS
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                    // 5. REMONTAGEM (Assemble)
+                    // 6. REMONTAGEM (Com Animação de Entrada)
                     if(tempCharId && this.chars[tempCharId]) {
                         await this.loadCharacter(tempCharId, true);
                         
-                        // Aplica a animação de entrada na NOVA ficha assim que ela renderizar
+                        // Garante que a bandeja está fechada e aplica animação de entrada
                         this.$nextTick(() => {
+                            this.diceTrayOpen = false; // Reforço
                             const newMain = document.querySelector('main');
-                            if(newMain) newMain.classList.add('animate-in');
+                            if(newMain) {
+                                newMain.classList.remove('animate-out'); // Limpa classe antiga
+                                newMain.classList.add('animate-in'); // Aplica entrada
+                            }
                             this.notify('Sistema restaurado.', 'success');
                             
-                            // Limpeza final das classes após animação
+                            // Remove classe de animação após terminar
                             setTimeout(() => {
                                 if(newMain) newMain.classList.remove('animate-in');
                             }, 700);
@@ -366,7 +378,7 @@ function zeniteSystem() {
                     this.notify("Erro ao restaurar.", "error");
                     this.currentView = 'dashboard';
                 }
-            }, 400); // Tempo exato da animação CSS 'dismantle'
+            }, 400); // Tempo para a animação 'dismantle' acontecer visivelmente
         },
 
         async fetchCloud() {
