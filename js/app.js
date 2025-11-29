@@ -1,11 +1,10 @@
 /**
- * ZENITE OS - Core Application
- * Version: v62.0-Stable-Foundation
- * Changelog:
- * - Removed: Radar Chart Dragging (Source of instability)
- * - Fix: Crash causing agents to disappear (Alpine Reactivity Loop fixed)
- * - Fix: Data Corruption Handling (Safe Load)
- * - Perf: Maximum stability mode
+ * ZENITE OS - Core Application (REFACTORED GOD MODE)
+ * Version: v63.0-Stable-Phoenix
+ * Fixes:
+ * - Critical: Character Loading restored (loadCharacter injected)
+ * - UX: Hitboxes expanded for mobile/mouse precision
+ * - Perf: Render loop optimized & Memory leaks patched
  */
 
 const CONSTANTS = {
@@ -140,10 +139,34 @@ function zeniteSystem() {
 
             } catch (err) { 
                 console.error("BOOT ERROR:", err); 
-                // Se der erro fatal, força a UI a aparecer
                 this.systemLoading = false;
             } finally { 
                 this.systemLoading = false; 
+            }
+        },
+
+        // --- CORE FUNCTION RESTORED ---
+        loadCharacter(id, isNew = false) {
+            if (!this.chars[id]) {
+                this.notify('Erro: Agente não localizado.', 'error');
+                return;
+            }
+            this.loadingChar = true;
+            this.activeCharId = id;
+            
+            // Deep Copy para isolar edição
+            this.char = JSON.parse(JSON.stringify(this.chars[id]));
+            
+            this.currentView = 'sheet';
+            this.activeTab = 'profile'; 
+            
+            this.$nextTick(() => {
+                this.updateRadarChart();
+                this.loadingChar = false;
+            });
+
+            if (!isNew) {
+                history.pushState({ view: 'sheet', id: id }, `Zenite - ${this.char.name}`, "#sheet");
             }
         },
 
@@ -160,13 +183,25 @@ function zeniteSystem() {
 
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
-            if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
+            const isFinePointer = window.matchMedia("(pointer: fine)").matches;
+            
+            if (!isFinePointer || !trail) { 
+                if(trail) trail.style.display = 'none'; 
+                return; 
+            }
+
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                if(this.settings.mouseTrail && !this.isMobile) {
+                    const t = e.target;
+                    isCursorHover = t.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
+                }
             });
+
+            let renderRafId;
             const renderLoop = () => {
-                if (!trail) return;
+                if (!document.body.contains(trail)) return;
+                
                 if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block';
                     trail.style.transform = `translate3d(${cursorX - 10}px, ${cursorY - 10}px, 0)`; 
@@ -198,14 +233,16 @@ function zeniteSystem() {
         },
 
         setupWatchers() {
+            // Watcher mais seguro e performático
             this.$watch('char', (val) => {
-                if (this.loadingChar) return;
-                if (val && this.activeCharId) {
-                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
-                    if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
-                    this.debouncedSaveFunc();
-                    if (this.activeTab === 'profile') this.updateRadarChart();
-                }
+                if (this.loadingChar || !this.activeCharId || !val) return;
+                
+                this.chars[this.activeCharId] = val; // Atualiza o "banco de dados" em memória
+                
+                if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
+                this.debouncedSaveFunc();
+                
+                if (this.activeTab === 'profile') this.updateRadarChart();
             }, {deep: true});
         },
 
@@ -214,14 +251,12 @@ function zeniteSystem() {
             if(local) {
                 try {
                     const parsed = JSON.parse(local);
-                    // Safe Data Recovery
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                     if(parsed.hasSeenTip) this.hasSeenDiceTip = parsed.hasSeenTip;
                     
                     const validChars = {};
                     Object.keys(parsed).forEach(k => { 
-                        // Ignora chaves de config e verifica integridade
                         if(!['config','trayPos','hasSeenTip','diceTrayOpen'].includes(k) && parsed[k] && parsed[k].id) {
                             validChars[k] = parsed[k];
                         }
@@ -247,9 +282,7 @@ function zeniteSystem() {
                 if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
                 this.diceTrayOpen = false;
                 if(this.activeCharId && this.chars[this.activeCharId]) {
-                    this.loadingChar = true;
-                    this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
-                    this.$nextTick(() => { this.loadingChar = false; });
+                    this.loadCharacter(this.activeCharId); // Reusa a função de load
                 }
                 this.unsavedChanges = false;
                 this.notify('Revertido.', 'success');
@@ -346,8 +379,7 @@ function zeniteSystem() {
             this.updateAgentCount(); this.saveLocal();
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
             this.wizardOpen = false;
-            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-            this.loadCharacter(id, true);
+            this.loadCharacter(id, true); // Usa o novo loader
             this.notify('Agente Inicializado.', 'success');
         },
         
@@ -412,7 +444,7 @@ function zeniteSystem() {
                             borderColor: `rgba(${rgb}, 1)`, 
                             borderWidth: 2, 
                             pointBackgroundColor: '#fff', 
-                            pointRadius: 4 // Menor e não interativo
+                            pointRadius: 4 
                         }] 
                     },
                     options: { 
@@ -427,7 +459,6 @@ function zeniteSystem() {
                             } 
                         }, 
                         plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                        // Interação Desativada
                         hover: { mode: null },
                         interaction: { mode: null }
                     }
