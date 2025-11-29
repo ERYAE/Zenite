@@ -30,13 +30,17 @@
     <div id="mouse-trail"></div>
     <div class="bg-grid"></div>
 
-    <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.100ms style="display: none;">
-        <div class="glitch-text mb-4" data-text="FATAL ERROR">FATAL ERROR</div>
-        <p class="text-red-500 font-code animate-pulse mb-8">NEURAL LINK SEVERED // KERNEL PANIC</p>
-        <div class="font-code text-xs text-red-800 opacity-50 max-w-lg break-all">
+    <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
+        <div class="glitch-text mb-8" data-text="FATAL SYSTEM ERROR">FATAL SYSTEM ERROR</div>
+        <div class="flex flex-col gap-2 font-code text-red-600 text-sm animate-pulse tracking-widest text-center">
+            <p>CRITICAL KERNEL PANIC // MEMORY DUMP: 0xFF0003</p>
+            <p>DATA CORRUPTION IMMINENT</p>
+            <p>SEVERING NEURAL LINK...</p>
+        </div>
+        <div class="mt-12 font-code text-[10px] text-red-900 opacity-70 max-w-lg break-all uppercase">
             0x000045 ERROR_ACCESS_DENIED 0x0F4C OVERFLOW_STACK_TRACE
-            SYSTEM_HALT_IMMINENT... PURGING DATABANKS...
-            PLEASE REMAIN CALM. AUTHORITIES HAVE BEEN NOTIFIED.
+            USER_ID_NOT_FOUND SEGMENTATION_FAULT (CORE DUMPED)
+            INITIATING_EMERGENCY_SHUTDOWN_SEQUENCE...
         </div>
     </div>
 
@@ -101,7 +105,7 @@
                     <img src="images/zenite_logo.svg" class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform">
                     <div class="flex flex-col">
                         <h1 class="text-lg font-bold text-white tracking-widest font-brand leading-none">ZENITE</h1>
-                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V72</span>
+                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V73</span>
                     </div>
                 </div>
             </div>
@@ -141,12 +145,29 @@
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
         </div>
-        <template x-if="agentCount === 0"><div class="py-32 text-center opacity-30 select-none"><div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div><p class="font-brand text-xl">SISTEMA VAZIO</p></div></template>
+        
+        <template x-if="agentCount === 0">
+            <div class="py-32 text-center opacity-30 select-none">
+                <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
+                <p class="font-brand text-xl">SISTEMA VAZIO</p>
+            </div>
+        </template>
+        
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <template x-for="(c, id) in filteredChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]">
-                    <div class="relative z-10 flex-shrink-0"><div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover"></div></div>
-                    <div class="relative z-10 overflow-hidden"><h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3><div class="flex items-center gap-2 mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span><span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span></div></div>
+                    <div class="relative z-10 flex-shrink-0">
+                        <div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors">
+                            <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover">
+                        </div>
+                    </div>
+                    <div class="relative z-10 overflow-hidden">
+                        <h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span>
+                            <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
+                        </div>
+                    </div>
                     <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"><i class="fa-solid fa-trash-can"></i></button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
                 </div>

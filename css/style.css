@@ -6,10 +6,6 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --neon-core: #0ea5e9;
     --neon-rgb: 14, 165, 233;
-    --neon-alert: #ef4444;
-    --neon-success: #10b981;
-    --neon-warn: #f59e0b;
-    --neon-purple: #d946ef;
     
     --radius-std: 16px;
     --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
@@ -26,52 +22,72 @@ body {
     padding-bottom: 120px;
     cursor: auto; 
     -webkit-tap-highlight-color: transparent;
-    transition: background-color 0.5s ease; /* Transição suave para fullscreen/temas */
+    transition: background-color 0.5s ease;
 }
 
-/* --- THEME: HACKER MODE (KONAMI CODE) --- */
+/* --- THEME: HACKER MODE (MATRIX STYLE) --- */
 body.theme-hacker {
-    --bg-void: #000000;
-    --glass-panel: rgba(0, 20, 0, 0.9);
-    --glass-border: #00ff00;
-    --neon-core: #00ff00;
-    --neon-rgb: 0, 255, 0;
+    --bg-void: #000a00;
+    --glass-panel: rgba(0, 20, 0, 0.8);
+    --glass-border: #00ff41;
+    --neon-core: #00ff41;
+    --neon-rgb: 0, 255, 65;
     font-family: 'JetBrains Mono', monospace !important;
 }
 body.theme-hacker * { font-family: 'JetBrains Mono', monospace !important; letter-spacing: -0.5px; }
-body.theme-hacker .bg-grid { background-image: linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px); }
 
-/* --- CRT / PIXEL EFFECT --- */
+/* Matrix Rain Effect (CSS Only) */
+body.theme-hacker::before {
+    content: "";
+    position: fixed; inset: 0; z-index: -2;
+    background-image: linear-gradient(0deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent);
+    background-size: 50px 50px;
+    animation: matrix-scroll 20s linear infinite;
+    opacity: 0.2;
+}
+@keyframes matrix-scroll { 0% { background-position: 0 0; } 100% { background-position: 0 1000px; } }
+
+/* --- CRT / PIXEL EFFECT (SUAVE) --- */
 body.crt-mode::after {
     content: " ";
     display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-    z-index: 2147483640; /* Abaixo do susto */
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    z-index: 2147483640;
     background-size: 100% 3px, 3px 100%;
-    pointer-events: none; opacity: 1; mix-blend-mode: hard-light;
+    pointer-events: none; 
+    opacity: 0.4; /* BEM MAIS SUAVE */
+    mix-blend-mode: overlay;
 }
 
-/* --- SYSTEM FAILURE OVERLAY (O SUSTO) --- */
+/* --- SYSTEM FAILURE OVERLAY (TERROR) --- */
 #system-failure {
     position: fixed; inset: 0; z-index: 2147483647;
     background: #000; color: #ff0000;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-family: 'JetBrains Mono', monospace;
-    text-align: center;
-    overflow: hidden;
+    text-align: center; overflow: hidden;
+    animation: panic-strobe 0.1s infinite; /* Pisca o fundo */
 }
+@keyframes panic-strobe {
+    0% { background: #000; }
+    50% { background: #1a0000; }
+    100% { background: #000; }
+}
+
 .glitch-text {
-    font-size: 4rem; font-weight: 900; position: relative;
-    animation: glitch-skew 1s infinite linear alternate-reverse;
+    font-size: 5rem; font-weight: 900; position: relative;
+    animation: glitch-skew 0.3s infinite linear alternate-reverse;
+    text-shadow: 4px 4px 0px #000;
 }
 .glitch-text::before, .glitch-text::after {
     content: attr(data-text); position: absolute; left: 0; width: 100%; height: 100%;
+    background: #000;
 }
-.glitch-text::before { left: 2px; text-shadow: -2px 0 #00fff9; clip: rect(44px, 450px, 56px, 0); animation: glitch-anim 5s infinite linear alternate-reverse; }
-.glitch-text::after { left: -2px; text-shadow: -2px 0 #ff00c1; clip: rect(44px, 450px, 56px, 0); animation: glitch-anim2 5s infinite linear alternate-reverse; }
+.glitch-text::before { left: 4px; text-shadow: -2px 0 #ff0000; clip: rect(44px, 450px, 56px, 0); animation: glitch-anim 2s infinite linear alternate-reverse; }
+.glitch-text::after { left: -4px; text-shadow: -2px 0 #00ffff; clip: rect(44px, 450px, 56px, 0); animation: glitch-anim2 2s infinite linear alternate-reverse; }
 
-@keyframes glitch-anim { 0% { clip: rect(31px, 9999px, 94px, 0); } 20% { clip: rect(6px, 9999px, 86px, 0); } 40% { clip: rect(67px, 9999px, 20px, 0); } 60% { clip: rect(2px, 9999px, 7px, 0); } 80% { clip: rect(54px, 9999px, 90px, 0); } 100% { clip: rect(13px, 9999px, 9px, 0); } }
-@keyframes glitch-anim2 { 0% { clip: rect(65px, 9999px, 100px, 0); } 20% { clip: rect(54px, 9999px, 86px, 0); } 40% { clip: rect(23px, 9999px, 4px, 0); } 60% { clip: rect(84px, 9999px, 5px, 0); } 80% { clip: rect(2px, 9999px, 46px, 0); } 100% { clip: rect(57px, 9999px, 98px, 0); } }
+@keyframes glitch-anim { 0% { clip: rect(31px, 9999px, 94px, 0); } 40% { clip: rect(67px, 9999px, 20px, 0); } 80% { clip: rect(54px, 9999px, 90px, 0); } }
+@keyframes glitch-anim2 { 0% { clip: rect(65px, 9999px, 100px, 0); } 40% { clip: rect(23px, 9999px, 4px, 0); } 80% { clip: rect(2px, 9999px, 46px, 0); } }
 
 /* --- CYBER GRID --- */
 .bg-grid {

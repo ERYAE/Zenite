@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v72.0-Koda-Prime-Secrets
+ * Version: v73.0-Koda-Final-Polished
  * Changelog:
- * - Feat: Sound FX Engine (Web Audio API - Sem downloads!)
- * - Feat: Fullscreen Toggle na Logo.
- * - Secret: Konami Code (Hacker Mode).
- * - Secret: 5-Click BSOD (Susto do Sistema).
+ * - Fix SFX: Anti-spam (Throttle) nos sons de hover.
+ * - Fix Audio: Volume reduzido e timbres ajustados.
+ * - Fix CRT: Só ativa após login e com opacidade reduzida.
+ * - Feat: Matrix Rain no tema Hacker.
  */
 
 const CONSTANTS = {
@@ -20,35 +20,73 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- AUDIO ENGINE ---
+// --- AUDIO ENGINE (OTIMIZADO) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let lastHoverTime = 0; // Para controle de spam
+
 const playSFX = (type) => {
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    const now = audioCtx.currentTime;
+
+    // THROTTLE: Impede sons repetidos muito rápido (Anti-metralhadora)
+    if (type === 'hover') {
+        if (now - lastHoverTime < 0.15) return; // Espera 150ms entre hovers
+        lastHoverTime = now;
+    }
+
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
+    const filter = audioCtx.createBiquadFilter(); // Filtro para suavizar
 
-    const now = audioCtx.currentTime;
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
     if (type === 'hover') {
-        osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
+        // Som mais suave e "tech" (Sine wave com filtro)
+        osc.type = 'sine';
+        filter.type = 'lowpass'; filter.frequency.value = 1000;
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.03);
+        gain.gain.setValueAtTime(0.02, now); // Volume bem baixo
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+        osc.start(now); osc.stop(now + 0.03);
+
     } else if (type === 'click') {
-        osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
-    } else if (type === 'error') {
-        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); osc.frequency.linearRampToValueAtTime(50, now + 0.3);
-        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
+        // Clique mecânico sutil
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+
     } else if (type === 'success') {
-        osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
+        // Blip positivo
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(880, now + 0.1);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+
     } else if (type === 'glitch') {
-        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(50, now); osc.frequency.linearRampToValueAtTime(800, now + 0.5);
-        gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        // Som de erro fatal (Sawtooth + Ruído simulado)
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(50, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.5); // Grave e distorcido
+        gain.gain.setValueAtTime(0.4, now); // Mais alto
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
         osc.start(now); osc.stop(now + 0.5);
+    } else if (type === 'error') {
+        // Erro padrão
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
     }
 };
 
@@ -68,10 +106,7 @@ function zeniteSystem() {
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
         
         // SECRETS
-        konamiBuffer: [],
-        logoClickCount: 0,
-        logoClickTimer: null,
-        systemFailure: false, // Controla a tela da morte
+        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
 
         // DATA
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -159,9 +194,11 @@ function zeniteSystem() {
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
-                if(this.settings.crtMode) document.body.classList.add('crt-mode');
                 
-                this.updateCursorState(); this.updateAgentCount();
+                // NOTA: O CRT agora é gerenciado pelo updateVisualState, não aqui direto.
+                this.updateVisualState();
+                
+                this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
@@ -181,59 +218,29 @@ function zeniteSystem() {
             document.addEventListener('mouseover', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('hover'); });
         },
 
-        // --- KONAMI & SECRETS ---
         handleKeys(e) {
-            // Konami Code: up,up,down,down,left,right,left,right,b,a
             const key = e.key.toLowerCase();
             const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
-            
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
-
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
                 document.body.classList.toggle('theme-hacker');
-                if(document.body.classList.contains('theme-hacker')) {
-                    playSFX('success'); this.notify("SYSTEM OVERRIDE: HACKER MODE", "success");
-                } else {
-                    playSFX('click'); this.notify("SYSTEM NORMAL", "info");
-                }
+                if(document.body.classList.contains('theme-hacker')) { playSFX('success'); this.notify("SYSTEM OVERRIDE: HACKER MODE", "success"); } 
+                else { playSFX('click'); this.notify("SYSTEM NORMAL", "info"); }
                 this.konamiBuffer = [];
             }
         },
 
         handleLogoClick() {
-            // 5-Click Surprise
-            clearTimeout(this.logoClickTimer);
-            this.logoClickCount++;
-            
-            if (this.logoClickCount >= 5) {
-                this.logoClickCount = 0;
-                this.triggerSystemFailure();
-                return;
-            }
-            
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000); // Reseta se parar de clicar
-
-            // Fullscreen Toggle
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(()=>{});
-            } else if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
+            clearTimeout(this.logoClickTimer); this.logoClickCount++;
+            if (this.logoClickCount >= 5) { this.logoClickCount = 0; this.triggerSystemFailure(); return; }
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } else if (document.exitFullscreen) { document.exitFullscreen(); }
         },
 
         triggerSystemFailure() {
-            this.systemFailure = true;
-            playSFX('glitch');
-            // Treme a tela
-            document.body.classList.add('shake-anim');
-            
-            // Recupera depois de 4s
-            setTimeout(() => {
-                this.systemFailure = false;
-                document.body.classList.remove('shake-anim');
-                playSFX('error');
-            }, 4000);
+            this.systemFailure = true; playSFX('glitch'); document.body.classList.add('shake-anim');
+            setTimeout(() => { this.systemFailure = false; document.body.classList.remove('shake-anim'); playSFX('error'); }, 4000);
         },
 
         ensureTrayOnScreen() {
@@ -242,13 +249,27 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        updateCursorState() {
-            if (this.user && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+        // --- VISUAL STATE MANAGER (CRT & CURSOR) ---
+        updateVisualState() {
+            const isAuthenticated = this.user || this.isGuest;
+            
+            // CURSOR
+            if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
                 document.body.classList.remove('custom-cursor-active');
             }
+
+            // CRT (Pixel Effect) - Só se autenticado
+            if (isAuthenticated && this.settings.crtMode) {
+                document.body.classList.add('crt-mode');
+            } else {
+                document.body.classList.remove('crt-mode');
+            }
         },
+        
+        // Alias para compatibilidade anterior (chamada no template)
+        updateCursorState() { this.updateVisualState(); },
 
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
@@ -304,8 +325,10 @@ function zeniteSystem() {
                 }
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
-            this.$watch('user', (val) => { this.updateCursorState(); });
-            this.$watch('isGuest', (val) => { this.updateCursorState(); });
+            
+            // Watch centralizado para Visuais (CRT/Mouse)
+            this.$watch('user', (val) => { this.updateVisualState(); });
+            this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },
 
         loadLocal(key) {
@@ -422,9 +445,9 @@ function zeniteSystem() {
                 this.settings[key] = !this.settings[key]; 
                 if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
-                if(key === 'crtMode') document.body.classList.toggle('crt-mode', this.settings.crtMode);
+                if(key === 'crtMode') this.updateVisualState(); // Atualiza na hora
             }
-            this.updateCursorState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
+            this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
