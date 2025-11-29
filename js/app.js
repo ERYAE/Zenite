@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.8-Ghost-Buster
+ * Version: v56.9-View-Nuke
  * Changelog:
- * - Fix Critical: performRevert com atraso na ocultação do botão para absorver "Cliques Fantasmas"
- * - Fix UX: toggleDiceTray agora permite FECHAR a bandeja mesmo durante loading (resolve o bug do duplo clique)
- * - Refactor: loadCharacter com reset forçado de estado via $nextTick
+ * - Fix Visual: performRevert agora define currentView='void' temporariamente. 
+ * Isso força a remoção total da bandeja do DOM, prevenindo o bug de "dupla renderização" ou estado visual preso.
+ * - Refactor: Atraso estratégico na confirmação para absorver cliques fantasmas.
  */
 
 const CONSTANTS = {
@@ -245,9 +245,8 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // LÓGICA DE PROTEÇÃO INTELIGENTE:
-            // 1. Se a bandeja NÃO estiver aberta e o sistema estiver carregando: BLOQUEIA (Não deixa abrir por acidente).
-            // 2. Se a bandeja JÁ estiver aberta (ex: bug visual ou usuário abriu antes): PERMITE (Deixa fechar).
+            // LÓGICA DE PROTEÇÃO:
+            // Permite fechar sempre. Só bloqueia abrir se estiver carregando.
             if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar)) return;
             
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -326,26 +325,31 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. Inicia o Loading Visual (Bloqueia a tela)
+            // 1. INICIA O RESET VISUAL
             this.systemLoading = true; 
             this.loadingChar = true;
             this.diceTrayOpen = false; 
 
-            // 2. ATRASO ESTRATÉGICO PARA ESCONDER O BOTÃO
-            // Mantém o botão de "Confirmar" existente (mas coberto pelo Loading) por 150ms.
-            // Isso absorve qualquer "clique fantasma" que o mouse faria no elemento de baixo (Bandeja).
+            // NUKE VIEW: Força a view a sair de 'sheet'. 
+            // Isso destrói o DOM da bandeja e da ficha, limpando qualquer estado "preso".
+            const tempCharId = this.activeCharId;
+            this.currentView = 'void'; 
+
+            // Atraso para absorver cliques fantasmas na barra de confirmação
             setTimeout(() => { 
                 this.revertConfirmMode = false; 
             }, 150);
 
-            // 3. Processo de Reversão
+            // 2. PROCESSO DE CARREGAMENTO
             setTimeout(async () => {
                 try {
+                    // Reseta Dados
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                    if(this.activeCharId && this.chars[this.activeCharId]) {
-                        await this.loadCharacter(this.activeCharId, true);
+                    // Reconstrói a View do Zero
+                    if(tempCharId && this.chars[tempCharId]) {
+                        await this.loadCharacter(tempCharId, true);
                         this.notify('Alterações descartadas.', 'success');
                     } else {
                         this.currentView = 'dashboard';
@@ -353,7 +357,9 @@ function zeniteSystem() {
                 } catch (e) {
                     console.error("Revert Error:", e);
                     this.notify("Erro ao reverter.", "error");
+                    this.currentView = 'dashboard';
                 } finally {
+                    // 3. FINALIZAÇÃO SUAVE
                     setTimeout(() => { 
                         this.systemLoading = false; 
                         this.loadingChar = false; 
@@ -521,14 +527,13 @@ function zeniteSystem() {
                 if(!this.char.age) this.char.age = ""; 
                 this.currentView = 'sheet'; this.activeTab = 'profile';
                 this.diceTrayOpen = false; 
-                
+
                 // GARANTIA 2: Reseta estado no próximo tick do Alpine para garantir que o DOM sincronize
                 this.$nextTick(() => { 
                     this.diceTrayOpen = false; 
                 });
 
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
-                
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
             });
          },
