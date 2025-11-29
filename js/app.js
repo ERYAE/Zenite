@@ -2,9 +2,9 @@
  * ZENITE OS - Core Application
  * Version: v59.0-Bunker-Buster
  * Changelog:
- * - Fix Critical: Implementado bloqueio físico de UI (pointer-events: none) durante o Revert.
- * - Fix Visual: Ciclo de limpeza do DOM estendido para prevenir "dupla renderização" da bandeja.
- * - Feat: Animação agora é controlada via classes no BODY para garantir execução.
+ * - Fix Critical: Bloqueio físico de UI (pointer-events: none) durante o Revert.
+ * - Fix Visual: Ciclo de limpeza do DOM (Void View) para prevenir "dupla renderização".
+ * - Feat: Animação controlada via classes no BODY para garantir execução global.
  */
 
 const CONSTANTS = {
@@ -325,7 +325,7 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. LOCKDOWN: Bloqueia qualquer clique na página inteira
+            // 1. LOCKDOWN: Bloqueia qualquer clique na página inteira (Física)
             document.body.classList.add('interaction-lock');
             
             // Inicia estados de controle
@@ -369,7 +369,7 @@ function zeniteSystem() {
                             this.currentView = 'dashboard';
                             document.body.classList.remove('interaction-lock');
                         }
-                    }, 100); // 100ms de tela vazia
+                    }, 100); // 100ms de tela vazia para limpeza
 
                 } catch (e) {
                     console.error("Revert Error:", e);

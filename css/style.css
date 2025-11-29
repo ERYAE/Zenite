@@ -153,9 +153,11 @@ body.compact-mode .glass { padding: 8px !important; }
 .font-brand { font-family: 'Orbitron', sans-serif; }
 .font-code { font-family: 'JetBrains Mono', monospace; }
 
-/* --- TRAVA DE SEGURANÇA MÁXIMA --- */
+/* --- TRAVA DE SEGURANÇA MÁXIMA (Bunker) --- */
+body.interaction-lock,
 body.interaction-lock * {
     pointer-events: none !important; /* NINGUÉM CLICA EM NADA */
+    cursor: wait !important;
 }
 
 /* --- OPERAÇÃO FÊNIX (Animações de Reset) --- */
@@ -169,7 +171,7 @@ body.interaction-lock * {
     100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 
-/* Aplica na página inteira pra garantir visual */
+/* Classes controladas pelo JS no BODY */
 body.animating-out main {
     animation: dismantle 0.3s ease-in forwards;
 }
