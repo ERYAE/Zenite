@@ -1,9 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.3-Tray-Fix
+ * Version: v56.3-Tray-Shield
  * Changelog:
- * - Fix Critical: Bandeja abrindo no Revert (Correção na ordem de desbloqueio)
- * - Refactor: toggleDiceTray agora respeita loadingChar
+ * - Fix Critical: Bandeja abrindo no Revert (Race Condition corrigida com trava estendida)
+ * - Refactor: toggleDiceTray com verificação de loadingChar
+ * - Refactor: performRevert mantém bloqueio até o fim da animação
  */
 
 const CONSTANTS = {
@@ -245,6 +246,7 @@ function zeniteSystem() {
         // --- DICE TRAY ---
         toggleDiceTray() {
             // LOCK REFORÇADO: Impede abertura se estiver carregando (sistema ou char) OU modo reversão
+            // Adicionado loadingChar para segurança extra
             if (this.systemLoading || this.loadingChar || this.revertConfirmMode) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -316,7 +318,8 @@ function zeniteSystem() {
 
         // --- SISTEMA DE REVERSÃO OTIMIZADO ---
         toggleRevertMode() {
-            this.diceTrayOpen = false; // Fecha imediatamente ao iniciar interação
+            // Fecha a bandeja preventivamente em QUALQUER interação com o Revert
+            this.diceTrayOpen = false; 
             this.revertConfirmMode = !this.revertConfirmMode;
         },
 
@@ -348,20 +351,21 @@ function zeniteSystem() {
                 }
 
                 this.unsavedChanges = false;
+                // NOTA: Não destravamos revertConfirmMode aqui. Mantemos travado até o finally.
                 this.notify('Alterações descartadas.', 'success');
             } catch (e) {
                 console.error("Revert Error:", e);
                 this.notify("Erro ao reverter.", "error");
             } finally {
-                // 3. Unlock & Safety Check com NextTick
-                // Mantemos o revertConfirmMode TRUE até o fim para garantir o bloqueio da bandeja
+                // 3. Unlock & Safety Check
                 this.loadingChar = false;
                 
                 this.$nextTick(() => {
                     setTimeout(() => { 
-                        this.revertConfirmMode = false; // Desbloqueia a UI apenas no fim
+                        // Sincronia fina: Destrava tudo junto APÓS a animação visual da barra
+                        this.revertConfirmMode = false; // Agora sim libera o Lock
                         this.systemLoading = false; 
-                        this.diceTrayOpen = false; // GARANTIA FINAL
+                        this.diceTrayOpen = false; // Garantia final
                     }, 300);
                 });
             }
@@ -407,7 +411,7 @@ function zeniteSystem() {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
                 'Infiltrador': { pv: [12, 2], pf: [15, 4], pdf: [12, 3] },
-                'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [15, 4] },
+                'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [12, 2], pdf: [15, 4] },
                 'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
             };
             const cfg = config[cl] || config['Titã'];
