@@ -1,10 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.2-Tray-Lockdown
+ * Version: v56.3-Tray-Fix
  * Changelog:
- * - Fix Critical: Dice Tray abrindo ao reverter (Race Condition)
- * - Feat: Travamento da bandeja durante modo de confirmação
- * - Refactor: performRevert com limpeza de estado em múltiplos estágios
+ * - Fix Critical: Bandeja abrindo no Revert (Correção na ordem de desbloqueio)
+ * - Refactor: toggleDiceTray agora respeita loadingChar
  */
 
 const CONSTANTS = {
@@ -245,8 +244,8 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // LOCK: Impede abertura se estiver carregando OU se estiver no modo de reversão
-            if (this.systemLoading || this.revertConfirmMode) return; 
+            // LOCK REFORÇADO: Impede abertura se estiver carregando (sistema ou char) OU modo reversão
+            if (this.systemLoading || this.loadingChar || this.revertConfirmMode) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
@@ -317,9 +316,8 @@ function zeniteSystem() {
 
         // --- SISTEMA DE REVERSÃO OTIMIZADO ---
         toggleRevertMode() {
+            this.diceTrayOpen = false; // Fecha imediatamente ao iniciar interação
             this.revertConfirmMode = !this.revertConfirmMode;
-            // Se entrar no modo de confirmação, fecha a bandeja preventivamente
-            if(this.revertConfirmMode) this.diceTrayOpen = false;
         },
 
         async performRevert() {
@@ -350,17 +348,18 @@ function zeniteSystem() {
                 }
 
                 this.unsavedChanges = false;
-                this.revertConfirmMode = false;
                 this.notify('Alterações descartadas.', 'success');
             } catch (e) {
                 console.error("Revert Error:", e);
                 this.notify("Erro ao reverter.", "error");
             } finally {
                 // 3. Unlock & Safety Check com NextTick
+                // Mantemos o revertConfirmMode TRUE até o fim para garantir o bloqueio da bandeja
                 this.loadingChar = false;
                 
                 this.$nextTick(() => {
                     setTimeout(() => { 
+                        this.revertConfirmMode = false; // Desbloqueia a UI apenas no fim
                         this.systemLoading = false; 
                         this.diceTrayOpen = false; // GARANTIA FINAL
                     }, 300);
