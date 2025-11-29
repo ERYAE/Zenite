@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.0-GodMode-Refactor
+ * Version: v56.1-Stability-Patch
  * Changelog:
- * - Fix: Dice Tray Ghosting (fechamento forçado ao sair da ficha)
- * - Feat: Inline Revert Confirmation (UX aprimorado)
- * - Core: Limpeza de estados de UI
+ * - Fix: Race Condition na Reversão de Dados (Bandeja abrindo sozinha)
+ * - Refactor: performRevert blindado contra eventos de UI
+ * - Fix: Z-Indexes organizados
  */
 
 const CONSTANTS = {
@@ -57,10 +57,10 @@ function zeniteSystem() {
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
         
-        // Tutorial & UI Control
+        // UI Control & Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
-        revertConfirmMode: false, // NOVO: Controle da UI de confirmação
+        revertConfirmMode: false,
 
         diceLog: [],
         lastRoll: '--',
@@ -204,7 +204,7 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS & CURSOR ENGINE (OPTIMIZED) ---
+        // --- GRAPHICS & CURSOR ENGINE ---
         updateCursorState() {
             if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
@@ -245,6 +245,7 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
+            if (this.systemLoading) return; // Guard clause
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
                 this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal();
@@ -272,7 +273,7 @@ function zeniteSystem() {
         // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
-                if (this.loadingChar) return;
+                if (this.loadingChar || this.systemLoading) return;
                 if (val && this.activeCharId) {
                     this.chars[this.activeCharId] = JSON.parse(JSON.stringify(val));
                     if (!this.isGuest) { this.unsavedChanges = true; this.saveStatus = 'idle'; }
@@ -281,7 +282,6 @@ function zeniteSystem() {
                 }
             }, {deep: true});
 
-            // CORREÇÃO CRÍTICA: Se sair da ficha, mate a bandeja.
             this.$watch('currentView', (val) => {
                 if (val !== 'sheet') {
                     this.diceTrayOpen = false;
@@ -309,21 +309,21 @@ function zeniteSystem() {
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            // IMPORTANTE: Nunca salvar estado da bandeja aberta.
             const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- SISTEMA DE REVERSÃO OTIMIZADO ---
-        // 1. Alterna UI para modo confirmação
+        // --- SISTEMA DE REVERSÃO OTIMIZADO (GOD MODE FIX) ---
         toggleRevertMode() {
             this.revertConfirmMode = !this.revertConfirmMode;
         },
 
-        // 2. Executa a reversão de fato
         async performRevert() {
+            // 1. Lock System & Reset UI
             this.systemLoading = true;
-            this.diceTrayOpen = false; // Garante fechamento
+            this.loadingChar = true; 
+            this.diceTrayOpen = false;
+            this.revertConfirmMode = false;
             
             try {
                 if(this.isGuest) {
@@ -333,24 +333,35 @@ function zeniteSystem() {
                     await this.fetchCloud();
                 }
                 
-                // Força refresh limpo do objeto
-                if(this.activeCharId && this.chars[this.activeCharId]) {
-                    this.loadingChar = true;
-                    // Nullify para quebrar referencias antigas
-                    this.char = null;
-                    await this.$nextTick();
-                    this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
-                    this.loadingChar = false;
+                // 2. Safe Char Reload
+                if(this.activeCharId) {
+                    if (this.chars[this.activeCharId]) {
+                        this.char = null; // Limpa para resetar views
+                        await this.$nextTick(); // Espera DOM flush
+                        this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
+                    } else {
+                        // Se char foi deletado na nuvem/local, sai da ficha
+                        this.activeCharId = null;
+                        this.char = null;
+                        this.currentView = 'dashboard';
+                    }
                 }
 
                 this.unsavedChanges = false;
-                this.revertConfirmMode = false;
                 this.notify('Alterações descartadas.', 'success');
             } catch (e) {
                 console.error("Revert Error:", e);
                 this.notify("Erro ao reverter.", "error");
             } finally {
-                this.systemLoading = false;
+                // 3. Unlock & Safety Check
+                this.loadingChar = false;
+                
+                // Pequeno delay para garantir que animações terminaram
+                setTimeout(() => { 
+                    this.systemLoading = false; 
+                    // Reforça fechamento da bandeja caso race condition tenha ocorrido
+                    this.diceTrayOpen = false; 
+                }, 300);
             }
         },
 
