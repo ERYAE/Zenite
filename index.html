@@ -31,16 +31,15 @@
     <div class="bg-grid"></div>
 
     <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
-        <div class="glitch-text mb-8" data-text="FATAL SYSTEM ERROR">FATAL SYSTEM ERROR</div>
-        <div class="flex flex-col gap-2 font-code text-red-600 text-sm animate-pulse tracking-widest text-center">
-            <p>CRITICAL KERNEL PANIC // MEMORY DUMP: 0xFF0003</p>
-            <p>DATA CORRUPTION IMMINENT</p>
-            <p>SEVERING NEURAL LINK...</p>
+        <div class="glitch-text mb-8" data-text="SYSTEM HALT">SYSTEM HALT</div>
+        <div class="flex flex-col gap-2 font-code text-red-600 text-sm animate-pulse tracking-widest text-center font-bold">
+            <p>>> FATAL EXCEPTION: KERNEL_SECURITY_CHECK_FAILURE</p>
+            <p>>> MEMORY ADDRESS: 0xDEADBEEF</p>
+            <p>>> UPLOADING CRASH REPORT... [FAILED]</p>
         </div>
-        <div class="mt-12 font-code text-[10px] text-red-900 opacity-70 max-w-lg break-all uppercase">
-            0x000045 ERROR_ACCESS_DENIED 0x0F4C OVERFLOW_STACK_TRACE
-            USER_ID_NOT_FOUND SEGMENTATION_FAULT (CORE DUMPED)
-            INITIATING_EMERGENCY_SHUTDOWN_SEQUENCE...
+        <div class="mt-12 font-code text-[10px] text-red-900 opacity-80 max-w-lg break-all uppercase">
+            *** STOP: 0x0000007B (0xFFFFF880009A98D8, 0xFFFFFFFFC0000034, 0x0000000000000000, 0x0000000000000000)
+            ZENITE_OS_CORE.SYS - ADDRESS FFFFF88001476C28 BASE AT FFFFF88001200000 DATESTAMP 4c1c44a9
         </div>
     </div>
 
@@ -105,7 +104,7 @@
                     <img src="images/zenite_logo.svg" class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform">
                     <div class="flex flex-col">
                         <h1 class="text-lg font-bold text-white tracking-widest font-brand leading-none">ZENITE</h1>
-                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V73</span>
+                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V74</span>
                     </div>
                 </div>
             </div>

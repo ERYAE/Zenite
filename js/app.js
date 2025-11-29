@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v73.0-Koda-Final-Polished
+ * Version: v74.0-Koda-Auditory-Hallucination
  * Changelog:
- * - Fix SFX: Anti-spam (Throttle) nos sons de hover.
- * - Fix Audio: Volume reduzido e timbres ajustados.
- * - Fix CRT: Só ativa após login e com opacidade reduzida.
- * - Feat: Matrix Rain no tema Hacker.
+ * - Feat: New Audio Engine (Modern Timbres, Higher Volume).
+ * - Feat: New SFX (Save, Discard).
+ * - Fix: Anti-spam on SFX (Throttle increased).
+ * - Fix: Visual State Force Update (Mouse Trail Bug).
  */
 
 const CONSTANTS = {
@@ -20,74 +20,93 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- AUDIO ENGINE (OTIMIZADO) ---
+// --- AUDIO ENGINE PRO (High Volume & Modern Timbres) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let lastHoverTime = 0; // Para controle de spam
+let lastHoverTime = 0; 
 
 const playSFX = (type) => {
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    
     const now = audioCtx.currentTime;
 
-    // THROTTLE: Impede sons repetidos muito rápido (Anti-metralhadora)
+    // THROTTLE: Anti-metralhadora aprimorado
     if (type === 'hover') {
-        if (now - lastHoverTime < 0.15) return; // Espera 150ms entre hovers
+        if (now - lastHoverTime < 0.2) return; // 200ms cooldown
         lastHoverTime = now;
     }
 
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    const filter = audioCtx.createBiquadFilter(); // Filtro para suavizar
+    const filter = audioCtx.createBiquadFilter();
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(audioCtx.destination);
 
     if (type === 'hover') {
-        // Som mais suave e "tech" (Sine wave com filtro)
+        // High-Tech Blip (Sine + Bandpass)
         osc.type = 'sine';
-        filter.type = 'lowpass'; filter.frequency.value = 1000;
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.03);
-        gain.gain.setValueAtTime(0.02, now); // Volume bem baixo
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-        osc.start(now); osc.stop(now + 0.03);
-
-    } else if (type === 'click') {
-        // Clique mecânico sutil
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
-        gain.gain.setValueAtTime(0.05, now);
+        filter.type = 'bandpass'; filter.frequency.value = 1500;
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+        gain.gain.setValueAtTime(0.1, now); // Mais alto
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
 
-    } else if (type === 'success') {
-        // Blip positivo
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.setValueAtTime(880, now + 0.1);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
-        osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'click') {
+        // Mechanical Switch (Triangle)
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now); osc.stop(now + 0.08);
 
-    } else if (type === 'glitch') {
-        // Som de erro fatal (Sawtooth + Ruído simulado)
+    } else if (type === 'save') { // NOVO: Som de Aprovação
+        // Ascending Chime
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now); // A4
+        osc.frequency.setValueAtTime(554, now + 0.1); // C#5
+        osc.frequency.setValueAtTime(659, now + 0.2); // E5
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+
+    } else if (type === 'discard') { // NOVO: Som de Recusa
+        // Rapid Power Down
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(50, now);
-        osc.frequency.linearRampToValueAtTime(100, now + 0.5); // Grave e distorcido
-        gain.gain.setValueAtTime(0.4, now); // Mais alto
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-        osc.start(now); osc.stop(now + 0.5);
-    } else if (type === 'error') {
-        // Erro padrão
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, now);
+        filter.frequency.linearRampToValueAtTime(100, now + 0.15);
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.linearRampToValueAtTime(50, now + 0.15);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now); osc.stop(now + 0.15);
+
+    } else if (type === 'success') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
         osc.start(now); osc.stop(now + 0.2);
-    }
+
+    } else if (type === 'glitch') { // FATAL ERROR SOUND
+        // Dissonant Cluster
+        const osc2 = audioCtx.createOscillator();
+        osc2.type = 'sawtooth';
+        osc2.frequency.value = 55; // Low rumble
+        osc2.connect(gain);
+        osc2.start(now); osc2.stop(now + 1.0);
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1200, now); // High screech
+        osc.frequency.linearRampToValueAtTime(50, now + 1.0); // Drop
+        
+        gain.gain.setValueAtTime(0.5, now); // LOUD
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+        osc.start(now); osc.stop(now + 1.0);
+    } 
 };
 
 function debounce(func, wait) {
@@ -195,7 +214,7 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                // NOTA: O CRT agora é gerenciado pelo updateVisualState, não aqui direto.
+                // NOTA: Chamada explícita para garantir estado visual no boot
                 this.updateVisualState();
                 
                 this.updateAgentCount();
@@ -239,8 +258,8 @@ function zeniteSystem() {
         },
 
         triggerSystemFailure() {
-            this.systemFailure = true; playSFX('glitch'); document.body.classList.add('shake-anim');
-            setTimeout(() => { this.systemFailure = false; document.body.classList.remove('shake-anim'); playSFX('error'); }, 4000);
+            this.systemFailure = true; playSFX('glitch');
+            setTimeout(() => { this.systemFailure = false; }, 4000);
         },
 
         ensureTrayOnScreen() {
@@ -249,7 +268,7 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- VISUAL STATE MANAGER (CRT & CURSOR) ---
+        // --- VISUAL STATE MANAGER ---
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
             
@@ -268,9 +287,6 @@ function zeniteSystem() {
             }
         },
         
-        // Alias para compatibilidade anterior (chamada no template)
-        updateCursorState() { this.updateVisualState(); },
-
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
@@ -326,7 +342,7 @@ function zeniteSystem() {
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
             
-            // Watch centralizado para Visuais (CRT/Mouse)
+            // Watchers CRÍTICOS para o bug do rastro
             this.$watch('user', (val) => { this.updateVisualState(); });
             this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },
@@ -369,6 +385,7 @@ function zeniteSystem() {
         async performRevert() {
             this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
             document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
+            playSFX('discard'); // SOM DE RECUSA
             setTimeout(async () => {
                 try {
                     if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
@@ -409,7 +426,8 @@ function zeniteSystem() {
                 const payload = { ...this.chars, config: this.settings, hasSeenTip: this.hasSeenDiceTip };
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
-                this.unsavedChanges = false; this.saveStatus = 'success'; if(!silent) this.notify('Salvo!', 'success');
+                this.unsavedChanges = false; this.saveStatus = 'success'; 
+                if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); } // SOM DE SALVAR
             } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
         
@@ -445,7 +463,7 @@ function zeniteSystem() {
                 this.settings[key] = !this.settings[key]; 
                 if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
-                if(key === 'crtMode') this.updateVisualState(); // Atualiza na hora
+                if(key === 'crtMode') this.updateVisualState();
             }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
