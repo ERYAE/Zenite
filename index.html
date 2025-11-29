@@ -22,7 +22,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <link rel="stylesheet" href="css/style.css">
+    <script src="js/config.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/rpg.js"></script>
+    <script src="js/netlink.js"></script>
     <script src="js/app.js"></script>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
@@ -31,29 +37,20 @@
     <div class="bg-grid"></div>
 
     <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
-        <div class="bsod-container">
-            <span class="bsod-header">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
-            <div class="text-4xl font-bold mb-6 text-red-600 mt-4">FATAL_EXCEPTION_0xDEADDEAD</div>
-            
-            <p class="text-sm mb-4">
-                A critical error has occurred in the neural interface bridge.<br>
-                The system has been halted to prevent permanent user dissociation.
-            </p>
-
-            <ul class="list-disc pl-5 text-xs text-red-400 mb-8 space-y-1">
-                <li>Attempting to recover shadow memory... [FAILED]</li>
-                <li>Flushing auth tokens... [DONE]</li>
-                <li>Severing connection to host... [PENDING]</li>
-            </ul>
-
-            <div class="error-code-block font-code text-[10px] text-red-900">
-                0x00000000 0xFFFFFFFF 0x00000000 0x00000000<br>
-                0xF0000000 0x00000000 0x00000000 0x00000000<br>
-                0xC00000C0 0x00000000 0x00000000 0x00000000<br>
-                *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)
-                <br><br>
-                > PRESS F5 TO REBOOT NEURAL LINK
-            </div>
+        <span class="bsod-header">SYSTEM HALT // KERNEL PANIC</span>
+        <div class="text-xl font-bold mb-4">FATAL_EXCEPTION_0x0000</div>
+        <div class="text-xs opacity-70 leading-relaxed max-w-2xl break-all">
+            A problem has been detected and Zenite OS has been shut down to prevent damage to your neural interface.
+            <br><br>
+            CHECK_PROTOCOL_VIOLATION:
+            <br>
+            *** STOP: 0x0000000A (0x0000000000000010, 0x0000000000000002, 0x0000000000000000, 0xFFFFF80002E55151)
+            <br><br>
+            Dumping physical memory to disk: 100
+            <br>
+            Physical memory dump complete.
+            <br>
+            Contact your system administrator.
         </div>
     </div>
 
@@ -118,7 +115,7 @@
                     <img src="images/zenite_logo.svg" class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform">
                     <div class="flex flex-col">
                         <h1 class="text-lg font-bold text-white tracking-widest font-brand leading-none">ZENITE</h1>
-                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V75</span>
+                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V76</span>
                     </div>
                 </div>
             </div>
@@ -158,12 +155,29 @@
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
         </div>
-        <template x-if="agentCount === 0"><div class="py-32 text-center opacity-30 select-none"><div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div><p class="font-brand text-xl">SISTEMA VAZIO</p></div></template>
+        
+        <template x-if="agentCount === 0">
+            <div class="py-32 text-center opacity-30 select-none">
+                <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
+                <p class="font-brand text-xl">SISTEMA VAZIO</p>
+            </div>
+        </template>
+        
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <template x-for="(c, id) in filteredChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]">
-                    <div class="relative z-10 flex-shrink-0"><div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover"></div></div>
-                    <div class="relative z-10 overflow-hidden"><h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3><div class="flex items-center gap-2 mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span><span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span></div></div>
+                    <div class="relative z-10 flex-shrink-0">
+                        <div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors">
+                            <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover">
+                        </div>
+                    </div>
+                    <div class="relative z-10 overflow-hidden">
+                        <h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span>
+                            <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
+                        </div>
+                    </div>
                     <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"><i class="fa-solid fa-trash-can"></i></button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
                 </div>
