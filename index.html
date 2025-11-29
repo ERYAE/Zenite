@@ -94,7 +94,7 @@
             </div>
 
             <div x-show="user" class="relative md:ml-4" @click.outside="userMenuOpen=false">
-                <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+                <button @click="userMenuOpen=!userMenuOpen" aria-label="Menu do Usuário" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
@@ -111,7 +111,7 @@
         <div class="flex gap-3 items-center justify-center w-full md:w-auto">
             <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
             <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SAVING...</div>
-            <button @click="configModal=true" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
+            <button @click="configModal=true" aria-label="Configurações" class="btn-action w-10 h-10 rounded glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center"><i class="fa-solid fa-gear"></i></button>
             <button x-show="currentView === 'dashboard'" @click="openWizard()" class="btn-action px-6 py-2 rounded bg-[var(--neon-core)] text-black font-bold shadow-lg hover:scale-105 flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO</span></button>
         </div>
     </header>
@@ -131,12 +131,12 @@
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mobile-grid-stack">
             <template x-for="(c, id) in filteredChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5">
-                    <div class="relative z-10 flex-shrink-0"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black"></div>
+                    <div class="relative z-10 flex-shrink-0"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" loading="lazy" class="w-16 h-16 rounded-full object-cover border border-white/20 bg-black"></div>
                     <div class="relative z-10 overflow-hidden">
                         <h3 class="text-white font-bold truncate font-brand text-lg group-hover:text-[var(--neon-core)]" x-text="c.name || 'DESCONHECIDO'"></h3>
                         <p class="text-[10px] text-gray-400 font-code uppercase" x-text="c.class + ' // NV ' + c.level"></p>
                     </div>
-                    <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
+                    <button @click.stop="askDeleteChar(id)" aria-label="Deletar Agente" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-colors opacity-0 group-hover:opacity-100 bg-black/50 rounded"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             </template>
         </div>
@@ -202,13 +202,13 @@
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
                     <div class="flex gap-1 ml-2" x-show="!isMobile">
-                        <button @click="setDockMode('dock-left')" class="p-1 hover:text-white" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
-                        <button @click="setDockMode('float')" class="p-1 hover:text-white" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
-                        <button @click="setDockMode('dock-right')" class="p-1 hover:text-white" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
+                        <button @click="setDockMode('dock-left')" aria-label="Ancorar Esquerda" class="p-1 hover:text-white" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
+                        <button @click="setDockMode('float')" aria-label="Modo Flutuante" class="p-1 hover:text-white" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
+                        <button @click="setDockMode('dock-right')" aria-label="Ancorar Direita" class="p-1 hover:text-white" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
                     </div>
                 </div>
                 
-                <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="toggleDiceTray()" aria-label="Fechar Bandeja" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
             <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col">
@@ -226,7 +226,7 @@
 
                 <div class="grid grid-cols-4 gap-2 mb-4">
                     <template x-for="d in [3,4,6,8,10,12,20,100]">
-                        <button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button>
+                        <button @click="roll(d)" :aria-label="'Rolar D'+d" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button>
                     </template>
                 </div>
 
@@ -259,7 +259,7 @@
             <div class="w-3 h-3 bg-[var(--neon-core)] rotate-45 absolute -bottom-1 right-6"></div>
         </div>
         
-        <button @click="toggleDiceTray()" class="w-14 h-14 bg-black border border-[var(--neon-core)] rounded-full text-[var(--neon-core)] shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] hover:scale-110 transition-transform flex items-center justify-center text-2xl glass">
+        <button @click="toggleDiceTray()" aria-label="Abrir Bandeja" class="w-14 h-14 bg-black border border-[var(--neon-core)] rounded-full text-[var(--neon-core)] shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] hover:scale-110 transition-transform flex items-center justify-center text-2xl glass">
             <i class="fa-solid fa-dice-d20"></i>
         </button>
     </div>
@@ -280,13 +280,13 @@
                 <div class="h-4 w-px bg-white/20"></div>
 
                 <div class="flex gap-2">
-                    <button @click.stop="toggleRevertMode()" 
+                    <button @click.stop="toggleRevertMode()" aria-label="Desfazer"
                             class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors tooltip-trigger" 
                             title="Desfazer alterações">
                         <i class="fa-solid fa-rotate-left"></i>
                     </button>
                     
-                    <button @click.stop="syncCloud()" 
+                    <button @click.stop="syncCloud()" aria-label="Salvar"
                             class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2">
                         <span x-show="!isSyncing">SALVAR</span>
                         <i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i>
