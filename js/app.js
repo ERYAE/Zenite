@@ -1,6 +1,6 @@
 /**
- * ZENITE OS - Main Controller v76.2
- * Fix: Removed AudioContext conflict & Global Config Integration
+ * ZENITE OS - Main Controller v77.0
+ * Fix: Variable conflicts resolved & Init restored.
  */
 
 // Variáveis de Performance (Mouse)
@@ -8,7 +8,6 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// Função Utilitária
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -57,7 +56,7 @@ function zeniteSystem() {
         
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
 
-        // Getters (Usando Módulos Globais)
+        // Getters
         get archetypes() { return RPG.archetypes; },
 
         get filteredChars() {
@@ -76,20 +75,14 @@ function zeniteSystem() {
         // --- INIT & BOOT ---
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            
-            // Failsafe Timeout
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
-            
-            window.addEventListener('beforeunload', (e) => { 
-                if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } 
-            });
+            window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
                 
                 // Conexão Supabase
                 if (typeof window.supabase !== 'undefined') {
-                    // Usa CONFIG global (do config.js)
                     this.supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
@@ -98,14 +91,11 @@ function zeniteSystem() {
                 
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 this.setupListeners();
-                
-                // INICIA CURSOR ENGINE (Mouse Trail)
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
                 this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 
-                // Autenticação
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
                 if (isGuest) { 
                     this.isGuest = true; 
@@ -121,13 +111,12 @@ function zeniteSystem() {
                                 this.loadingProgress = 70; 
                                 await this.fetchCloud();
                                 
-                                // INICIALIZA NETLINK
                                 if(typeof netLinkSystem !== 'undefined') {
                                     this.netLink = netLinkSystem(this.supabase, this.user);
                                     this.netLink.init();
                                 }
                             }
-                        } catch(e) { console.warn("Modo Offline (Auth Fail)", e); }
+                        } catch(e) { this.notify("Modo Offline", "warn"); }
                         
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) { 
@@ -136,7 +125,6 @@ function zeniteSystem() {
                                 this.isGuest = false; 
                                 localStorage.removeItem('zenite_is_guest'); 
                                 await this.fetchCloud();
-                                // Re-init NetLink
                                 if(typeof netLinkSystem !== 'undefined') {
                                     this.netLink = netLinkSystem(this.supabase, this.user);
                                     this.netLink.init();
@@ -144,7 +132,7 @@ function zeniteSystem() {
                             } else if (event === 'SIGNED_OUT') { 
                                 this.user = null; this.chars = {}; this.currentView = 'dashboard'; 
                             }
-                            this.updateVisualState(); // Garante atualização visual no login/logout
+                            this.updateVisualState();
                         });
                     }
                 }
@@ -154,10 +142,7 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                // Sincroniza SFX com Config
                 if (typeof SFX !== 'undefined') SFX.toggle(this.settings.sfxEnabled);
-                
-                // FORÇA UPDATE VISUAL FINAL (Mouse Trail + CRT)
                 this.updateVisualState();
                 
                 this.updateAgentCount();
@@ -179,7 +164,6 @@ function zeniteSystem() {
             const newStats = RPG.calculateDerived(this.char.class, this.char.level, this.char.attrs);
             const c = this.char;
             
-            // Lógica de preservação de dano atual
             const diffPv = (c.stats.pv.max || newStats.pv) - c.stats.pv.current;
             const diffPf = (c.stats.pf.max || newStats.pf) - c.stats.pf.current;
             const diffPdf = (c.stats.pdf.max || newStats.pdf) - c.stats.pdf.current;
@@ -220,7 +204,6 @@ function zeniteSystem() {
 
         // --- FEATURES ---
         exportIdentityCard() {
-            // Nota: Certifique-se que o elemento 'main' é o alvo correto
             const element = document.querySelector('main'); 
             if(!element) return;
             
@@ -243,13 +226,15 @@ function zeniteSystem() {
         },
 
         roll(s) {
-            SFX.play('roll'); // Som específico de rolagem
+            SFX.play('roll');
             const arr = new Uint32Array(1); 
             window.crypto.getRandomValues(arr); 
             const n = (arr[0] % s) + 1; 
             const m = parseInt(this.diceMod || 0); 
             
-            this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
+            this.lastNatural = n; 
+            this.lastFaces = s; 
+            this.lastRoll = n + m;
             
             let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`);
             
@@ -284,14 +269,13 @@ function zeniteSystem() {
                 }
             });
             
-            // SFX Listeners Inteligentes (Anti-spam)
+            // SFX Listeners
             let lastHovered = null;
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, .cursor-pointer')) SFX.play('click'); 
             });
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest('button, a, .cursor-pointer');
-                // Lógica de troca de elemento para evitar metralhadora de som
                 if (target && target !== lastHovered) {
                     SFX.play('hover');
                     lastHovered = target;
@@ -304,21 +288,18 @@ function zeniteSystem() {
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
             
-            // CURSOR
             if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
                 document.body.classList.remove('custom-cursor-active');
             }
 
-            // CRT
             if (isAuthenticated && this.settings.crtMode) {
                 document.body.classList.add('crt-mode');
             } else {
                 document.body.classList.remove('crt-mode');
             }
             
-            // SFX Toggle
             if(typeof SFX !== 'undefined') SFX.toggle(this.settings.sfxEnabled);
         },
 
@@ -356,11 +337,13 @@ function zeniteSystem() {
         handleLogoClick() {
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
+            
             if (this.logoClickCount >= 5) {
                 this.logoClickCount = 0;
                 this.triggerSystemFailure();
                 return;
             }
+            
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
             
             if (!this.systemFailure) {
@@ -384,7 +367,7 @@ function zeniteSystem() {
             }, 5000);
         },
 
-        // --- HELPERS E BOILERPLATE ---
+        // --- HELPERS ---
         loadLocal(key) {
             const local = localStorage.getItem(key);
             if(local) {
@@ -445,7 +428,6 @@ function zeniteSystem() {
             const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
         },
         
-        // Boilerplate UI Functions
         triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
         attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
         saveAndExit(fromHistory = false) {
@@ -504,7 +486,6 @@ function zeniteSystem() {
         ensureTrayOnScreen() { if(this.isMobile || this.trayDockMode !== 'float') return; this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x)); this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y)); },
         toggleDiceTray() { if (this.isReverting) return; this.diceTrayOpen = !this.diceTrayOpen; if(this.diceTrayOpen) { if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); } this.showDiceTip = false; this.ensureTrayOnScreen(); } },
 
-        // MOUSE SETUP (Global & Blindado)
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
@@ -514,7 +495,6 @@ function zeniteSystem() {
             });
             const renderLoop = () => {
                 if (!trail) return;
-                // CHECAGEM DE EMERGÊNCIA: Se user existir, rastro liga.
                 const isAuthenticated = this.user || this.isGuest;
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block'; trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 

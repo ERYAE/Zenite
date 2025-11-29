@@ -2,7 +2,7 @@
 
 :root {
     --bg-void: #050507;
-    --glass-panel: rgba(20, 20, 25, 0.75);
+    --glass-panel: rgba(20, 20, 25, 0.85);
     --glass-border: rgba(255, 255, 255, 0.08);
     --neon-core: #0ea5e9;
     --neon-rgb: 14, 165, 233;
@@ -27,88 +27,70 @@ body {
 
 /* --- THEME: HACKER MODE --- */
 body.theme-hacker {
-    --bg-void: #000a00;
-    --glass-panel: rgba(0, 20, 0, 0.8);
-    --glass-border: #00ff41;
-    --neon-core: #00ff41;
-    --neon-rgb: 0, 255, 65;
+    --bg-void: #000000;
+    --glass-panel: rgba(0, 20, 0, 0.9);
+    --glass-border: #00ff00;
+    --neon-core: #00ff00;
+    --neon-rgb: 0, 255, 0;
     font-family: 'JetBrains Mono', monospace !important;
 }
 body.theme-hacker * { font-family: 'JetBrains Mono', monospace !important; letter-spacing: -0.5px; }
+
+/* Matrix Rain */
 body.theme-hacker::before {
     content: ""; position: fixed; inset: 0; z-index: -2;
-    background-image: linear-gradient(0deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent);
-    background-size: 50px 50px; animation: matrix-scroll 20s linear infinite; opacity: 0.2;
+    background-image: linear-gradient(0deg, transparent 24%, rgba(0, 255, 0, .3) 25%, rgba(0, 255, 0, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 0, .3) 75%, rgba(0, 255, 0, .3) 76%, transparent 77%, transparent);
+    background-size: 50px 50px; animation: matrix-scroll 5s linear infinite; opacity: 0.3;
 }
-@keyframes matrix-scroll { 0% { background-position: 0 0; } 100% { background-position: 0 1000px; } }
+@keyframes matrix-scroll { 0% { background-position: 0 0; } 100% { background-position: 0 500px; } }
 
-/* --- CRT / PIXEL EFFECT (VISÍVEL MAS ELEGANTE) --- */
+/* --- CRT / PIXEL EFFECT (REFORÇADO) --- */
 body.crt-mode::after {
     content: " ";
     display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
+    /* Linhas pretas finas e definidas */
     background: repeating-linear-gradient(
         0deg,
-        rgba(0, 0, 0, 0.15),
-        rgba(0, 0, 0, 0.15) 1px,
+        rgba(0, 0, 0, 0.2),
+        rgba(0, 0, 0, 0.2) 1px,
         transparent 1px,
-        transparent 2px
+        transparent 3px
     );
     z-index: 2147483640;
     pointer-events: none; 
-    opacity: 0.6; /* Levemente reduzido para legibilidade */
+    opacity: 0.7; /* Mais visível */
     mix-blend-mode: multiply;
 }
+/* Vinheta e Brilho */
 body.crt-mode::before {
     content: " "; display: block; position: fixed; inset: 0; z-index: 2147483641;
-    background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.4) 100%);
+    background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.6) 100%);
     pointer-events: none;
 }
 
-/* ... (Mantenha o CSS anterior até a parte do #system-failure) ... */
-
-/* --- SYSTEM FAILURE OVERLAY (ZENITE KERNEL PANIC) --- */
+/* --- SYSTEM FAILURE OVERLAY (TERROR) --- */
 #system-failure {
     position: fixed; inset: 0; z-index: 2147483647;
-    background: #000; color: #ff3333;
-    display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
-    padding: 5vw;
+    background: #000; color: #ff0000;
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    padding: 10%;
     font-family: 'JetBrains Mono', monospace;
     text-align: left; overflow: hidden;
     cursor: none;
-    line-height: 1.4;
 }
-
-/* Scanline estática agressiva */
-#system-failure::before {
+#system-failure::after {
     content: ""; position: absolute; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.05) 3px);
-    background-size: 100% 4px;
+    background: rgba(255, 0, 0, 0.1);
+    animation: flash-red 0.1s infinite;
     pointer-events: none;
 }
-
-.bsod-container {
-    max-width: 900px;
-    animation: text-flicker 0.05s infinite alternate;
-}
+@keyframes flash-red { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
 .bsod-header {
-    background: #ff3333; color: #000; padding: 2px 10px; font-weight: bold; margin-bottom: 20px;
+    background: #ff0000; color: #000; padding: 5px 15px; font-weight: 900; 
+    font-size: 1.5rem; margin-bottom: 2rem;
     display: inline-block;
 }
-
-.error-code-block {
-    margin-top: 2rem;
-    font-size: 0.8rem;
-    opacity: 0.8;
-    column-count: 2; /* Colunas de hex dump */
-}
-
-@keyframes text-flicker {
-    0% { opacity: 0.95; }
-    100% { opacity: 1; }
-}
-
-/* ... (Restante do CSS: Grid, Cursor, etc. mantidos) ... */
 
 /* --- CYBER GRID --- */
 .bg-grid {
@@ -125,10 +107,10 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
     border: 1px solid var(--neon-core); background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
     box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.5); will-change: transform;
     transform: translate3d(-100px, -100px, 0); mix-blend-mode: screen;
-    transition: width 0.3s var(--ease-smooth), height 0.3s var(--ease-smooth), margin 0.3s var(--ease-smooth);
+    transition: width 0.1s ease, height 0.1s ease; /* Mais rápido */
 }
-#mouse-trail::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 2px; height: 2px; background-color: white; border-radius: 50%; box-shadow: 0 0 4px var(--neon-core); }
-#mouse-trail.hover-active { width: 50px; height: 50px; margin-top: -25px; margin-left: -25px; background: rgba(var(--neon-rgb), 0.05); border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 30px rgba(var(--neon-rgb), 0.4); mix-blend-mode: normal; }
+#mouse-trail::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 3px; height: 3px; background-color: white; border-radius: 50%; box-shadow: 0 0 5px var(--neon-core); }
+#mouse-trail.hover-active { width: 40px; height: 40px; margin-top: -20px; margin-left: -20px; background: rgba(var(--neon-rgb), 0.1); border-color: rgba(255, 255, 255, 0.9); }
 @media (pointer: coarse) { #mouse-trail { display: none !important; } body.custom-cursor-active { cursor: auto !important; } }
 
 /* --- COMPACT MODE --- */
