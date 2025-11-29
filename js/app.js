@@ -1,11 +1,14 @@
 /**
  * ZENITE OS - Core Application
- * Version: v60.0-Human-Shield
+ * Version: v61.0-Terminator (Júnior Edition)
  * Changelog:
- * - Fix Critical: 'performRevert' agora mantém a UI de confirmação visível por 400ms (Ghost Click Shield).
- * Isso impede fisicamente que o clique no botão 'Descartar' vaze para o botão da bandeja embaixo dele.
- * - Fix Visual: Sequência de animação ajustada para rodar antes da destruição do DOM.
- * - Refactor: Variável 'isReverting' global para bloqueio lógico redundante.
+ * - Fix Final: Implementado ciclo de vida "Nuclear" para o Revert.
+ * - Step 1: Bloqueio físico de inputs (pointer-events: none no body).
+ * - Step 2: Animação de Saída.
+ * - Step 3: Destruição total da View (currentView = 'void') para matar elementos fantasmas.
+ * - Step 4: Reload de dados.
+ * - Step 5: Reconstrução da View + Animação de Entrada.
+ * - Step 6: Desbloqueio de inputs.
  */
 
 const CONSTANTS = {
@@ -62,9 +65,7 @@ function zeniteSystem() {
         showDiceTip: false, 
         hasSeenDiceTip: false,
         revertConfirmMode: false,
-        
-        // NOVO: Estado de controle interno para o processo de reversão
-        isReverting: false,
+        isReverting: false, // Trava lógica interna
 
         diceLog: [],
         lastRoll: '--',
@@ -249,10 +250,13 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // TRAVA DE SEGURANÇA MÁXIMA: 
-            // Se estiver revertendo (isReverting), IGNORA qualquer tentativa de ABRIR.
-            // Se já estiver aberto, permite fechar (para não travar o usuário).
-            if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar || this.isReverting)) return;
+            // TRAVA DE SEGURANÇA:
+            // 1. Se estiver revertendo (isReverting) -> NEM PENSAR EM ABRIR.
+            // 2. Se a página estiver travada fisicamente (interaction-lock) -> NEM PENSAR.
+            if (this.isReverting || document.body.classList.contains('interaction-lock')) return;
+            
+            // Se estiver carregando, bloqueia abrir, mas permite fechar (caso bugue visualmente)
+            if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar)) return;
             
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
@@ -330,71 +334,78 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. ATIVA O ESTADO DE PROTEÇÃO
+            // [FASE 1]: BLOQUEIO TOTAL
             this.isReverting = true; 
             this.loadingChar = true;
-            this.diceTrayOpen = false; // Fecha a bandeja na lógica
-            document.body.classList.add('interaction-lock'); // Trava cliques globais
+            this.revertConfirmMode = false;
+            this.diceTrayOpen = false; // Fecha logicamente
+            
+            // TRAVA FÍSICA: Ninguém clica em nada no navegador.
+            document.body.style.pointerEvents = 'none'; 
+            document.body.classList.add('interaction-lock');
 
-            // 2. ANIMAÇÃO DE SAÍDA (Dismantle)
-            // Disparamos antes de tudo para garantir visual
+            // [FASE 2]: ANIMAÇÃO DE SAÍDA
             document.body.classList.add('animating-out');
 
-            // 3. O "ESCUDO HUMANO" (Delay Estratégico)
-            // Mantemos o revertConfirmMode = true por 400ms.
-            // Isso significa que o botão "Confirmar" AINDA EXISTE na tela (invisível ou travado)
-            // absorvendo o clique do seu dedo.
-            await new Promise(r => setTimeout(r, 400));
+            // Espera a animação rodar (400ms)
+            setTimeout(async () => {
+                try {
+                    // [FASE 3]: DESTRUIÇÃO (NUCLEAR)
+                    // Removemos a view atual. Isso mata o HTML da bandeja e da ficha antiga.
+                    const tempCharId = this.activeCharId;
+                    this.currentView = 'void';
+                    document.body.classList.remove('animating-out');
 
-            // 4. LIMPEZA E CARREGAMENTO
-            try {
-                this.revertConfirmMode = false; // Agora pode sumir com o botão
-                
-                // NUKE DO DOM: Reseta a view para limpar artefatos (double windows)
-                const tempCharId = this.activeCharId;
-                this.currentView = 'void';
-                document.body.classList.remove('animating-out');
+                    // [FASE 4]: CARREGAMENTO DE DADOS
+                    if(this.isGuest) this.loadLocal('zenite_guest_db');
+                    else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                // Carrega Dados
-                if(this.isGuest) this.loadLocal('zenite_guest_db');
-                else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
+                    // Pequeno respiro para o DOM limpar
+                    setTimeout(async () => {
+                        // [FASE 5]: RECONSTRUÇÃO
+                        if(tempCharId && this.chars[tempCharId]) {
+                            // Carrega a ficha nova
+                            await this.loadCharacter(tempCharId, true);
+                            
+                            // Força estado fechado da bandeja DE NOVO
+                            this.diceTrayOpen = false;
 
-                // Pequeno delay para garantir que o 'void' limpou o DOM
-                await new Promise(r => setTimeout(r, 100));
+                            // Animação de Entrada
+                            this.$nextTick(() => {
+                                document.body.classList.add('animating-in');
+                                this.notify('Sistema restaurado.', 'success');
+                                
+                                // [FASE 6]: LIBERAÇÃO
+                                setTimeout(() => {
+                                    document.body.classList.remove('animating-in');
+                                    document.body.classList.remove('interaction-lock');
+                                    document.body.style.pointerEvents = ''; // Devolve o mouse
+                                    this.isReverting = false; 
+                                    this.loadingChar = false;
+                                    this.diceTrayOpen = false; // Triple check
+                                }, 500);
+                            });
+                        } else {
+                            this.currentView = 'dashboard';
+                            this.cleanupRevert();
+                        }
+                    }, 100);
 
-                // 5. REMONTAGEM
-                if(tempCharId && this.chars[tempCharId]) {
-                    // Carrega a ficha
-                    await this.loadCharacter(tempCharId, true);
-                    
-                    // Animação de Entrada
-                    this.$nextTick(() => {
-                        this.diceTrayOpen = false; // Reforço final
-                        document.body.classList.add('animating-in');
-                        this.notify('Sistema restaurado.', 'success');
-                        
-                        setTimeout(() => {
-                            document.body.classList.remove('animating-in');
-                            document.body.classList.remove('interaction-lock');
-                            this.isReverting = false; // Libera a proteção
-                            this.loadingChar = false;
-                        }, 500);
-                    });
-                } else {
+                } catch (e) {
+                    console.error("Revert Error:", e);
+                    this.notify("Erro ao restaurar.", "error");
                     this.currentView = 'dashboard';
-                    document.body.classList.remove('interaction-lock');
-                    this.isReverting = false;
-                    this.loadingChar = false;
+                    this.cleanupRevert();
                 }
+            }, 400);
+        },
 
-            } catch (e) {
-                console.error("Revert Error:", e);
-                this.notify("Erro ao restaurar.", "error");
-                this.currentView = 'dashboard';
-                document.body.classList.remove('interaction-lock');
-                this.isReverting = false;
-                this.loadingChar = false;
-            }
+        cleanupRevert() {
+            document.body.classList.remove('interaction-lock');
+            document.body.classList.remove('animating-out');
+            document.body.style.pointerEvents = '';
+            this.isReverting = false;
+            this.loadingChar = false;
         },
 
         async fetchCloud() {
