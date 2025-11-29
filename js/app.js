@@ -1,9 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.7-Nuclear-Reload
+ * Version: v56.8-Ghost-Buster
  * Changelog:
- * - Fix Critical: performRevert agora usa systemLoading para resetar a interface completamente (Fim dos bugs visuais)
- * - Fix UX: toggleDiceTray destravado (removeu bloqueio de revertConfirmMode que causava o bug do "duplo clique")
+ * - Fix Critical: performRevert com atraso na ocultação do botão para absorver "Cliques Fantasmas"
+ * - Fix UX: toggleDiceTray agora permite FECHAR a bandeja mesmo durante loading (resolve o bug do duplo clique)
+ * - Refactor: loadCharacter com reset forçado de estado via $nextTick
  */
 
 const CONSTANTS = {
@@ -244,10 +245,10 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // CORREÇÃO: Removemos a trava 'revertConfirmMode' daqui.
-            // Se o sistema estiver carregando (tela preta), não abre.
-            // Mas se abrir por engano, você consegue fechar de primeira.
-            if (this.systemLoading || this.loadingChar) return; 
+            // LÓGICA DE PROTEÇÃO INTELIGENTE:
+            // 1. Se a bandeja NÃO estiver aberta e o sistema estiver carregando: BLOQUEIA (Não deixa abrir por acidente).
+            // 2. Se a bandeja JÁ estiver aberta (ex: bug visual ou usuário abriu antes): PERMITE (Deixa fechar).
+            if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar)) return;
             
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
@@ -325,22 +326,24 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. ATIVA O LOADER DO SISTEMA (TELA PRETA)
-            // Isso serve como animação, reseta a interface e previne cliques.
+            // 1. Inicia o Loading Visual (Bloqueia a tela)
             this.systemLoading = true; 
             this.loadingChar = true;
             this.diceTrayOpen = false; 
-            this.revertConfirmMode = false;
 
-            // Timeout para dar o feedback visual de "Recarregando..."
+            // 2. ATRASO ESTRATÉGICO PARA ESCONDER O BOTÃO
+            // Mantém o botão de "Confirmar" existente (mas coberto pelo Loading) por 150ms.
+            // Isso absorve qualquer "clique fantasma" que o mouse faria no elemento de baixo (Bandeja).
+            setTimeout(() => { 
+                this.revertConfirmMode = false; 
+            }, 150);
+
+            // 3. Processo de Reversão
             setTimeout(async () => {
                 try {
-                    // 2. Reseta os dados (Puxa do Storage/Nuvem)
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                    // 3. RELOAD COMPLETO DA FICHA
-                    // Chama o loadCharacter original, que limpa tudo e monta a tela do zero.
                     if(this.activeCharId && this.chars[this.activeCharId]) {
                         await this.loadCharacter(this.activeCharId, true);
                         this.notify('Alterações descartadas.', 'success');
@@ -351,14 +354,12 @@ function zeniteSystem() {
                     console.error("Revert Error:", e);
                     this.notify("Erro ao reverter.", "error");
                 } finally {
-                    // 4. Remove o Loading
-                    // Um pequeno delay extra para garantir que o DOM renderizou
                     setTimeout(() => { 
                         this.systemLoading = false; 
                         this.loadingChar = false; 
                     }, 500);
                 }
-            }, 500); // Tempo da animação (0.5s)
+            }, 500);
         },
 
         async fetchCloud() {
@@ -437,7 +438,7 @@ function zeniteSystem() {
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
             this.wizardStep = 1; this.wizardPoints = 8;
-            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
+            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
             this.wizardFocusAttr = '';
             history.pushState({ modal: 'wizard' }, "Wizard", "#new");
             this.wizardOpen = true; 
@@ -512,7 +513,7 @@ function zeniteSystem() {
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
             
             this.loadingChar = true; this.activeCharId = id;
-            this.diceTrayOpen = false; // GARANTIA: Fecha bandeja ao carregar
+            this.diceTrayOpen = false; // GARANTIA 1
             
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
@@ -520,7 +521,14 @@ function zeniteSystem() {
                 if(!this.char.age) this.char.age = ""; 
                 this.currentView = 'sheet'; this.activeTab = 'profile';
                 this.diceTrayOpen = false; 
+                
+                // GARANTIA 2: Reseta estado no próximo tick do Alpine para garantir que o DOM sincronize
+                this.$nextTick(() => { 
+                    this.diceTrayOpen = false; 
+                });
+
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
+                
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
             });
          },
