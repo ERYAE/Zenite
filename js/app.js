@@ -1,14 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v61.0-Terminator (Júnior Edition)
+ * Version: v62.0-Template-Fix
  * Changelog:
- * - Fix Final: Implementado ciclo de vida "Nuclear" para o Revert.
- * - Step 1: Bloqueio físico de inputs (pointer-events: none no body).
- * - Step 2: Animação de Saída.
- * - Step 3: Destruição total da View (currentView = 'void') para matar elementos fantasmas.
- * - Step 4: Reload de dados.
- * - Step 5: Reconstrução da View + Animação de Entrada.
- * - Step 6: Desbloqueio de inputs.
+ * - Fix Definitivo: Bandeja de Dados agora usa <template x-if> no HTML.
+ * Isso remove fisicamente a bandeja do DOM quando fechada, impedindo o bug de "dupla janela".
+ * - Feat: Adicionado campo "Motivo" e exibição de Modificadores no histórico.
+ * - Refactor: performRevert mantém a lógica de "Nuke" para garantir limpeza total.
  */
 
 const CONSTANTS = {
@@ -60,18 +57,19 @@ function zeniteSystem() {
         trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
+        diceMod: 0,
+        diceReason: '', // Novo: Motivo do teste
         
         // UI Control & Tutorial
         showDiceTip: false, 
         hasSeenDiceTip: false,
         revertConfirmMode: false,
-        isReverting: false, // Trava lógica interna
+        isReverting: false,
 
         diceLog: [],
         lastRoll: '--',
         lastNatural: 0,
         lastFaces: 20,
-        diceMod: 0,
         isMobile: window.innerWidth < 768,
         
         // --- MODALS ---
@@ -250,12 +248,8 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // TRAVA DE SEGURANÇA:
-            // 1. Se estiver revertendo (isReverting) -> NEM PENSAR EM ABRIR.
-            // 2. Se a página estiver travada fisicamente (interaction-lock) -> NEM PENSAR.
+            // TRAVA DE SEGURANÇA: Bloqueia abertura durante carregamento/reversão
             if (this.isReverting || document.body.classList.contains('interaction-lock')) return;
-            
-            // Se estiver carregando, bloqueia abrir, mas permite fechar (caso bugue visualmente)
             if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar)) return;
             
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -338,7 +332,7 @@ function zeniteSystem() {
             this.isReverting = true; 
             this.loadingChar = true;
             this.revertConfirmMode = false;
-            this.diceTrayOpen = false; // Fecha logicamente
+            this.diceTrayOpen = false; 
             
             // TRAVA FÍSICA: Ninguém clica em nada no navegador.
             document.body.style.pointerEvents = 'none'; 
@@ -350,8 +344,7 @@ function zeniteSystem() {
             // Espera a animação rodar (400ms)
             setTimeout(async () => {
                 try {
-                    // [FASE 3]: DESTRUIÇÃO (NUCLEAR)
-                    // Removemos a view atual. Isso mata o HTML da bandeja e da ficha antiga.
+                    // [FASE 3]: DESTRUIÇÃO (NUCLEAR) - O x-if agora garante que a bandeja morre aqui
                     const tempCharId = this.activeCharId;
                     this.currentView = 'void';
                     document.body.classList.remove('animating-out');
@@ -364,10 +357,9 @@ function zeniteSystem() {
                     setTimeout(async () => {
                         // [FASE 5]: RECONSTRUÇÃO
                         if(tempCharId && this.chars[tempCharId]) {
-                            // Carrega a ficha nova
                             await this.loadCharacter(tempCharId, true);
                             
-                            // Força estado fechado da bandeja DE NOVO
+                            // Força estado fechado da bandeja
                             this.diceTrayOpen = false;
 
                             // Animação de Entrada
@@ -379,10 +371,10 @@ function zeniteSystem() {
                                 setTimeout(() => {
                                     document.body.classList.remove('animating-in');
                                     document.body.classList.remove('interaction-lock');
-                                    document.body.style.pointerEvents = ''; // Devolve o mouse
+                                    document.body.style.pointerEvents = ''; 
                                     this.isReverting = false; 
                                     this.loadingChar = false;
-                                    this.diceTrayOpen = false; // Triple check
+                                    this.diceTrayOpen = false; 
                                 }, 500);
                             });
                         } else {
@@ -559,7 +551,7 @@ function zeniteSystem() {
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
             
             this.loadingChar = true; this.activeCharId = id;
-            this.diceTrayOpen = false; // GARANTIA 1
+            this.diceTrayOpen = false; // GARANTIA: Fecha bandeja ao carregar
             
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
@@ -567,13 +559,14 @@ function zeniteSystem() {
                 if(!this.char.age) this.char.age = ""; 
                 this.currentView = 'sheet'; this.activeTab = 'profile';
                 this.diceTrayOpen = false; 
-
+                
                 // GARANTIA 2: Reseta estado no próximo tick do Alpine para garantir que o DOM sincronize
                 this.$nextTick(() => { 
                     this.diceTrayOpen = false; 
                 });
 
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
+                
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
             });
          },
@@ -605,7 +598,19 @@ function zeniteSystem() {
             const m = parseInt(this.diceMod || 0);
             this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
             
-            this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: `D${s}`, result: n+m, crit: n===s, fumble: n===1});
+            // ATUALIZADO: Log com Motivo e Modificador
+            this.diceLog.unshift({
+                id: Date.now(), 
+                time: new Date().toLocaleTimeString(), 
+                formula: `D${s}`, 
+                result: n+m, 
+                crit: n===s, 
+                fumble: n===1,
+                reason: this.diceReason, // Novo: Salva o motivo
+                mod: m // Novo: Salva o modificador
+            });
+            
+            this.diceReason = ''; // Limpa o motivo após rolar
             
             if (this.isMobile) {
                 if (this.diceLog.length > 10) this.diceLog.pop();
