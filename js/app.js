@@ -320,13 +320,6 @@ function zeniteSystem() {
             this.systemFailure = true; 
             
             // 4. Remove o erro depois de 5s (susto temporário)
-            setTimeout(() => { 
-                this.systemFailure = false; 
-                playSFX('discard'); // Som de "desligando" o erro
-                
-                // Opcional: Sair do fullscreen automaticamente ou manter o usuário preso
-                // if (document.exitFullscreen) document.exitFullscreen(); 
-            }, 5000);
         },
 
 // ... (Restante do código) ...
