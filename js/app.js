@@ -1,9 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.5-Final-Fix
+ * Version: v56.7-Nuclear-Reload
  * Changelog:
- * - Fix Definitivo: Revert agora aciona systemLoading (Bloqueio total de UI + Animação)
- * - Refactor: toggleDiceTray ignora cliques durante systemLoading
+ * - Fix Critical: performRevert agora usa systemLoading para resetar a interface completamente (Fim dos bugs visuais)
+ * - Fix UX: toggleDiceTray destravado (removeu bloqueio de revertConfirmMode que causava o bug do "duplo clique")
  */
 
 const CONSTANTS = {
@@ -244,8 +244,10 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // TRAVA MESTRA: Se o sistema estiver no loading (tela preta), NÃO ABRE.
-            if (this.systemLoading || this.loadingChar || this.revertConfirmMode) return; 
+            // CORREÇÃO: Removemos a trava 'revertConfirmMode' daqui.
+            // Se o sistema estiver carregando (tela preta), não abre.
+            // Mas se abrir por engano, você consegue fechar de primeira.
+            if (this.systemLoading || this.loadingChar) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
@@ -324,21 +326,21 @@ function zeniteSystem() {
 
         async performRevert() {
             // 1. ATIVA O LOADER DO SISTEMA (TELA PRETA)
-            // Isso serve como animação e BLOQUEIA qualquer clique na interface
+            // Isso serve como animação, reseta a interface e previne cliques.
             this.systemLoading = true; 
             this.loadingChar = true;
-            this.diceTrayOpen = false; // Garante fechamento
+            this.diceTrayOpen = false; 
             this.revertConfirmMode = false;
 
-            // 2. Timeout para a "animação" ser perceptível
+            // Timeout para dar o feedback visual de "Recarregando..."
             setTimeout(async () => {
                 try {
-                    // Reseta os dados
+                    // 2. Reseta os dados (Puxa do Storage/Nuvem)
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
                     // 3. RELOAD COMPLETO DA FICHA
-                    // Usa a função padrão que já limpa o estado e fecha a bandeja
+                    // Chama o loadCharacter original, que limpa tudo e monta a tela do zero.
                     if(this.activeCharId && this.chars[this.activeCharId]) {
                         await this.loadCharacter(this.activeCharId, true);
                         this.notify('Alterações descartadas.', 'success');
@@ -349,14 +351,14 @@ function zeniteSystem() {
                     console.error("Revert Error:", e);
                     this.notify("Erro ao reverter.", "error");
                 } finally {
-                    // 4. REMOVE O LOADER (ANIMAÇÃO FIM)
-                    // Um pequeno delay extra para suavidade
+                    // 4. Remove o Loading
+                    // Um pequeno delay extra para garantir que o DOM renderizou
                     setTimeout(() => { 
                         this.systemLoading = false; 
                         this.loadingChar = false; 
                     }, 500);
                 }
-            }, 300); // Tempo da animação de entrada
+            }, 500); // Tempo da animação (0.5s)
         },
 
         async fetchCloud() {
@@ -435,7 +437,7 @@ function zeniteSystem() {
         openWizard() { 
             if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
             this.wizardStep = 1; this.wizardPoints = 8;
-            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
+            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
             this.wizardFocusAttr = '';
             history.pushState({ modal: 'wizard' }, "Wizard", "#new");
             this.wizardOpen = true; 
