@@ -1,10 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.3-Tray-Shield
+ * Version: v56.4-Revert-Reload
  * Changelog:
- * - Fix Critical: Bandeja abrindo no Revert (Race Condition corrigida com trava estendida)
- * - Refactor: toggleDiceTray com verificação de loadingChar
- * - Refactor: performRevert mantém bloqueio até o fim da animação
+ * - Refactor: performRevert agora utiliza loadCharacter para reset completo (Ideia do Usuário)
+ * - UX: Lógica de Tooltip da bandeja verificada e mantida
  */
 
 const CONSTANTS = {
@@ -245,8 +244,6 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // LOCK REFORÇADO: Impede abertura se estiver carregando (sistema ou char) OU modo reversão
-            // Adicionado loadingChar para segurança extra
             if (this.systemLoading || this.loadingChar || this.revertConfirmMode) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -318,18 +315,18 @@ function zeniteSystem() {
 
         // --- SISTEMA DE REVERSÃO OTIMIZADO ---
         toggleRevertMode() {
-            // Fecha a bandeja preventivamente em QUALQUER interação com o Revert
             this.diceTrayOpen = false; 
             this.revertConfirmMode = !this.revertConfirmMode;
         },
 
         async performRevert() {
-            // 1. Lock System & Reset UI
-            this.systemLoading = true;
-            this.loadingChar = true; 
+            // 1. Bloqueia a interface imediatamente
+            this.loadingChar = true;
             this.diceTrayOpen = false;
+            this.revertConfirmMode = false; 
             
             try {
+                // 2. Reseta os dados para o estado salvo (Local ou Nuvem)
                 if(this.isGuest) {
                     this.loadLocal('zenite_guest_db');
                 } else {
@@ -337,37 +334,21 @@ function zeniteSystem() {
                     await this.fetchCloud();
                 }
                 
-                // 2. Safe Char Reload
-                if(this.activeCharId) {
-                    if (this.chars[this.activeCharId]) {
-                        this.char = null; 
-                        await this.$nextTick(); 
-                        this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
-                    } else {
-                        this.activeCharId = null;
-                        this.char = null;
-                        this.currentView = 'dashboard';
-                    }
+                // 3. Recarrega a ficha usando o fluxo padrão (Clean Slate)
+                if(this.activeCharId && this.chars[this.activeCharId]) {
+                    // O 'true' impede que a gente polua o histórico do navegador com entradas duplicadas
+                    this.loadCharacter(this.activeCharId, true);
+                    this.notify('Alterações descartadas.', 'success');
+                } else {
+                    // Fallback de segurança se o char sumiu
+                    this.currentView = 'dashboard';
+                    this.loadingChar = false;
                 }
 
-                this.unsavedChanges = false;
-                // NOTA: Não destravamos revertConfirmMode aqui. Mantemos travado até o finally.
-                this.notify('Alterações descartadas.', 'success');
             } catch (e) {
                 console.error("Revert Error:", e);
                 this.notify("Erro ao reverter.", "error");
-            } finally {
-                // 3. Unlock & Safety Check
                 this.loadingChar = false;
-                
-                this.$nextTick(() => {
-                    setTimeout(() => { 
-                        // Sincronia fina: Destrava tudo junto APÓS a animação visual da barra
-                        this.revertConfirmMode = false; // Agora sim libera o Lock
-                        this.systemLoading = false; 
-                        this.diceTrayOpen = false; // Garantia final
-                    }, 300);
-                });
             }
         },
 
