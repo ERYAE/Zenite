@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.1-Stability-Patch
+ * Version: v56.2-Tray-Lockdown
  * Changelog:
- * - Fix: Race Condition na Reversão de Dados (Bandeja abrindo sozinha)
- * - Refactor: performRevert blindado contra eventos de UI
- * - Fix: Z-Indexes organizados
+ * - Fix Critical: Dice Tray abrindo ao reverter (Race Condition)
+ * - Feat: Travamento da bandeja durante modo de confirmação
+ * - Refactor: performRevert com limpeza de estado em múltiplos estágios
  */
 
 const CONSTANTS = {
@@ -245,7 +245,9 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            if (this.systemLoading) return; // Guard clause
+            // LOCK: Impede abertura se estiver carregando OU se estiver no modo de reversão
+            if (this.systemLoading || this.revertConfirmMode) return; 
+            
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
                 this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal();
@@ -313,9 +315,11 @@ function zeniteSystem() {
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- SISTEMA DE REVERSÃO OTIMIZADO (GOD MODE FIX) ---
+        // --- SISTEMA DE REVERSÃO OTIMIZADO ---
         toggleRevertMode() {
             this.revertConfirmMode = !this.revertConfirmMode;
+            // Se entrar no modo de confirmação, fecha a bandeja preventivamente
+            if(this.revertConfirmMode) this.diceTrayOpen = false;
         },
 
         async performRevert() {
@@ -323,7 +327,6 @@ function zeniteSystem() {
             this.systemLoading = true;
             this.loadingChar = true; 
             this.diceTrayOpen = false;
-            this.revertConfirmMode = false;
             
             try {
                 if(this.isGuest) {
@@ -336,11 +339,10 @@ function zeniteSystem() {
                 // 2. Safe Char Reload
                 if(this.activeCharId) {
                     if (this.chars[this.activeCharId]) {
-                        this.char = null; // Limpa para resetar views
-                        await this.$nextTick(); // Espera DOM flush
+                        this.char = null; 
+                        await this.$nextTick(); 
                         this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
                     } else {
-                        // Se char foi deletado na nuvem/local, sai da ficha
                         this.activeCharId = null;
                         this.char = null;
                         this.currentView = 'dashboard';
@@ -348,20 +350,21 @@ function zeniteSystem() {
                 }
 
                 this.unsavedChanges = false;
+                this.revertConfirmMode = false;
                 this.notify('Alterações descartadas.', 'success');
             } catch (e) {
                 console.error("Revert Error:", e);
                 this.notify("Erro ao reverter.", "error");
             } finally {
-                // 3. Unlock & Safety Check
+                // 3. Unlock & Safety Check com NextTick
                 this.loadingChar = false;
                 
-                // Pequeno delay para garantir que animações terminaram
-                setTimeout(() => { 
-                    this.systemLoading = false; 
-                    // Reforça fechamento da bandeja caso race condition tenha ocorrido
-                    this.diceTrayOpen = false; 
-                }, 300);
+                this.$nextTick(() => {
+                    setTimeout(() => { 
+                        this.systemLoading = false; 
+                        this.diceTrayOpen = false; // GARANTIA FINAL
+                    }, 300);
+                });
             }
         },
 
@@ -516,6 +519,8 @@ function zeniteSystem() {
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
             
             this.loadingChar = true; this.activeCharId = id;
+            this.diceTrayOpen = false; // GARANTIA: Fecha bandeja ao carregar
+            
             requestAnimationFrame(() => {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
