@@ -1,11 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v74.0-Koda-Auditory-Hallucination
+ * Version: v75.0-Koda-Silent-Protocol
  * Changelog:
- * - Feat: New Audio Engine (Modern Timbres, Higher Volume).
- * - Feat: New SFX (Save, Discard).
- * - Fix: Anti-spam on SFX (Throttle increased).
- * - Fix: Visual State Force Update (Mouse Trail Bug).
+ * - Feat: SFX Engine 2.0 (White Noise Synthesis - Tech UI Sounds).
+ * - Fix: Anti-spam logic changed from Timer to Element Tracking.
+ * - Fix: Mouse Trail force-enabled in render loop if user exists.
+ * - Config: SFX Toggle added.
  */
 
 const CONSTANTS = {
@@ -20,93 +20,102 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- AUDIO ENGINE PRO (High Volume & Modern Timbres) ---
+// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let lastHoverTime = 0; 
+let sfxEnabledGlobal = true; // Controlled by Alpine state later
+
+// Gera buffer de ruído branco (para sons percussivos/tech)
+const bufferSize = audioCtx.sampleRate * 2; // 2 seconds buffer
+const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+const output = noiseBuffer.getChannelData(0);
+for (let i = 0; i < bufferSize; i++) {
+    output[i] = Math.random() * 2 - 1;
+}
 
 const playSFX = (type) => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const now = audioCtx.currentTime;
-
-    // THROTTLE: Anti-metralhadora aprimorado
-    if (type === 'hover') {
-        if (now - lastHoverTime < 0.2) return; // 200ms cooldown
-        lastHoverTime = now;
+    if (!sfxEnabledGlobal || audioCtx.state === 'suspended') {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        if(!sfxEnabledGlobal) return;
     }
 
-    const osc = audioCtx.createOscillator();
+    const now = audioCtx.currentTime;
     const gain = audioCtx.createGain();
-    const filter = audioCtx.createBiquadFilter();
-
-    osc.connect(filter);
-    filter.connect(gain);
     gain.connect(audioCtx.destination);
 
     if (type === 'hover') {
-        // High-Tech Blip (Sine + Bandpass)
-        osc.type = 'sine';
-        filter.type = 'bandpass'; filter.frequency.value = 1500;
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
-        gain.gain.setValueAtTime(0.1, now); // Mais alto
+        // Tech "Air" Click (Noise burst with Bandpass)
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 800; // Frequency center
+        filter.Q.value = 10; // Sharp resonance
+
+        src.connect(filter);
+        filter.connect(gain);
+
+        gain.gain.setValueAtTime(0.05, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
+        src.start(now);
+        src.stop(now + 0.05);
 
     } else if (type === 'click') {
-        // Mechanical Switch (Triangle)
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-        osc.start(now); osc.stop(now + 0.08);
-
-    } else if (type === 'save') { // NOVO: Som de Aprovação
-        // Ascending Chime
+        // High-pitch sharp click
+        const osc = audioCtx.createOscillator();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, now); // A4
-        osc.frequency.setValueAtTime(554, now + 0.1); // C#5
-        osc.frequency.setValueAtTime(659, now + 0.2); // E5
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.4);
-        osc.start(now); osc.stop(now + 0.4);
-
-    } else if (type === 'discard') { // NOVO: Som de Recusa
-        // Rapid Power Down
-        osc.type = 'sawtooth';
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1000, now);
-        filter.frequency.linearRampToValueAtTime(100, now + 0.15);
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 0.15);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now); osc.stop(now + 0.15);
-
-    } else if (type === 'success') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, now);
-        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
-        osc.start(now); osc.stop(now + 0.2);
-
-    } else if (type === 'glitch') { // FATAL ERROR SOUND
-        // Dissonant Cluster
-        const osc2 = audioCtx.createOscillator();
-        osc2.type = 'sawtooth';
-        osc2.frequency.value = 55; // Low rumble
-        osc2.connect(gain);
-        osc2.start(now); osc2.stop(now + 1.0);
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1200, now); // High screech
-        osc.frequency.linearRampToValueAtTime(50, now + 1.0); // Drop
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
         
-        gain.gain.setValueAtTime(0.5, now); // LOUD
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-        osc.start(now); osc.stop(now + 1.0);
-    } 
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        
+        osc.connect(gain);
+        osc.start(now); osc.stop(now + 0.05);
+
+    } else if (type === 'save') { 
+        // Glassy Chime (FM-like)
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now); // A5
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain);
+        osc.start(now); osc.stop(now + 0.6);
+
+    } else if (type === 'discard') { 
+        // Power Down
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.linearRampToValueAtTime(10, now + 0.3);
+        
+        filter.frequency.setValueAtTime(500, now);
+        filter.frequency.linearRampToValueAtTime(50, now + 0.3);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+        osc.connect(filter); filter.connect(gain);
+        osc.start(now); osc.stop(now + 0.3);
+
+    } else if (type === 'glitch') {
+        // Heavy Distortion
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        
+        src.connect(filter);
+        filter.connect(gain);
+        
+        gain.gain.setValueAtTime(0.8, now); // LOUD
+        gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
+        src.start(now); src.stop(now + 2.0);
+    }
 };
 
 function debounce(func, wait) {
@@ -150,7 +159,9 @@ function zeniteSystem() {
         
         // CONFIGS
         settings: {
-            mouseTrail: true, compactMode: false, performanceMode: false, crtMode: true, themeColor: 'cyan'
+            mouseTrail: true, compactMode: false, performanceMode: false, 
+            crtMode: true, sfxEnabled: true, // NOVO
+            themeColor: 'cyan'
         },
         
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
@@ -190,7 +201,11 @@ function zeniteSystem() {
                 }
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
-                this.setupListeners(); this.setupCursorEngine(); this.setupWatchers();
+                
+                // SETUP LISTENERS ESPECIAS
+                this.setupListeners(); 
+                this.setupCursorEngine(); 
+                this.setupWatchers();
 
                 this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -214,7 +229,7 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                // NOTA: Chamada explícita para garantir estado visual no boot
+                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
                 this.updateVisualState();
                 
                 this.updateAgentCount();
@@ -232,9 +247,25 @@ function zeniteSystem() {
                 if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; }
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
             });
-            // SFX LISTENERS
-            document.addEventListener('click', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); });
-            document.addEventListener('mouseover', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('hover'); });
+            
+            // --- SFX LISTENER INTELIGENTE (SEM SPAM) ---
+            let lastHovered = null; // Rastreador de elemento
+            
+            document.addEventListener('click', (e) => { 
+                if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); 
+            });
+            
+            document.addEventListener('mouseover', (e) => {
+                const target = e.target.closest('button, a, .cursor-pointer');
+                
+                // Só toca se MUDOU de elemento (Entrou num novo)
+                if (target && target !== lastHovered) {
+                    playSFX('hover');
+                    lastHovered = target;
+                } else if (!target) {
+                    lastHovered = null;
+                }
+            });
         },
 
         handleKeys(e) {
@@ -250,17 +281,55 @@ function zeniteSystem() {
             }
         },
 
+// ... (Código anterior mantido) ...
+
         handleLogoClick() {
-            clearTimeout(this.logoClickTimer); this.logoClickCount++;
-            if (this.logoClickCount >= 5) { this.logoClickCount = 0; this.triggerSystemFailure(); return; }
+            clearTimeout(this.logoClickTimer); 
+            this.logoClickCount++;
+            
+            if (this.logoClickCount >= 5) {
+                this.logoClickCount = 0;
+                this.triggerSystemFailure();
+                return;
+            }
+            
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
-            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } else if (document.exitFullscreen) { document.exitFullscreen(); }
+            
+            // Toggle Fullscreen normal (clicks 1-4)
+            if (!this.systemFailure) { // Só alterna se não estiver em erro
+                 if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
         },
 
         triggerSystemFailure() {
-            this.systemFailure = true; playSFX('glitch');
-            setTimeout(() => { this.systemFailure = false; }, 4000);
+            // 1. Toca o som do terror
+            playSFX('glitch'); 
+            
+            // 2. FORÇA TELA CHEIA (O "engano" acontece aqui)
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                    console.log("Fullscreen blocked:", err);
+                });
+            }
+
+            // 3. Mostra a tela de erro
+            this.systemFailure = true; 
+            
+            // 4. Remove o erro depois de 5s (susto temporário)
+            setTimeout(() => { 
+                this.systemFailure = false; 
+                playSFX('discard'); // Som de "desligando" o erro
+                
+                // Opcional: Sair do fullscreen automaticamente ou manter o usuário preso
+                // if (document.exitFullscreen) document.exitFullscreen(); 
+            }, 5000);
         },
+
+// ... (Restante do código) ...
 
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
@@ -272,36 +341,45 @@ function zeniteSystem() {
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
             
-            // CURSOR
+            // CURSOR CLASS
             if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
                 document.body.classList.remove('custom-cursor-active');
             }
 
-            // CRT (Pixel Effect) - Só se autenticado
+            // CRT (Pixel Effect)
             if (isAuthenticated && this.settings.crtMode) {
                 document.body.classList.add('crt-mode');
             } else {
                 document.body.classList.remove('crt-mode');
             }
+            
+            // SFX State
+            sfxEnabledGlobal = this.settings.sfxEnabled;
         },
         
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
+            
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
                 if(this.settings.mouseTrail && !this.isMobile) { isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; }
             });
+            
             const renderLoop = () => {
                 if (!trail) return;
                 const isAuthenticated = this.user || this.isGuest;
+                
+                // FORCE CHECK: Garante que o rastro renderize se logado
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block'; trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
-                } else { trail.style.display = 'none'; }
+                } else { 
+                    trail.style.display = 'none'; 
+                }
                 renderRafId = requestAnimationFrame(renderLoop);
             };
             renderLoop();
@@ -342,7 +420,7 @@ function zeniteSystem() {
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
             
-            // Watchers CRÍTICOS para o bug do rastro
+            // Watch centralizado
             this.$watch('user', (val) => { this.updateVisualState(); });
             this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },

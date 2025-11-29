@@ -31,15 +31,29 @@
     <div class="bg-grid"></div>
 
     <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
-        <div class="glitch-text mb-8" data-text="SYSTEM HALT">SYSTEM HALT</div>
-        <div class="flex flex-col gap-2 font-code text-red-600 text-sm animate-pulse tracking-widest text-center font-bold">
-            <p>>> FATAL EXCEPTION: KERNEL_SECURITY_CHECK_FAILURE</p>
-            <p>>> MEMORY ADDRESS: 0xDEADBEEF</p>
-            <p>>> UPLOADING CRASH REPORT... [FAILED]</p>
-        </div>
-        <div class="mt-12 font-code text-[10px] text-red-900 opacity-80 max-w-lg break-all uppercase">
-            *** STOP: 0x0000007B (0xFFFFF880009A98D8, 0xFFFFFFFFC0000034, 0x0000000000000000, 0x0000000000000000)
-            ZENITE_OS_CORE.SYS - ADDRESS FFFFF88001476C28 BASE AT FFFFF88001200000 DATESTAMP 4c1c44a9
+        <div class="bsod-container">
+            <span class="bsod-header">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
+            <div class="text-4xl font-bold mb-6 text-red-600 mt-4">FATAL_EXCEPTION_0xDEADDEAD</div>
+            
+            <p class="text-sm mb-4">
+                A critical error has occurred in the neural interface bridge.<br>
+                The system has been halted to prevent permanent user dissociation.
+            </p>
+
+            <ul class="list-disc pl-5 text-xs text-red-400 mb-8 space-y-1">
+                <li>Attempting to recover shadow memory... [FAILED]</li>
+                <li>Flushing auth tokens... [DONE]</li>
+                <li>Severing connection to host... [PENDING]</li>
+            </ul>
+
+            <div class="error-code-block font-code text-[10px] text-red-900">
+                0x00000000 0xFFFFFFFF 0x00000000 0x00000000<br>
+                0xF0000000 0x00000000 0x00000000 0x00000000<br>
+                0xC00000C0 0x00000000 0x00000000 0x00000000<br>
+                *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)
+                <br><br>
+                > PRESS F5 TO REBOOT NEURAL LINK
+            </div>
         </div>
     </div>
 
@@ -104,7 +118,7 @@
                     <img src="images/zenite_logo.svg" class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform">
                     <div class="flex flex-col">
                         <h1 class="text-lg font-bold text-white tracking-widest font-brand leading-none">ZENITE</h1>
-                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V74</span>
+                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM V75</span>
                     </div>
                 </div>
             </div>
@@ -144,29 +158,12 @@
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
         </div>
-        
-        <template x-if="agentCount === 0">
-            <div class="py-32 text-center opacity-30 select-none">
-                <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
-                <p class="font-brand text-xl">SISTEMA VAZIO</p>
-            </div>
-        </template>
-        
+        <template x-if="agentCount === 0"><div class="py-32 text-center opacity-30 select-none"><div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div><p class="font-brand text-xl">SISTEMA VAZIO</p></div></template>
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <template x-for="(c, id) in filteredChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]">
-                    <div class="relative z-10 flex-shrink-0">
-                        <div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors">
-                            <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover">
-                        </div>
-                    </div>
-                    <div class="relative z-10 overflow-hidden">
-                        <h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span>
-                            <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
-                        </div>
-                    </div>
+                    <div class="relative z-10 flex-shrink-0"><div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors"><img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover"></div></div>
+                    <div class="relative z-10 overflow-hidden"><h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3><div class="flex items-center gap-2 mt-1"><span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span><span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span></div></div>
                     <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"><i class="fa-solid fa-trash-can"></i></button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
                 </div>
@@ -247,6 +244,7 @@
             <div class="border-t border-white/10"></div>
             <div class="grid grid-cols-2 gap-3">
                 <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
+                <button @click="toggleSetting('sfxEnabled')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.sfxEnabled ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">SFX (SONS)</button>
                 <button x-show="isMobile" @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO (MOBILE)</button>
                 <button @click="toggleSetting('crtMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO CRT (PIXEL)</button>
             </div>
