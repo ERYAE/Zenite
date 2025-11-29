@@ -1,9 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.4-Revert-Reload
+ * Version: v56.5-Final-Fix
  * Changelog:
- * - Refactor: performRevert agora utiliza loadCharacter para reset completo (Ideia do Usuário)
- * - UX: Lógica de Tooltip da bandeja verificada e mantida
+ * - Fix Definitivo: Revert agora aciona systemLoading (Bloqueio total de UI + Animação)
+ * - Refactor: toggleDiceTray ignora cliques durante systemLoading
  */
 
 const CONSTANTS = {
@@ -244,11 +244,14 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
+            // TRAVA MESTRA: Se o sistema estiver no loading (tela preta), NÃO ABRE.
             if (this.systemLoading || this.loadingChar || this.revertConfirmMode) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
-                this.showDiceTip = false; this.hasSeenDiceTip = true; this.saveLocal();
+                this.showDiceTip = false; 
+                this.hasSeenDiceTip = true; 
+                this.saveLocal();
                 this.ensureTrayOnScreen();
             }
         },
@@ -313,43 +316,47 @@ function zeniteSystem() {
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- SISTEMA DE REVERSÃO OTIMIZADO ---
+        // --- SISTEMA DE REVERSÃO ---
         toggleRevertMode() {
             this.diceTrayOpen = false; 
             this.revertConfirmMode = !this.revertConfirmMode;
         },
 
         async performRevert() {
-            // 1. Bloqueia a interface imediatamente
+            // 1. ATIVA O LOADER DO SISTEMA (TELA PRETA)
+            // Isso serve como animação e BLOQUEIA qualquer clique na interface
+            this.systemLoading = true; 
             this.loadingChar = true;
-            this.diceTrayOpen = false;
-            this.revertConfirmMode = false; 
-            
-            try {
-                // 2. Reseta os dados para o estado salvo (Local ou Nuvem)
-                if(this.isGuest) {
-                    this.loadLocal('zenite_guest_db');
-                } else {
-                    this.loadLocal('zenite_cached_db');
-                    await this.fetchCloud();
-                }
-                
-                // 3. Recarrega a ficha usando o fluxo padrão (Clean Slate)
-                if(this.activeCharId && this.chars[this.activeCharId]) {
-                    // O 'true' impede que a gente polua o histórico do navegador com entradas duplicadas
-                    this.loadCharacter(this.activeCharId, true);
-                    this.notify('Alterações descartadas.', 'success');
-                } else {
-                    // Fallback de segurança se o char sumiu
-                    this.currentView = 'dashboard';
-                    this.loadingChar = false;
-                }
+            this.diceTrayOpen = false; // Garante fechamento
+            this.revertConfirmMode = false;
 
-            } catch (e) {
-                console.error("Revert Error:", e);
-                this.notify("Erro ao reverter.", "error");
-                this.loadingChar = false;
-            }
+            // 2. Timeout para a "animação" ser perceptível
+            setTimeout(async () => {
+                try {
+                    // Reseta os dados
+                    if(this.isGuest) this.loadLocal('zenite_guest_db');
+                    else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
+
+                    // 3. RELOAD COMPLETO DA FICHA
+                    // Usa a função padrão que já limpa o estado e fecha a bandeja
+                    if(this.activeCharId && this.chars[this.activeCharId]) {
+                        await this.loadCharacter(this.activeCharId, true);
+                        this.notify('Alterações descartadas.', 'success');
+                    } else {
+                        this.currentView = 'dashboard';
+                    }
+                } catch (e) {
+                    console.error("Revert Error:", e);
+                    this.notify("Erro ao reverter.", "error");
+                } finally {
+                    // 4. REMOVE O LOADER (ANIMAÇÃO FIM)
+                    // Um pequeno delay extra para suavidade
+                    setTimeout(() => { 
+                        this.systemLoading = false; 
+                        this.loadingChar = false; 
+                    }, 500);
+                }
+            }, 300); // Tempo da animação de entrada
         },
 
         async fetchCloud() {
@@ -392,7 +399,7 @@ function zeniteSystem() {
                 'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
                 'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
                 'Infiltrador': { pv: [12, 2], pf: [15, 4], pdf: [12, 3] },
-                'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [12, 2], pdf: [15, 4] },
+                'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [15, 4] },
                 'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
             };
             const cfg = config[cl] || config['Titã'];
