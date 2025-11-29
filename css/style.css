@@ -38,7 +38,7 @@ body {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
 }
 
-/* --- GOD MODE CURSOR SYSTEM (Fixed Precision) --- */
+/* --- GOD MODE CURSOR SYSTEM --- */
 body.custom-cursor-active, body.custom-cursor-active * { 
     cursor: none !important; 
 }
@@ -46,52 +46,35 @@ body.custom-cursor-active, body.custom-cursor-active * {
 #mouse-trail {
     pointer-events: none;
     position: fixed; top: 0; left: 0; z-index: 10002;
-    
-    /* Tamanho Base */
     width: 20px; height: 20px; 
-    
-    /* FIX DE PRECISÃO: Margem negativa igual a metade do tamanho garante centro exato */
     margin-top: -10px; margin-left: -10px;
-    
     border-radius: 50%;
     border: 1px solid var(--neon-core);
     background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
     box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.5);
-    
-    /* Otimização de Performance */
     will-change: transform, width, height, margin;
     transform: translate3d(-100px, -100px, 0);
     mix-blend-mode: screen;
-
-    /* IMPORTANTE: Removemos 'transform' da transição. 
-       Isso elimina o "lag" de movimento. O cursor agora responde 1:1.
-       Apenas tamanho e cor são animados.
-    */
     transition: width 0.3s var(--ease-smooth), 
                 height 0.3s var(--ease-smooth), 
                 margin 0.3s var(--ease-smooth),
                 background-color 0.2s;
 }
 
-/* Ponto central para precisão visual absoluta */
 #mouse-trail::after {
     content: '';
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 2px; height: 2px; /* Reduzi para 2px para mais precisão */
+    width: 2px; height: 2px; 
     background-color: white;
     border-radius: 50%;
     box-shadow: 0 0 4px var(--neon-core);
 }
 
 #mouse-trail.hover-active {
-    /* Hover expandido */
     width: 50px; height: 50px;
-    
-    /* FIX DE PRECISÃO NO HOVER: Reajusta a margem para o novo tamanho */
     margin-top: -25px; margin-left: -25px;
-    
     background: rgba(var(--neon-rgb), 0.05);
     border-color: rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 30px rgba(var(--neon-rgb), 0.4);
@@ -160,6 +143,11 @@ body.compact-mode .glass { padding: 8px !important; }
 #damage-overlay, #heal-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; mix-blend-mode: overlay; opacity: 0; transition: opacity 0.2s ease-out; }
 #damage-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-alert) 100%); }
 #heal-overlay { background: radial-gradient(circle, transparent 50%, var(--neon-core) 100%); }
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
 
 .font-brand { font-family: 'Orbitron', sans-serif; }
 .font-code { font-family: 'JetBrains Mono', monospace; }

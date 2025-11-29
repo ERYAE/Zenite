@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v55.3-Precision-Update
+ * Version: v56.0-GodMode-Refactor
  * Changelog:
- * - Fix: Cursor Offset Math (Now handled via CSS margins for absolute precision)
- * - Feat: Revert Changes (Desfazer)
- * - Perf: Optimized Animation Curves
+ * - Fix: Dice Tray Ghosting (fechamento forçado ao sair da ficha)
+ * - Feat: Inline Revert Confirmation (UX aprimorado)
+ * - Core: Limpeza de estados de UI
  */
 
 const CONSTANTS = {
@@ -57,9 +57,10 @@ function zeniteSystem() {
         isDraggingTray: false,
         dragOffset: { x: 0, y: 0 },
         
-        // Tutorial
+        // Tutorial & UI Control
         showDiceTip: false, 
         hasSeenDiceTip: false,
+        revertConfirmMode: false, // NOVO: Controle da UI de confirmação
 
         diceLog: [],
         lastRoll: '--',
@@ -228,8 +229,6 @@ function zeniteSystem() {
 
                 if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                     trail.style.display = 'block';
-                    // OFFSET REMOVIDO NO JS: O CSS lida com a margem negativa agora
-                    // Isso garante que o centro do elemento esteja sempre em X,Y
                     trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
                     
                     if(isCursorHover) trail.classList.add('hover-active'); 
@@ -281,6 +280,15 @@ function zeniteSystem() {
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
+
+            // CORREÇÃO CRÍTICA: Se sair da ficha, mate a bandeja.
+            this.$watch('currentView', (val) => {
+                if (val !== 'sheet') {
+                    this.diceTrayOpen = false;
+                    this.showDiceTip = false;
+                    this.revertConfirmMode = false;
+                }
+            });
         },
 
         loadLocal(key) {
@@ -301,14 +309,23 @@ function zeniteSystem() {
 
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+            // IMPORTANTE: Nunca salvar estado da bandeja aberta.
             const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // FUNÇÃO DE DESFAZER
-        revertChanges() {
-            this.askConfirm('DESFAZER TUDO?', 'Voltar ao último save?', 'warn', async () => {
-                // Recarrega do storage local ou nuvem, ignorando estado atual
+        // --- SISTEMA DE REVERSÃO OTIMIZADO ---
+        // 1. Alterna UI para modo confirmação
+        toggleRevertMode() {
+            this.revertConfirmMode = !this.revertConfirmMode;
+        },
+
+        // 2. Executa a reversão de fato
+        async performRevert() {
+            this.systemLoading = true;
+            this.diceTrayOpen = false; // Garante fechamento
+            
+            try {
                 if(this.isGuest) {
                     this.loadLocal('zenite_guest_db');
                 } else {
@@ -316,16 +333,25 @@ function zeniteSystem() {
                     await this.fetchCloud();
                 }
                 
-                // Se a ficha ativa foi resetada, recarrega ela na view
+                // Força refresh limpo do objeto
                 if(this.activeCharId && this.chars[this.activeCharId]) {
                     this.loadingChar = true;
+                    // Nullify para quebrar referencias antigas
+                    this.char = null;
+                    await this.$nextTick();
                     this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
-                    this.$nextTick(() => { this.loadingChar = false; });
+                    this.loadingChar = false;
                 }
 
                 this.unsavedChanges = false;
+                this.revertConfirmMode = false;
                 this.notify('Alterações descartadas.', 'success');
-            });
+            } catch (e) {
+                console.error("Revert Error:", e);
+                this.notify("Erro ao reverter.", "error");
+            } finally {
+                this.systemLoading = false;
+            }
         },
 
         async fetchCloud() {
