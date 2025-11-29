@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v69.0-Visual-Upgrade
+ * Version: v70.0-Koda-Prime
  * Changelog:
- * - Feat: Loader com barra de progresso real e etapas visuais.
- * - Fix UX: Dica da bandeja (Dice Tip) agora respeita o usuário e não spamma.
- * - Style: Ajustes finos de transição.
+ * - Feat: Modo CRT (Pixel Effect) implementado.
+ * - Fix UX: Bloqueio total de navegação (refresh/back) se houver alterações pendentes.
+ * - Design: Header Pill Glass e Logo no Loader.
  */
 
 const CONSTANTS = {
@@ -32,8 +32,8 @@ function zeniteSystem() {
     return {
         // --- STATES ---
         systemLoading: true,
-        loadingProgress: 0, // NOVO: Controle da barra
-        loadingText: 'BOOT', // NOVO: Texto do loader
+        loadingProgress: 0, 
+        loadingText: 'BOOT',
         
         loadingChar: false,
         notifications: [],
@@ -65,6 +65,7 @@ function zeniteSystem() {
         hasSeenDiceTip: false,
         revertConfirmMode: false,
         isReverting: false,
+        shakeAlert: false, // Controle de animação do alerta
 
         diceLog: [],
         lastRoll: '--',
@@ -94,6 +95,7 @@ function zeniteSystem() {
             mouseTrail: true,
             compactMode: false,
             performanceMode: false,
+            crtMode: false, // NOVO
             themeColor: 'cyan'
         },
         
@@ -121,17 +123,22 @@ function zeniteSystem() {
             return result;
         },
 
-        // --- BOOTLOADER VISUAL ---
         async initSystem() {
             this.loadingProgress = 10;
             this.loadingText = 'CORE SYSTEM';
 
-            // Safety Timeout
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
 
+            // PREVENIR SAÍDA DO NAVEGADOR (Refresh/Close Tab)
+            window.addEventListener('beforeunload', (e) => {
+                if (this.unsavedChanges && !this.isGuest) {
+                    e.preventDefault();
+                    e.returnValue = 'Você tem alterações não salvas.';
+                }
+            });
+
             try {
-                // ETAPA 1: Conexão
-                await new Promise(r => setTimeout(r, 300)); // Delay visual leve
+                await new Promise(r => setTimeout(r, 300));
                 if (typeof window.supabase !== 'undefined') {
                     this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
@@ -145,7 +152,6 @@ function zeniteSystem() {
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
-                // ETAPA 2: Dados Locais
                 this.loadingProgress = 50;
                 this.loadingText = 'LOADING CACHE';
                 
@@ -180,23 +186,21 @@ function zeniteSystem() {
                     }
                 }
 
-                // ETAPA 3: Finalização
                 this.loadingProgress = 90;
                 this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
+                if(this.settings.crtMode) document.body.classList.add('crt-mode'); // Aplica CRT se salvo
+                
                 this.updateCursorState();
                 this.updateAgentCount();
                 
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
-                // Delay final para ver o 100%
                 this.loadingProgress = 100;
                 this.loadingText = 'READY';
-                setTimeout(() => {
-                    this.systemLoading = false;
-                }, 500);
+                setTimeout(() => { this.systemLoading = false; }, 500);
 
             } catch (err) {
                 console.error("Boot Error:", err);
@@ -209,6 +213,14 @@ function zeniteSystem() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
             window.addEventListener('popstate', (event) => {
+                // Intercepta botão voltar do navegador
+                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) {
+                    history.pushState(null, null, location.href); // Empurra de volta
+                    this.triggerShake();
+                    this.notify("Salve antes de sair!", "warn");
+                    return;
+                }
+
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
                     if(this.currentView === 'sheet') this.saveAndExit(true); 
                     this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
@@ -222,7 +234,6 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- GRAPHICS & CURSOR ---
         updateCursorState() {
             if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
@@ -253,18 +264,12 @@ function zeniteSystem() {
             renderLoop();
         },
 
-        // --- DICE TRAY ---
         toggleDiceTray() {
             if (this.isReverting) return;
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
-                // Se abriu a bandeja, já consideramos a dica vista para sempre
-                if(!this.hasSeenDiceTip) {
-                    this.hasSeenDiceTip = true; 
-                    this.saveLocal(); // Salva imediatamente
-                }
-                this.showDiceTip = false; 
-                this.ensureTrayOnScreen();
+                if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); }
+                this.showDiceTip = false; this.ensureTrayOnScreen();
             }
         },
         setDockMode(mode) {
@@ -282,7 +287,6 @@ function zeniteSystem() {
             document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
 
-        // --- CORE LOGIC ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar || this.systemLoading || this.isReverting) return;
@@ -306,9 +310,7 @@ function zeniteSystem() {
                     const parsed = JSON.parse(local);
                     if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
-                    // Persistência robusta da dica
                     if(parsed.hasSeenTip !== undefined) this.hasSeenDiceTip = parsed.hasSeenTip;
-                    
                     const validChars = {};
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
@@ -321,6 +323,44 @@ function zeniteSystem() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
             const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
             localStorage.setItem(key, JSON.stringify(payload));
+        },
+
+        // --- NAVIGATION LOCK SYSTEM ---
+        triggerShake() {
+            this.shakeAlert = true;
+            setTimeout(() => this.shakeAlert = false, 300);
+        },
+
+        attemptGoBack() {
+            if (this.unsavedChanges && !this.isGuest) {
+                this.triggerShake();
+                this.notify("Salve ou descarte antes de sair.", "warn");
+                return; // Bloqueia saída
+            }
+            this.saveAndExit();
+        },
+
+        handleLogoClick() {
+            if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) {
+                this.triggerShake();
+                this.notify("Finalize a edição atual.", "warn");
+                return; // Bloqueia saída
+            }
+            if (this.currentView !== 'dashboard') this.saveAndExit();
+        },
+
+        saveAndExit(fromHistory = false) {
+             // Redundância de segurança
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) {
+                this.triggerShake();
+                return;
+            }
+
+            if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
+            this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+            this.diceTrayOpen = false; this.showDiceTip = false;
+            this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
+            if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
 
         // --- REVERT SYSTEM ---
@@ -368,7 +408,6 @@ function zeniteSystem() {
             }, 300);
         },
 
-        // --- CLOUD SYNC ---
         async fetchCloud() {
             if (!this.user || !this.supabase) return;
             try {
@@ -404,7 +443,6 @@ function zeniteSystem() {
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         
-        // --- RPG & WIZARD ---
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã';
             const lvl = Math.max(1, parseInt(levelStr) || 1);
@@ -468,7 +506,12 @@ function zeniteSystem() {
         
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
-            else { this.settings[key] = !this.settings[key]; if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode); if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); }
+            else { 
+                this.settings[key] = !this.settings[key]; 
+                if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode); 
+                if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
+                if(key === 'crtMode') document.body.classList.toggle('crt-mode', this.settings.crtMode); // CRT LOGIC
+            }
             this.updateCursorState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
@@ -485,13 +528,6 @@ function zeniteSystem() {
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
         
-        saveAndExit(fromHistory = false) {
-            if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
-            this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-            this.diceTrayOpen = false; this.showDiceTip = false;
-            this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
-            if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
-         },
         loadCharacter(id, skipPush = false) {
              if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
