@@ -153,39 +153,27 @@ body.compact-mode .glass { padding: 8px !important; }
 .font-brand { font-family: 'Orbitron', sans-serif; }
 .font-code { font-family: 'JetBrains Mono', monospace; }
 
-/* --- ANIMAÇÕES DE REVERSÃO (Operação Fênix) --- */
+/* --- TRAVA DE SEGURANÇA MÁXIMA --- */
+body.interaction-lock * {
+    pointer-events: none !important; /* NINGUÉM CLICA EM NADA */
+}
 
+/* --- OPERAÇÃO FÊNIX (Animações de Reset) --- */
 @keyframes dismantle {
-    0% { 
-        opacity: 1; 
-        transform: scale(1) translateY(0); 
-        filter: blur(0);
-    }
-    100% { 
-        opacity: 0; 
-        transform: scale(0.95) translateY(20px); 
-        filter: blur(10px);
-    }
+    0% { opacity: 1; transform: scale(1); filter: blur(0); }
+    100% { opacity: 0; transform: scale(0.98) translateY(10px); filter: blur(4px); }
 }
 
 @keyframes assemble {
-    0% { 
-        opacity: 0; 
-        transform: scale(0.95) translateY(-20px); 
-        filter: blur(10px);
-    }
-    100% { 
-        opacity: 1; 
-        transform: scale(1) translateY(0); 
-        filter: blur(0);
-    }
+    0% { opacity: 0; transform: scale(1.02) translateY(-10px); filter: blur(4px); }
+    100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 
-.animate-out {
-    animation: dismantle 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    pointer-events: none; /* Impede cliques enquanto desmonta */
+/* Aplica na página inteira pra garantir visual */
+body.animating-out main {
+    animation: dismantle 0.3s ease-in forwards;
 }
 
-.animate-in {
-    animation: assemble 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+body.animating-in main {
+    animation: assemble 0.5s ease-out forwards;
 }

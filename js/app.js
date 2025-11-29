@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v58.0-TimeLock
+ * Version: v59.0-Bunker-Buster
  * Changelog:
- * - Fix Critical: 'toggleDiceTray' agora possui um bloqueio temporal (TimeLock) baseado em 'lastRevertTime'.
- * Isso impede que cliques fantasmas abram a bandeja após o botão de Revert desaparecer.
- * - Fix Animation: performRevert não ativa mais systemLoading imediatamente, permitindo que a animação CSS apareça.
+ * - Fix Critical: Implementado bloqueio físico de UI (pointer-events: none) durante o Revert.
+ * - Fix Visual: Ciclo de limpeza do DOM estendido para prevenir "dupla renderização" da bandeja.
+ * - Feat: Animação agora é controlada via classes no BODY para garantir execução.
  */
 
 const CONSTANTS = {
@@ -61,7 +61,6 @@ function zeniteSystem() {
         showDiceTip: false, 
         hasSeenDiceTip: false,
         revertConfirmMode: false,
-        lastRevertTime: 0, // <--- O SEGREDO DO BLOQUEIO
 
         diceLog: [],
         lastRoll: '--',
@@ -246,12 +245,8 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // TRAVA TEMPORAL (TIME LOCK) 🛑
-            // Se você usou o Revert há menos de 1.5 segundos, IGNORA qualquer tentativa de abrir a bandeja.
-            // Isso mata o "Ghost Click" e qualquer clique acidental.
-            if (Date.now() - this.lastRevertTime < 1500) return;
-
-            // Se o sistema estiver carregando, também ignora
+            // TRAVA DE SEGURANÇA: Se o body estiver travado (durante revert), não faz nada.
+            if (document.body.classList.contains('interaction-lock')) return;
             if (this.systemLoading || this.loadingChar) return; 
             
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -330,55 +325,59 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. INICIA O BLOQUEIO TEMPORAL (TIME LOCK)
-            // Define o momento exato do revert. A bandeja está proibida de abrir por 1.5s a partir de AGORA.
-            this.lastRevertTime = Date.now(); 
+            // 1. LOCKDOWN: Bloqueia qualquer clique na página inteira
+            document.body.classList.add('interaction-lock');
+            
+            // Inicia estados de controle
+            this.loadingChar = true;
             this.revertConfirmMode = false;
-            this.diceTrayOpen = false;
+            this.diceTrayOpen = false; // Fecha a bandeja na lógica
 
-            // 2. ANIMAÇÃO DE SAÍDA (Sem tela preta ainda!)
-            const mainEl = document.querySelector('main');
-            if(mainEl) mainEl.classList.add('animate-out');
+            // 2. Animação de Saída (Dismantle)
+            document.body.classList.add('animating-out');
 
-            // 3. AGUARDA A ANIMAÇÃO (400ms)
+            // Aguarda 300ms (tempo da animação dismantle)
             setTimeout(async () => {
                 try {
-                    // 4. LIMPEZA TOTAL (Void)
+                    // 3. LIMPEZA DO DOM (VOID) - O segredo para não duplicar
                     const tempCharId = this.activeCharId;
                     this.currentView = 'void';
-                    
-                    // 5. CARREGA DADOS
+                    document.body.classList.remove('animating-out'); // Limpa a classe de saída
+
+                    // 4. Carrega Dados
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                    // 6. REMONTAGEM (Com Animação de Entrada)
-                    if(tempCharId && this.chars[tempCharId]) {
-                        await this.loadCharacter(tempCharId, true);
-                        
-                        // Garante que a bandeja está fechada e aplica animação de entrada
-                        this.$nextTick(() => {
-                            this.diceTrayOpen = false; // Reforço
-                            const newMain = document.querySelector('main');
-                            if(newMain) {
-                                newMain.classList.remove('animate-out'); // Limpa classe antiga
-                                newMain.classList.add('animate-in'); // Aplica entrada
-                            }
-                            this.notify('Sistema restaurado.', 'success');
+                    // Pequeno delay no VOID para garantir que o navegador destruiu o DOM antigo
+                    setTimeout(async () => {
+                        // 5. Reconstrói a Tela
+                        if(tempCharId && this.chars[tempCharId]) {
+                            await this.loadCharacter(tempCharId, true);
                             
-                            // Remove classe de animação após terminar
-                            setTimeout(() => {
-                                if(newMain) newMain.classList.remove('animate-in');
-                            }, 700);
-                        });
-                    } else {
-                        this.currentView = 'dashboard';
-                    }
+                            // 6. Animação de Entrada
+                            this.$nextTick(() => {
+                                document.body.classList.add('animating-in');
+                                this.notify('Sistema restaurado.', 'success');
+                                
+                                // Limpeza final
+                                setTimeout(() => {
+                                    document.body.classList.remove('animating-in');
+                                    document.body.classList.remove('interaction-lock'); // Libera os cliques
+                                }, 500);
+                            });
+                        } else {
+                            this.currentView = 'dashboard';
+                            document.body.classList.remove('interaction-lock');
+                        }
+                    }, 100); // 100ms de tela vazia
+
                 } catch (e) {
                     console.error("Revert Error:", e);
                     this.notify("Erro ao restaurar.", "error");
                     this.currentView = 'dashboard';
+                    document.body.classList.remove('interaction-lock');
                 }
-            }, 400); // Tempo para a animação 'dismantle' acontecer visivelmente
+            }, 300);
         },
 
         async fetchCloud() {
