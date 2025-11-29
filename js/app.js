@@ -1,20 +1,15 @@
 /**
- * ZENITE OS - Main Controller v78.0
- * Debug & Stability Release
+ * ZENITE OS - Main Controller v79.0
+ * Fix: Syntax Errors Resolved & Expanded Code for Stability
  */
 
-// Fallback de Segurança se config.js falhar
+// Fallback de Segurança
 if (typeof CONFIG === 'undefined') {
     console.warn("CONFIG not found. Using defaults.");
-    var CONFIG = {
-        MAX_AGENTS: 30,
-        SAVE_INTERVAL: 180000,
-        SUPABASE_URL: '', // Preencha se necessário
-        SUPABASE_KEY: ''
-    };
+    var CONFIG = { MAX_AGENTS: 30, SAVE_INTERVAL: 180000 };
 }
 
-// Variáveis Globais
+// Variáveis Globais de Performance
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
@@ -29,43 +24,87 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // STATES
-        systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
-        loadingChar: false, notifications: [], user: null, isGuest: false,
-        userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
+        // --- STATES ---
+        systemLoading: true, 
+        loadingProgress: 0, 
+        loadingText: 'BOOT',
+        loadingChar: false, 
+        notifications: [], 
+        user: null, 
+        isGuest: false,
+        userMenuOpen: false, 
+        authLoading: false, 
+        authMsg: '', 
+        authMsgType: '',
         
-        // MODULES
+        // --- MODULES ---
         netLink: null,
         
-        // DATA
-        chars: {}, activeCharId: null, char: null, agentCount: 0,
-        currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory', searchQuery: '',
+        // --- DATA ---
+        chars: {}, 
+        activeCharId: null, 
+        char: null, 
+        agentCount: 0,
+        currentView: 'dashboard', 
+        activeTab: 'profile', 
+        logisticsTab: 'inventory', 
+        searchQuery: '',
         
-        // WIDGETS
-        diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
-        isDraggingTray: false, dragOffset: { x: 0, y: 0 },
-        showDiceTip: false, hasSeenDiceTip: false,
-        diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
+        // --- WIDGETS ---
+        diceTrayOpen: false, 
+        trayDockMode: 'float', 
+        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
+        isDraggingTray: false, 
+        dragOffset: { x: 0, y: 0 },
+        showDiceTip: false, 
+        hasSeenDiceTip: false,
+        diceLog: [], 
+        lastRoll: '--', 
+        lastNatural: 0, 
+        lastFaces: 20, 
+        diceMod: 0, 
+        diceReason: '',
         
-        // UX/SECRETS
-        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
-        revertConfirmMode: false, isReverting: false, shakeAlert: false,
+        // --- UX/SECRETS ---
+        konamiBuffer: [], 
+        logoClickCount: 0, 
+        logoClickTimer: null, 
+        systemFailure: false,
+        revertConfirmMode: false, 
+        isReverting: false, 
+        shakeAlert: false,
         isMobile: window.innerWidth < 768,
 
-        // MODALS
-        configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
-        confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
+        // --- MODALS ---
+        configModal: false, 
+        wizardOpen: false, 
+        cropperOpen: false, 
+        cropperInstance: null, 
+        uploadContext: 'char',
+        confirmOpen: false, 
+        confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // WIZARD
-        wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
+        // --- WIZARD ---
+        wizardStep: 1, 
+        wizardPoints: 8, 
+        wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, 
+        wizardFocusAttr: '',
         
-        // CONFIGS
+        // --- CONFIGS ---
         settings: {
-            mouseTrail: true, compactMode: false, performanceMode: false, 
-            crtMode: true, sfxEnabled: true, themeColor: 'cyan'
+            mouseTrail: true, 
+            compactMode: false, 
+            performanceMode: false, 
+            crtMode: true, 
+            sfxEnabled: true, 
+            themeColor: 'cyan'
         },
         
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
+        unsavedChanges: false, 
+        isSyncing: false, 
+        saveStatus: 'idle', 
+        supabase: null, 
+        debouncedSaveFunc: null,
 
         // Getters Seguros
         get archetypes() { return (typeof RPG !== 'undefined') ? RPG.archetypes : []; },
@@ -83,30 +122,47 @@ function zeniteSystem() {
             return result;
         },
 
-        // --- BOOT ---
+        // --- INIT & BOOT ---
         async initSystem() {
-            this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
-            window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
+            this.loadingProgress = 10; 
+            this.loadingText = 'CORE SYSTEM';
+            
+            // Timeout de Segurança: Se travar, destrava em 8s
+            setTimeout(() => { 
+                if(this.systemLoading) {
+                    console.warn("Forcing boot due to timeout");
+                    this.systemLoading = false; 
+                }
+            }, 8000);
+            
+            window.addEventListener('beforeunload', (e) => { 
+                if (this.unsavedChanges && !this.isGuest) { 
+                    e.preventDefault(); e.returnValue = 'Alterações pendentes.'; 
+                } 
+            });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
                 
-                // Conexão Supabase Segura
+                // Conexão Supabase
                 if (typeof window.supabase !== 'undefined' && CONFIG.SUPABASE_URL) {
                     this.supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
-                this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
+                
+                this.loadingProgress = 30; 
+                this.loadingText = 'AUTHENTICATING';
                 
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 this.setupListeners();
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
-                this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
+                this.loadingProgress = 50; 
+                this.loadingText = 'LOADING CACHE';
                 
+                // Autenticação
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
                 if (isGuest) { 
                     this.isGuest = true; 
@@ -140,31 +196,37 @@ function zeniteSystem() {
                                     this.netLink.init();
                                 }
                             } else if (event === 'SIGNED_OUT') { 
-                                this.user = null; this.chars = {}; this.currentView = 'dashboard'; 
+                                this.user = null; 
+                                this.chars = {}; 
+                                this.currentView = 'dashboard'; 
                             }
                             this.updateVisualState();
                         });
                     }
                 }
 
-                this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
+                this.loadingProgress = 90; 
+                this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
+                
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
                 if (typeof SFX !== 'undefined') SFX.toggle(this.settings.sfxEnabled);
-                this.updateVisualState();
                 
+                // Força atualização visual (Mouse/CRT)
+                this.updateVisualState();
                 this.updateAgentCount();
+                
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
 
-                this.loadingProgress = 100; this.loadingText = 'READY';
+                this.loadingProgress = 100; 
+                this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
             } catch (err) { 
                 console.error("Boot Error:", err); 
-                // Notifica o erro REAL para debugging
-                this.notify("Erro: " + (err.message || "Falha na inicialização"), "error"); 
+                this.notify("Erro crítico: " + (err.message || "Inicialização falhou"), "error"); 
                 this.systemLoading = false; 
             }
         },
@@ -183,7 +245,14 @@ function zeniteSystem() {
             c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
         },
 
-        modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
+        modAttr(key, val) { 
+            const c = this.char; 
+            if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { 
+                c.attrs[key] += val; 
+                this.recalcDerivedStats(); 
+                this.updateRadarChart(); 
+            } 
+        },
 
         finishWizard() {
             if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
@@ -196,7 +265,9 @@ function zeniteSystem() {
             this.updateAgentCount(); 
             this.saveLocal();
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            
+            this.wizardOpen = false;
+            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
             this.loadCharacter(id, true);
             this.notify('Agente Inicializado.', 'success');
         },
@@ -221,14 +292,32 @@ function zeniteSystem() {
 
         roll(s) {
             if(typeof SFX !== 'undefined') SFX.play('roll');
-            const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); 
-            const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); 
-            this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
+            const arr = new Uint32Array(1); 
+            window.crypto.getRandomValues(arr); 
+            const n = (arr[0] % s) + 1; 
+            const m = parseInt(this.diceMod || 0); 
+            
+            this.lastNatural = n; 
+            this.lastFaces = s; 
+            this.lastRoll = n + m;
+            
             let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`);
-            const rollData = { id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason };
-            this.diceLog.unshift(rollData); this.diceReason = ''; 
-            if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop();
-            if(this.netLink && this.netLink.activeCampaign) this.netLink.broadcastRoll(rollData);
+            
+            const rollData = { 
+                id: Date.now(), time: new Date().toLocaleTimeString(), 
+                formula: formulaStr, result: n+m, 
+                crit: n===s, fumble: n===1, reason: this.diceReason 
+            };
+
+            this.diceLog.unshift(rollData);
+            this.diceReason = ''; 
+            
+            if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop();
+            else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop();
+
+            if(this.netLink && this.netLink.activeCampaign) {
+                this.netLink.broadcastRoll(rollData);
+            }
         },
 
         // --- UI & LISTENERS ---
@@ -236,26 +325,50 @@ function zeniteSystem() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
             window.addEventListener('popstate', (event) => {
-                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; }
-                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
+                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { 
+                    history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; 
+                }
+                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { 
+                    if(this.currentView === 'sheet') this.saveAndExit(true); 
+                    this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; 
+                }
             });
             
-            // SFX Listeners Inteligentes
+            // SFX Listeners Otimizados
             let lastHovered = null;
-            document.addEventListener('click', (e) => { if(e.target.closest('button, a, .cursor-pointer')) { if(typeof SFX !== 'undefined') SFX.play('click'); } });
+            document.addEventListener('click', (e) => { 
+                if(e.target.closest('button, a, .cursor-pointer')) { 
+                    if(typeof SFX !== 'undefined') SFX.play('click'); 
+                } 
+            });
+            
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest('button, a, .cursor-pointer');
+                // Só dispara se MUDOU de elemento alvo
                 if (target && target !== lastHovered) {
                     if(typeof SFX !== 'undefined') SFX.play('hover');
                     lastHovered = target;
-                } else if (!target) lastHovered = null;
+                } else if (!target) {
+                    lastHovered = null;
+                }
             });
         },
 
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
-            if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) { document.body.classList.add('custom-cursor-active'); } else { document.body.classList.remove('custom-cursor-active'); }
-            if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } else { document.body.classList.remove('crt-mode'); }
+            
+            if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                document.body.classList.add('custom-cursor-active');
+            } else {
+                document.body.classList.remove('custom-cursor-active');
+            }
+
+            if (isAuthenticated && this.settings.crtMode) {
+                document.body.classList.add('crt-mode');
+            } else {
+                document.body.classList.remove('crt-mode');
+            }
+            
             if(typeof SFX !== 'undefined') SFX.toggle(this.settings.sfxEnabled);
         },
 
@@ -266,7 +379,8 @@ function zeniteSystem() {
                 if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
             }
-            this.updateVisualState(); this.saveLocal(); 
+            this.updateVisualState(); 
+            this.saveLocal(); 
             if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
 
@@ -298,15 +412,21 @@ function zeniteSystem() {
                 return;
             }
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            
             if (!this.systemFailure) {
-                 if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-                 else if (document.exitFullscreen) document.exitFullscreen();
+                 if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
             }
         },
 
         triggerSystemFailure() {
             if(typeof SFX !== 'undefined') SFX.play('glitch'); 
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch((err) => {});
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {});
+            }
             this.systemFailure = true; 
             setTimeout(() => { 
                 this.systemFailure = false; 
@@ -368,6 +488,7 @@ function zeniteSystem() {
         },
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+        
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
@@ -377,6 +498,7 @@ function zeniteSystem() {
         
         triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
         attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
+        
         saveAndExit(fromHistory = false) {
             if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
             if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
@@ -385,7 +507,9 @@ function zeniteSystem() {
             this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
+        
         toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
+        
         async performRevert() {
             this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
             document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
@@ -401,8 +525,11 @@ function zeniteSystem() {
                 } catch (e) { console.error("Revert Error:", e); this.notify("Erro na restauração.", "error"); document.body.classList.remove('animating-out'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }
             }, 300);
         },
+        
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
+        
         async logout() { this.systemLoading = true; if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); if(this.supabase) await this.supabase.auth.signOut(); window.location.reload(); },
+        
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
@@ -412,13 +539,64 @@ function zeniteSystem() {
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
         openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
         initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); e.target.value = ''; }, 
+        
         applyCrop() { if(!this.cropperInstance) return; const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; } this.cropperOpen = false; this.notify('Foto processada.', 'success'); },
+        
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
         triggerFileImport() { document.getElementById('import-file').click(); },
         processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); },
-        _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
+        
+        _renderChart(id, data, isWizard=false) { 
+            const ctx = document.getElementById(id); 
+            if(!ctx) return; 
+            
+            const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); 
+            const r = parseInt(color.slice(1, 3), 16); 
+            const g = parseInt(color.slice(3, 5), 16); 
+            const b = parseInt(color.slice(5, 7), 16); 
+            const rgb = `${r},${g},${b}`; 
+            
+            if (ctx.chart) { 
+                ctx.chart.data.datasets[0].data = data; 
+                ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
+                ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; 
+                ctx.chart.update(); 
+            } else { 
+                ctx.chart = new Chart(ctx, { 
+                    type: 'radar', 
+                    data: { 
+                        labels: ['FOR','AGI','INT','VON','POD'], 
+                        datasets: [{ 
+                            data: data, 
+                            backgroundColor: `rgba(${rgb}, 0.2)`, 
+                            borderColor: `rgba(${rgb}, 1)`, 
+                            borderWidth: 2, 
+                            pointBackgroundColor: '#fff', 
+                            pointRadius: isWizard ? 4 : 3 
+                        }] 
+                    }, 
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { 
+                            r: { 
+                                min: -1, 
+                                max: isWizard ? 4 : 6, 
+                                ticks: { display: false, stepSize: 1 }, 
+                                grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
+                                angleLines: { color: 'rgba(255,255,255,0.1)' } 
+                            } 
+                        }, 
+                        plugins: { legend: { display: false } }, 
+                        transitions: { active: { animation: { duration: 600 } } } 
+                    } 
+                }); 
+            } 
+        },
+        
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
+        
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
@@ -432,25 +610,42 @@ function zeniteSystem() {
         startDragTray(e) { if(this.isMobile || this.trayDockMode !== 'float') return; if(e.target.closest('button') || e.target.closest('input')) return; this.isDraggingTray = true; this.dragOffset.x = e.clientX - this.trayPosition.x; this.dragOffset.y = e.clientY - this.trayPosition.y; const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; }; const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); }; document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler); },
         ensureTrayOnScreen() { if(this.isMobile || this.trayDockMode !== 'float') return; this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x)); this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y)); },
         toggleDiceTray() { if (this.isReverting) return; this.diceTrayOpen = !this.diceTrayOpen; if(this.diceTrayOpen) { if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); } this.showDiceTip = false; this.ensureTrayOnScreen(); } },
-
-        // MOUSE SETUP (Global & Blindado)
+        
+        // MOUSE SETUP FINAL (Blindado e Forçado)
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
-            if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
+            // Verificação de dispositivo (Mobile não deve rodar isso)
+            if (window.innerWidth < 768) { if(trail) trail.style.display = 'none'; return; }
+            
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) { isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; }
+                // Detecta hover em elementos clicáveis
+                if(this.settings.mouseTrail) { 
+                    isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; 
+                }
             });
+
             const renderLoop = () => {
                 if (!trail) return;
+
                 const isAuthenticated = this.user || this.isGuest;
-                if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    trail.style.display = 'block'; trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
-                    if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
+                const shouldRender = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode;
+
+                if (shouldRender) {
+                    trail.style.display = 'block'; 
+                    trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
+                    
+                    if(isCursorHover) trail.classList.add('hover-active'); 
+                    else trail.classList.remove('hover-active');
+                    
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
-                } else { trail.style.display = 'none'; }
+                } else { 
+                    trail.style.display = 'none'; 
+                }
                 renderRafId = requestAnimationFrame(renderLoop);
             };
+            
+            // Inicia o loop
             renderLoop();
         }
     };

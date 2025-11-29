@@ -25,10 +25,10 @@ const SFX = {
 
         const now = audioCtx.currentTime;
         
-        // --- THROTTLE (Anti-Metralhadora) ---
+        // --- THROTTLE MAIS AGRESSIVO ---
         if (type === 'hover') {
-            // 200ms de espera mínima entre sons de hover
-            if (now - lastHoverTime < 0.2) return; 
+            // 250ms de espera mínima (evita metralhadora)
+            if (now - lastHoverTime < 0.25) return; 
             lastHoverTime = now;
         }
 
@@ -49,19 +49,16 @@ const SFX = {
             src.start(now); src.stop(now + 0.06);
 
         } else if (type === 'click') {
-            // Click Mecânico (Triangle Wave)
+            // Click Mecânico
             const osc = audioCtx.createOscillator();
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(600, now);
             osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
-            
             gain.gain.setValueAtTime(0.15, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-            
             osc.connect(gain); osc.start(now); osc.stop(now + 0.1);
 
         } else if (type === 'roll') {
-            // Rolar Dados
             const osc = audioCtx.createOscillator();
             osc.frequency.setValueAtTime(400, now);
             osc.frequency.linearRampToValueAtTime(800, now + 0.2);
@@ -70,7 +67,6 @@ const SFX = {
             osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
 
         } else if (type === 'save') {
-            // Sucesso / Save (Acorde Ascendente)
             const osc = audioCtx.createOscillator();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(523.25, now); // C5
@@ -80,7 +76,6 @@ const SFX = {
             osc.connect(gain); osc.start(now); osc.stop(now + 0.4);
 
         } else if (type === 'discard') {
-            // Cancelar / Fechar (Sawtooth Descendente)
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(150, now);
@@ -90,19 +85,17 @@ const SFX = {
             osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
 
         } else if (type === 'glitch') {
-            // ERRO FATAL (Grave e Distorcido)
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(60, now); // Sub-grave
+            osc.frequency.setValueAtTime(60, now);
             
-            // Tremolo Effect
             const lfo = audioCtx.createOscillator();
             lfo.frequency.value = 20; 
             const lfoGain = audioCtx.createGain();
             lfoGain.gain.value = 500;
             lfo.connect(lfoGain).connect(osc.frequency);
             
-            gain.gain.setValueAtTime(0.6, now); // Alto
+            gain.gain.setValueAtTime(0.6, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
             
             lfo.start(now); osc.connect(gain); osc.start(now);
