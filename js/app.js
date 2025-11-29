@@ -1,10 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v70.0-Koda-Prime
+ * Version: v72.0-Koda-Prime-Secrets
  * Changelog:
- * - Feat: Modo CRT (Pixel Effect) implementado.
- * - Fix UX: Bloqueio total de navegação (refresh/back) se houver alterações pendentes.
- * - Design: Header Pill Glass e Logo no Loader.
+ * - Feat: Sound FX Engine (Web Audio API - Sem downloads!)
+ * - Feat: Fullscreen Toggle na Logo.
+ * - Secret: Konami Code (Hacker Mode).
+ * - Secret: 5-Click BSOD (Susto do Sistema).
  */
 
 const CONSTANTS = {
@@ -15,10 +16,41 @@ const CONSTANTS = {
     SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
 };
 
-// --- PERFORMANCE ENGINE ---
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
+
+// --- AUDIO ENGINE ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const playSFX = (type) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+    if (type === 'hover') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'click') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+    } else if (type === 'error') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'success') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'glitch') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(50, now); osc.frequency.linearRampToValueAtTime(800, now + 0.5);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc.start(now); osc.stop(now + 0.5);
+    }
+};
 
 function debounce(func, wait) {
     let timeout;
@@ -30,77 +62,44 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- STATES ---
-        systemLoading: true,
-        loadingProgress: 0, 
-        loadingText: 'BOOT',
+        // STATES
+        systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
+        loadingChar: false, notifications: [], user: null, isGuest: false,
+        userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
         
-        loadingChar: false,
-        notifications: [],
-        user: null,
-        isGuest: false,
-        userMenuOpen: false,
-        authLoading: false, authMsg: '', authMsgType: '',
-        
-        // --- DATA ---
-        chars: {},
-        activeCharId: null,
-        char: null,
-        agentCount: 0,
-        currentView: 'dashboard',
-        activeTab: 'profile',
-        logisticsTab: 'inventory',
-        searchQuery: '',
-        
-        // --- WIDGETS ---
-        diceTrayOpen: false,
-        showDiceLog: false,
-        trayDockMode: 'float',
-        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
-        isDraggingTray: false,
-        dragOffset: { x: 0, y: 0 },
-        
-        // UI Control
-        showDiceTip: false, 
-        hasSeenDiceTip: false,
-        revertConfirmMode: false,
-        isReverting: false,
-        shakeAlert: false, // Controle de animação do alerta
+        // SECRETS
+        konamiBuffer: [],
+        logoClickCount: 0,
+        logoClickTimer: null,
+        systemFailure: false, // Controla a tela da morte
 
-        diceLog: [],
-        lastRoll: '--',
-        lastNatural: 0,
-        lastFaces: 20,
-        diceMod: 0,
-        diceReason: '',
+        // DATA
+        chars: {}, activeCharId: null, char: null, agentCount: 0,
+        currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory', searchQuery: '',
+        
+        // WIDGETS
+        diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
+        isDraggingTray: false, dragOffset: { x: 0, y: 0 },
+        showDiceTip: false, hasSeenDiceTip: false,
+        diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
+        
+        // UX
+        revertConfirmMode: false, isReverting: false, shakeAlert: false,
         isMobile: window.innerWidth < 768,
+
+        // MODALS
+        configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // --- MODALS ---
-        configModal: false,
-        wizardOpen: false, 
-        cropperOpen: false,
-        cropperInstance: null,
-        uploadContext: 'char',
-        confirmOpen: false,
-        confirmData: { title:'', desc:'', action:null, type:'danger' },
+        // WIZARD
+        wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
         
-        // --- WIZARD ---
-        wizardStep: 1,
-        wizardPoints: 8,
-        wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
-        wizardFocusAttr: '',
-        
-        // --- CONFIGS ---
+        // CONFIGS
         settings: {
-            mouseTrail: true,
-            compactMode: false,
-            performanceMode: false,
-            crtMode: false, // NOVO
-            themeColor: 'cyan'
+            mouseTrail: true, compactMode: false, performanceMode: false, crtMode: true, themeColor: 'cyan'
         },
         
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
-        supabase: null, debouncedSaveFunc: null,
+        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -124,18 +123,9 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            this.loadingProgress = 10;
-            this.loadingText = 'CORE SYSTEM';
-
+            this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
-
-            // PREVENIR SAÍDA DO NAVEGADOR (Refresh/Close Tab)
-            window.addEventListener('beforeunload', (e) => {
-                if (this.unsavedChanges && !this.isGuest) {
-                    e.preventDefault();
-                    e.returnValue = 'Você tem alterações não salvas.';
-                }
-            });
+            window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
@@ -144,88 +134,106 @@ function zeniteSystem() {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
-                this.loadingProgress = 30;
-                this.loadingText = 'AUTHENTICATING';
-
+                this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
-                this.setupListeners();
-                this.setupCursorEngine(); 
-                this.setupWatchers();
+                this.setupListeners(); this.setupCursorEngine(); this.setupWatchers();
 
-                this.loadingProgress = 50;
-                this.loadingText = 'LOADING CACHE';
-                
+                this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-                if (isGuest) {
-                    this.isGuest = true; 
-                    this.loadLocal('zenite_guest_db');
-                } else {
+                if (isGuest) { this.isGuest = true; this.loadLocal('zenite_guest_db'); } 
+                else {
                     this.loadLocal('zenite_cached_db');
                     if(this.supabase) {
                         try {
                             const { data: { session } } = await this.supabase.auth.getSession();
-                            if (session) { 
-                                this.user = session.user; 
-                                this.loadingText = 'SYNCING CLOUD';
-                                this.loadingProgress = 70;
-                                await this.fetchCloud(); 
-                            }
+                            if (session) { this.user = session.user; this.loadingText = 'SYNCING CLOUD'; this.loadingProgress = 70; await this.fetchCloud(); }
                         } catch(e) { this.notify("Modo Offline", "warn"); }
-                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
-                            if (event === 'SIGNED_IN' && session) {
-                                if (this.user?.id === session.user.id) return;
-                                this.user = session.user; 
-                                this.isGuest = false;
-                                localStorage.removeItem('zenite_is_guest'); 
-                                await this.fetchCloud();
-                            } else if (event === 'SIGNED_OUT') {
-                                this.user = null; this.chars = {}; this.currentView = 'dashboard';
-                            }
+                            if (event === 'SIGNED_IN' && session) { if (this.user?.id === session.user.id) return; this.user = session.user; this.isGuest = false; localStorage.removeItem('zenite_is_guest'); await this.fetchCloud(); } 
+                            else if (event === 'SIGNED_OUT') { this.user = null; this.chars = {}; this.currentView = 'dashboard'; }
                         });
                     }
                 }
 
-                this.loadingProgress = 90;
-                this.loadingText = 'APPLYING THEME';
+                this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
-                if(this.settings.compactMode) document.body.classList.add('compact-mode');
+                if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
-                if(this.settings.crtMode) document.body.classList.add('crt-mode'); // Aplica CRT se salvo
+                if(this.settings.crtMode) document.body.classList.add('crt-mode');
                 
-                this.updateCursorState();
-                this.updateAgentCount();
-                
+                this.updateCursorState(); this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
-
-                this.loadingProgress = 100;
-                this.loadingText = 'READY';
+                this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
-            } catch (err) {
-                console.error("Boot Error:", err);
-                this.notify("Erro na inicialização.", "error");
-                this.systemLoading = false;
-            }
+            } catch (err) { console.error("Boot Error:", err); this.notify("Erro na inicialização.", "error"); this.systemLoading = false; }
         },
 
         setupListeners() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
             window.addEventListener('popstate', (event) => {
-                // Intercepta botão voltar do navegador
-                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) {
-                    history.pushState(null, null, location.href); // Empurra de volta
-                    this.triggerShake();
-                    this.notify("Salve antes de sair!", "warn");
-                    return;
-                }
-
-                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) {
-                    if(this.currentView === 'sheet') this.saveAndExit(true); 
-                    this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
-                }
+                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; }
+                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
             });
+            // SFX LISTENERS
+            document.addEventListener('click', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); });
+            document.addEventListener('mouseover', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('hover'); });
+        },
+
+        // --- KONAMI & SECRETS ---
+        handleKeys(e) {
+            // Konami Code: up,up,down,down,left,right,left,right,b,a
+            const key = e.key.toLowerCase();
+            const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
+            
+            this.konamiBuffer.push(key);
+            if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
+
+            if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
+                document.body.classList.toggle('theme-hacker');
+                if(document.body.classList.contains('theme-hacker')) {
+                    playSFX('success'); this.notify("SYSTEM OVERRIDE: HACKER MODE", "success");
+                } else {
+                    playSFX('click'); this.notify("SYSTEM NORMAL", "info");
+                }
+                this.konamiBuffer = [];
+            }
+        },
+
+        handleLogoClick() {
+            // 5-Click Surprise
+            clearTimeout(this.logoClickTimer);
+            this.logoClickCount++;
+            
+            if (this.logoClickCount >= 5) {
+                this.logoClickCount = 0;
+                this.triggerSystemFailure();
+                return;
+            }
+            
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000); // Reseta se parar de clicar
+
+            // Fullscreen Toggle
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(()=>{});
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        },
+
+        triggerSystemFailure() {
+            this.systemFailure = true;
+            playSFX('glitch');
+            // Treme a tela
+            document.body.classList.add('shake-anim');
+            
+            // Recupera depois de 4s
+            setTimeout(() => {
+                this.systemFailure = false;
+                document.body.classList.remove('shake-anim');
+                playSFX('error');
+            }, 4000);
         },
 
         ensureTrayOnScreen() {
@@ -235,7 +243,7 @@ function zeniteSystem() {
         },
 
         updateCursorState() {
-            if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+            if (this.user && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
                 document.body.classList.add('custom-cursor-active');
             } else {
                 document.body.classList.remove('custom-cursor-active');
@@ -247,15 +255,13 @@ function zeniteSystem() {
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) {
-                     isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null;
-                }
+                if(this.settings.mouseTrail && !this.isMobile) { isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; }
             });
             const renderLoop = () => {
                 if (!trail) return;
-                if (this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    trail.style.display = 'block';
-                    trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
+                const isAuthenticated = this.user || this.isGuest;
+                if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                    trail.style.display = 'block'; trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 } else { trail.style.display = 'none'; }
@@ -297,10 +303,9 @@ function zeniteSystem() {
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
-
-            this.$watch('currentView', (val) => {
-                if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; }
-            });
+            this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
+            this.$watch('user', (val) => { this.updateCursorState(); });
+            this.$watch('isGuest', (val) => { this.updateCursorState(); });
         },
 
         loadLocal(key) {
@@ -325,37 +330,11 @@ function zeniteSystem() {
             localStorage.setItem(key, JSON.stringify(payload));
         },
 
-        // --- NAVIGATION LOCK SYSTEM ---
-        triggerShake() {
-            this.shakeAlert = true;
-            setTimeout(() => this.shakeAlert = false, 300);
-        },
-
-        attemptGoBack() {
-            if (this.unsavedChanges && !this.isGuest) {
-                this.triggerShake();
-                this.notify("Salve ou descarte antes de sair.", "warn");
-                return; // Bloqueia saída
-            }
-            this.saveAndExit();
-        },
-
-        handleLogoClick() {
-            if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) {
-                this.triggerShake();
-                this.notify("Finalize a edição atual.", "warn");
-                return; // Bloqueia saída
-            }
-            if (this.currentView !== 'dashboard') this.saveAndExit();
-        },
+        triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
+        attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
 
         saveAndExit(fromHistory = false) {
-             // Redundância de segurança
-            if (this.unsavedChanges && !this.isGuest && !fromHistory) {
-                this.triggerShake();
-                return;
-            }
-
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
             if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
             this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
             this.diceTrayOpen = false; this.showDiceTip = false;
@@ -363,47 +342,21 @@ function zeniteSystem() {
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
 
-        // --- REVERT SYSTEM ---
-        toggleRevertMode() {
-            this.revertConfirmMode = !this.revertConfirmMode;
-            if(this.revertConfirmMode) this.diceTrayOpen = false;
-        },
-
+        toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
         async performRevert() {
-            this.isReverting = true; 
-            this.diceTrayOpen = false;
-            this.revertConfirmMode = false;
-            
-            document.body.classList.add('animating-out');
-            document.body.classList.add('interaction-lock');
-
+            this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
+            document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
             setTimeout(async () => {
                 try {
                     if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
-                    
-                    if(this.activeCharId && this.chars[this.activeCharId]) {
-                        this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId]));
-                    } else {
-                        this.currentView = 'dashboard';
-                        this.char = null;
-                    }
+                    if(this.activeCharId && this.chars[this.activeCharId]) { this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId])); } else { this.currentView = 'dashboard'; this.char = null; }
                     this.unsavedChanges = false;
-                    document.body.classList.remove('animating-out');
-                    document.body.classList.add('animating-in');
+                    document.body.classList.remove('animating-out'); document.body.classList.add('animating-in');
                     this.notify('Dados restaurados.', 'success');
-
-                    setTimeout(() => {
-                        document.body.classList.remove('animating-in');
-                        document.body.classList.remove('interaction-lock');
-                        this.isReverting = false;
-                    }, 400);
-
+                    setTimeout(() => { document.body.classList.remove('animating-in'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }, 400);
                 } catch (e) {
-                    console.error("Revert Error:", e);
-                    this.notify("Erro na restauração.", "error");
-                    document.body.classList.remove('animating-out');
-                    document.body.classList.remove('interaction-lock');
-                    this.isReverting = false;
+                    console.error("Revert Error:", e); this.notify("Erro na restauração.", "error");
+                    document.body.classList.remove('animating-out'); document.body.classList.remove('interaction-lock'); this.isReverting = false;
                 }
             }, 300);
         },
@@ -412,15 +365,11 @@ function zeniteSystem() {
             if (!this.user || !this.supabase) return;
             try {
                 let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
-                if (error && error.code === 'PGRST116') {
-                    await this.supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]);
-                    data = { data: { config: this.settings } };
-                }
+                if (error && error.code === 'PGRST116') { await this.supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]); data = { data: { config: this.settings } }; }
                 if (data && data.data) {
                     const cloudData = data.data;
                     if(cloudData.config) { this.settings = { ...this.settings, ...cloudData.config }; this.applyTheme(this.settings.themeColor); }
                     if(cloudData.hasSeenTip !== undefined) this.hasSeenDiceTip = cloudData.hasSeenTip;
-
                     let merged = { ...this.chars }; let hasLocalOnly = false;
                     Object.keys(cloudData).forEach(k => { if(!['config','hasSeenTip'].includes(k)) merged[k] = cloudData[k]; });
                     Object.keys(this.chars).forEach(localId => { if (!cloudData[localId] && localId !== 'config') { merged[localId] = this.chars[localId]; hasLocalOnly = true; } });
@@ -442,75 +391,38 @@ function zeniteSystem() {
         },
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-        
         calculateBaseStats(className, levelStr, attrs) {
-            const cl = className || 'Titã';
-            const lvl = Math.max(1, parseInt(levelStr) || 1);
-            const get = (v) => parseInt(attrs[v] || 0);
-            const config = {
-                'Titã':        { pv: [15, 4], pf: [12, 2], pdf: [12, 2] },
-                'Estrategista':{ pv: [12, 2], pf: [15, 4], pdf: [12, 2] },
-                'Infiltrador': { pv: [12, 2], pf: [15, 4], pdf: [12, 3] },
-                'Controlador': { pv: [12, 2], pf: [12, 2], pdf: [15, 4] },
-                'Psíquico':    { pv: [12, 2], pf: [13, 3], pdf: [14, 3] }
-            };
+            const cl = className || 'Titã'; const lvl = Math.max(1, parseInt(levelStr) || 1); const get = (v) => parseInt(attrs[v] || 0);
+            const config = { 'Titã':{pv:[15,4],pf:[12,2],pdf:[12,2]}, 'Estrategista':{pv:[12,2],pf:[15,4],pdf:[12,2]}, 'Infiltrador':{pv:[12,2],pf:[15,4],pdf:[12,3]}, 'Controlador':{pv:[12,2],pf:[12,2],pdf:[15,4]}, 'Psíquico':{pv:[12,2],pf:[13,3],pdf:[14,3]} };
             const cfg = config[cl] || config['Titã'];
-            return {
-                pv: (cfg.pv[0] + get('for')) + ((cfg.pv[1] + get('for')) * (lvl - 1)),
-                pf: (cfg.pf[0] + get('pod')) + ((cfg.pf[1] + get('pod')) * (lvl - 1)),
-                pdf: (cfg.pdf[0] + get('von')) + ((cfg.pdf[1] + get('von')) * (lvl - 1))
-            };
+            return { pv:(cfg.pv[0]+get('for'))+((cfg.pv[1]+get('for'))*(lvl-1)), pf:(cfg.pf[0]+get('pod'))+((cfg.pf[1]+get('pod'))*(lvl-1)), pdf:(cfg.pdf[0]+get('von'))+((cfg.pdf[1]+get('von'))*(lvl-1)) };
         },
-
         recalcDerivedStats() { 
-            if(!this.char) return; 
-            const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs);
-            const c = this.char;
-            const diffPv = (c.stats.pv.max || newStats.pv) - c.stats.pv.current;
-            const diffPf = (c.stats.pf.max || newStats.pf) - c.stats.pf.current;
-            const diffPdf = (c.stats.pdf.max || newStats.pdf) - c.stats.pdf.current;
-            c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv - diffPv);
-            c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf - diffPf);
-            c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf - diffPdf);
+            if(!this.char) return; const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs); const c = this.char;
+            const diffPv = (c.stats.pv.max||newStats.pv)-c.stats.pv.current; const diffPf = (c.stats.pf.max||newStats.pf)-c.stats.pf.current; const diffPdf = (c.stats.pdf.max||newStats.pdf)-c.stats.pdf.current;
+            c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
         },
-
         modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
 
-        openWizard() { 
-            if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error');
-            this.wizardStep = 1; this.wizardPoints = 8;
-            this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} };
-            this.wizardFocusAttr = '';
-            history.pushState({ modal: 'wizard' }, "Wizard", "#new");
-            this.wizardOpen = true; 
-        },
+        openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardStep = 1; this.wizardPoints = 8; this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardFocusAttr = ''; history.pushState({ modal: 'wizard' }, "Wizard", "#new"); this.wizardOpen = true; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
-        
         finishWizard() {
             if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
-            const id = 'z_'+Date.now();
-            const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
-            const newChar = {
-                id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, 
-                photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs},
-                stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} },
-                inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
-            };
-            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal();
-            if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-            this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
+            const id = 'z_'+Date.now(); const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
+            const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
+            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal(); if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
+            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
         },
         
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
             else { 
                 this.settings[key] = !this.settings[key]; 
-                if(key === 'compactMode') document.body.classList.toggle('compact-mode', this.settings.compactMode); 
+                if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
-                if(key === 'crtMode') document.body.classList.toggle('crt-mode', this.settings.crtMode); // CRT LOGIC
+                if(key === 'crtMode') document.body.classList.toggle('crt-mode', this.settings.crtMode);
             }
             this.updateCursorState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
@@ -520,10 +432,9 @@ function zeniteSystem() {
             root.style.setProperty('--neon-core', hex); root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); 
             const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
         },
-        toggleFullscreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); } else if (document.exitFullscreen) { document.exitFullscreen(); } },
-        handleKeys(e) {},
-        async logout() { this.systemLoading = true; if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); if(this.supabase) await this.supabase.auth.signOut(); window.location.reload(); },
+        
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
+        async logout() { this.systemLoading = true; if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); if(this.supabase) await this.supabase.auth.signOut(); window.location.reload(); },
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
@@ -546,13 +457,7 @@ function zeniteSystem() {
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
-        _renderChart(id, data, isWizard=false) {
-            const ctx = document.getElementById(id); if(!ctx) return;
-            const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim();
-            const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`;
-            if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } 
-            else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); }
-        },
+        _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
         
@@ -561,18 +466,8 @@ function zeniteSystem() {
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
         addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
-
-        roll(s) {
-            const arr = new Uint32Array(1); window.crypto.getRandomValues(arr);
-            const n = (arr[0] % s) + 1;
-            const m = parseInt(this.diceMod || 0);
-            this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m;
-            let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`);
-            this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason});
-            this.diceReason = ''; 
-            if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop();
-        },
-
+        
+        roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); },
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
         openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
         initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); e.target.value = ''; }, 
