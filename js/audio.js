@@ -3,16 +3,21 @@ let sfxEnabled = true;
 let ambianceOscillators = [];
 let lastHoverTime = 0; // Controle de spam
 
-// Ruído Branco (Buffer) para sons de textura
-const bufferSize = audioCtx.sampleRate * 2;
-const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-const output = noiseBuffer.getChannelData(0);
-for (let i = 0; i < bufferSize; i++) {
-    output[i] = Math.random() * 2 - 1;
-}
+// --- RUÍDO BRANCO (Buffer) ---
+const createNoiseBuffer = () => {
+    const bufferSize = audioCtx.sampleRate * 2;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+};
+const noiseBuffer = createNoiseBuffer();
 
 const SFX = {
     play(type) {
+        // Verifica estado do áudio
         if (!sfxEnabled || audioCtx.state === 'suspended') {
             if(audioCtx.state === 'suspended') audioCtx.resume();
             if(!sfxEnabled) return;
@@ -20,10 +25,10 @@ const SFX = {
 
         const now = audioCtx.currentTime;
         
-        // --- ANTI-SPAM (THROTTLE) ---
-        // Se for 'hover', só toca se passou 100ms desde o último
+        // --- THROTTLE (Anti-Metralhadora) ---
         if (type === 'hover') {
-            if (now - lastHoverTime < 0.1) return; 
+            // 200ms de espera mínima entre sons de hover
+            if (now - lastHoverTime < 0.2) return; 
             lastHoverTime = now;
         }
 
@@ -31,23 +36,23 @@ const SFX = {
         gain.connect(audioCtx.destination);
 
         if (type === 'hover') {
-            // Click Tech Sutil (Filtrado)
+            // Click Tech Sutil (Filtered Noise)
             const src = audioCtx.createBufferSource();
             src.buffer = noiseBuffer;
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'bandpass';
-            filter.frequency.value = 2000; 
+            filter.frequency.value = 1500; 
             src.connect(filter).connect(gain);
             
-            gain.gain.setValueAtTime(0.08, now); // Volume
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-            src.start(now); src.stop(now + 0.05);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+            src.start(now); src.stop(now + 0.06);
 
         } else if (type === 'click') {
-            // Click Mecânico
+            // Click Mecânico (Triangle Wave)
             const osc = audioCtx.createOscillator();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.setValueAtTime(600, now);
             osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
             
             gain.gain.setValueAtTime(0.15, now);
@@ -56,52 +61,52 @@ const SFX = {
             osc.connect(gain); osc.start(now); osc.stop(now + 0.1);
 
         } else if (type === 'roll') {
-            // Som de dados (Rápido agudo)
+            // Rolar Dados
             const osc = audioCtx.createOscillator();
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.linearRampToValueAtTime(1200, now + 0.2);
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.2);
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
             osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
 
         } else if (type === 'save') {
-            // Sucesso / Salvo (Acorde Ascendente)
+            // Sucesso / Save (Acorde Ascendente)
             const osc = audioCtx.createOscillator();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.setValueAtTime(880, now + 0.1);
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
             gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-            osc.connect(gain); osc.start(now); osc.stop(now + 0.3);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.4);
+            osc.connect(gain); osc.start(now); osc.stop(now + 0.4);
 
         } else if (type === 'discard') {
-            // Cancelar / Fechar (Descendente)
+            // Cancelar / Fechar (Sawtooth Descendente)
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.setValueAtTime(150, now);
             osc.frequency.linearRampToValueAtTime(50, now + 0.2);
-            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.setValueAtTime(0.1, now);
             gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
             osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
 
         } else if (type === 'glitch') {
-            // ERRO FATAL (Assustador)
+            // ERRO FATAL (Grave e Distorcido)
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(50, now); // Grave
+            osc.frequency.setValueAtTime(60, now); // Sub-grave
             
-            // Modulação de amplitude para tremer
+            // Tremolo Effect
             const lfo = audioCtx.createOscillator();
-            lfo.frequency.value = 20; // 20hz tremor
+            lfo.frequency.value = 20; 
             const lfoGain = audioCtx.createGain();
             lfoGain.gain.value = 500;
             lfo.connect(lfoGain).connect(osc.frequency);
             
-            gain.gain.setValueAtTime(0.5, now); // Alto!
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+            gain.gain.setValueAtTime(0.6, now); // Alto
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
             
             lfo.start(now); osc.connect(gain); osc.start(now);
-            lfo.stop(now + 2.0); osc.stop(now + 2.0);
+            lfo.stop(now + 1.5); osc.stop(now + 1.5);
         }
     },
 
@@ -118,18 +123,11 @@ const SFX = {
             src.buffer = noiseBuffer;
             src.loop = true;
             const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass'; filter.frequency.value = 400;
-            gain.gain.value = 0.08;
+            filter.type = 'lowpass'; filter.frequency.value = 600;
+            gain.gain.value = 0.05; 
             src.connect(filter).connect(gain);
             src.start();
             ambianceOscillators.push(src);
-        } else if (type === 'drone') {
-            const osc = audioCtx.createOscillator();
-            osc.frequency.value = 60;
-            gain.gain.value = 0.05;
-            osc.connect(gain);
-            osc.start();
-            ambianceOscillators.push(osc);
         }
     },
     
