@@ -1,10 +1,10 @@
 /**
  * ZENITE OS - Core Application
- * Version: v56.9-View-Nuke
+ * Version: v57.0-Phoenix-Revert
  * Changelog:
- * - Fix Visual: performRevert agora define currentView='void' temporariamente. 
- * Isso força a remoção total da bandeja do DOM, prevenindo o bug de "dupla renderização" ou estado visual preso.
- * - Refactor: Atraso estratégico na confirmação para absorver cliques fantasmas.
+ * - Feat: Nova animação de Revert (Desmontar/Remontar) substituindo a tela de loading.
+ * - UX: Feedback visual mais fluido e "Cyberpunk".
+ * - Core: Mantido o fix da bandeja (view nuke) dentro da nova animação.
  */
 
 const CONSTANTS = {
@@ -245,10 +245,7 @@ function zeniteSystem() {
 
         // --- DICE TRAY ---
         toggleDiceTray() {
-            // LÓGICA DE PROTEÇÃO:
-            // Permite fechar sempre. Só bloqueia abrir se estiver carregando.
-            if (!this.diceTrayOpen && (this.systemLoading || this.loadingChar)) return;
-            
+            // PERMISSIVO: Permite abrir/fechar. A proteção contra duplo clique está garantida pelo reset de view.
             this.diceTrayOpen = !this.diceTrayOpen;
             if(this.diceTrayOpen) {
                 this.showDiceTip = false; 
@@ -325,47 +322,51 @@ function zeniteSystem() {
         },
 
         async performRevert() {
-            // 1. INICIA O RESET VISUAL
-            this.systemLoading = true; 
-            this.loadingChar = true;
-            this.diceTrayOpen = false; 
+            // 0. Setup Inicial
+            this.revertConfirmMode = false;
+            this.diceTrayOpen = false;
+            
+            // 1. INICIA A ANIMAÇÃO DE SAÍDA (DESMONTAR)
+            // Pegamos o elemento principal da ficha para animar
+            const mainEl = document.querySelector('main');
+            if(mainEl) mainEl.classList.add('animate-out');
 
-            // NUKE VIEW: Força a view a sair de 'sheet'. 
-            // Isso destrói o DOM da bandeja e da ficha, limpando qualquer estado "preso".
-            const tempCharId = this.activeCharId;
-            this.currentView = 'void'; 
-
-            // Atraso para absorver cliques fantasmas na barra de confirmação
-            setTimeout(() => { 
-                this.revertConfirmMode = false; 
-            }, 150);
-
-            // 2. PROCESSO DE CARREGAMENTO
+            // 2. Espera a animação terminar (400ms)
             setTimeout(async () => {
                 try {
-                    // Reseta Dados
+                    // 3. O "NUKE" (Void View) - Essencial para resetar a bandeja fantasma
+                    // Isso remove o HTML da ficha antiga completamente
+                    const tempCharId = this.activeCharId;
+                    this.currentView = 'void';
+                    
+                    // 4. Reset de Dados (Backend/Local)
                     if(this.isGuest) this.loadLocal('zenite_guest_db');
                     else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
 
-                    // Reconstrói a View do Zero
+                    // 5. REMONTAGEM (Assemble)
                     if(tempCharId && this.chars[tempCharId]) {
                         await this.loadCharacter(tempCharId, true);
-                        this.notify('Alterações descartadas.', 'success');
+                        
+                        // Aplica a animação de entrada na NOVA ficha assim que ela renderizar
+                        this.$nextTick(() => {
+                            const newMain = document.querySelector('main');
+                            if(newMain) newMain.classList.add('animate-in');
+                            this.notify('Sistema restaurado.', 'success');
+                            
+                            // Limpeza final das classes após animação
+                            setTimeout(() => {
+                                if(newMain) newMain.classList.remove('animate-in');
+                            }, 700);
+                        });
                     } else {
                         this.currentView = 'dashboard';
                     }
                 } catch (e) {
                     console.error("Revert Error:", e);
-                    this.notify("Erro ao reverter.", "error");
+                    this.notify("Erro ao restaurar.", "error");
                     this.currentView = 'dashboard';
-                } finally {
-                    // 3. FINALIZAÇÃO SUAVE
-                    setTimeout(() => { 
-                        this.systemLoading = false; 
-                        this.loadingChar = false; 
-                    }, 500);
                 }
-            }, 500);
+            }, 400); // Tempo exato da animação CSS 'dismantle'
         },
 
         async fetchCloud() {
