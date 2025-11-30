@@ -1,1742 +1,718 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <meta name="theme-color" content="#050507" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050507">
     <title>ZENITE OS</title>
-
-    <link
-      rel="icon"
-      href="images/favicon-black.svg"
-      media="(prefers-color-scheme: light)"
-    />
-    <link
-      rel="icon"
-      href="images/favicon-white.svg"
-      media="(prefers-color-scheme: dark)"
-    />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
+    
+    <link rel="icon" href="images/favicon-black.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="images/favicon-white.svg" media="(prefers-color-scheme: dark)">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap" rel="stylesheet">
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"
-      defer
-    ></script>
-
-    <link href="css/output.css" rel="stylesheet" />
-    <link rel="stylesheet" href="css/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    
+    <link href="css/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
     <script src="js/app.js"></script>
-  </head>
-  <body
-    x-data="zeniteSystem()"
-    x-init="initSystem()"
-    @keydown.window="handleKeys($event)"
-    class="text-gray-300 selection:bg-cyan-500 selection:text-black"
-    x-cloak
-  >
+</head>
+<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
+
     <div id="mouse-trail"></div>
     <div class="bg-grid"></div>
 
-    <div
-      id="system-failure"
-      x-show="systemFailure"
-      x-transition.opacity.duration.50ms
-      style="display: none"
-    >
-      <div class="bsod-container">
-        <span class="bsod-header">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
-        <div class="text-4xl font-bold mb-6 text-red-600 mt-4">
-          FATAL_EXCEPTION_0xDEADDEAD
+    <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
+        <div class="bsod-container">
+            <span class="bsod-header">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
+            <div class="text-4xl font-bold mb-6 text-red-600 mt-4">FATAL_EXCEPTION_0xDEADDEAD</div>
+            <p class="text-sm mb-4">
+                A critical error has occurred in the neural interface bridge.<br>
+                The system has been halted to prevent permanent user dissociation.
+            </p>
+            <ul class="list-disc pl-5 text-xs text-red-400 mb-8 space-y-1">
+                <li>Attempting to recover shadow memory... [FAILED]</li>
+                <li>Flushing auth tokens... [DONE]</li>
+                <li>Severing connection to host... [PENDING]</li>
+            </ul>
+            <div class="error-code-block font-code text-[10px] text-red-900">
+                0x00000000 0xFFFFFFFF 0x00000000 0x00000000<br>
+                *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)<br><br>
+                > PRESS F5 TO REBOOT NEURAL LINK
+            </div>
         </div>
-
-        <p class="text-sm mb-4">
-          A critical error has occurred in the neural interface bridge.<br />
-          The system has been halted to prevent permanent user dissociation.
-        </p>
-
-        <ul class="list-disc pl-5 text-xs text-red-400 mb-8 space-y-1">
-          <li>Attempting to recover shadow memory... [FAILED]</li>
-          <li>Flushing auth tokens... [DONE]</li>
-          <li>Severing connection to host... [PENDING]</li>
-        </ul>
-
-        <div class="error-code-block font-code text-[10px] text-red-900">
-          0x00000000 0xFFFFFFFF 0x00000000 0x00000000<br />
-          0xF0000000 0x00000000 0x00000000 0x00000000<br />
-          0xC00000C0 0x00000000 0x00000000 0x00000000<br />
-          *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)
-          <br /><br />
-          > PRESS F5 TO REBOOT NEURAL LINK
-        </div>
-      </div>
     </div>
 
-    <div
-      id="app-loader"
-      x-show="systemLoading"
-      x-transition.opacity.duration.500ms
-      class="fixed inset-0 z-[9999] bg-[#050507] flex flex-col items-center justify-center"
-    >
-      <div class="relative w-24 h-24 mb-10 flex items-center justify-center">
-        <div
-          class="absolute inset-0 border-2 border-[var(--neon-core)] border-t-transparent rounded-full animate-spin"
-        ></div>
-        <div
-          class="absolute inset-2 border-2 border-white/10 border-b-[var(--neon-core)] rounded-full animate-spin"
-          style="animation-duration: 2s; animation-direction: reverse"
-        ></div>
-        <img
-          src="images/zenite_logo.svg"
-          class="w-14 h-14 animate-pulse relative z-10"
-          style="filter: drop-shadow(0 0 15px var(--neon-core))"
-        />
-      </div>
-      <div class="w-64 h-1 bg-white/5 rounded-full overflow-hidden relative">
-        <div
-          class="h-full bg-[var(--neon-core)] transition-all duration-300 ease-out shadow-[0_0_15px_var(--neon-core)]"
-          :style="`width: ${loadingProgress}%`"
-        ></div>
-      </div>
-      <p
-        class="mt-4 text-[10px] font-code text-[var(--neon-core)] tracking-[0.3em] uppercase animate-pulse"
-      >
-        <span x-text="loadingText">BOOTING</span>
-        <span x-text="loadingProgress + '%'"></span>
-      </p>
+    <div id="app-loader" x-show="systemLoading" x-transition.opacity.duration.500ms class="fixed inset-0 z-[9999] bg-[#050507] flex flex-col items-center justify-center">
+        <div class="relative w-24 h-24 mb-10 flex items-center justify-center">
+            <div class="absolute inset-0 border-2 border-[var(--neon-core)] border-t-transparent rounded-full animate-spin"></div>
+            <div class="absolute inset-2 border-2 border-white/10 border-b-[var(--neon-core)] rounded-full animate-spin" style="animation-duration: 2s; animation-direction: reverse;"></div>
+            <img src="images/zenite_logo.svg" class="w-14 h-14 animate-pulse relative z-10" style="filter: drop-shadow(0 0 15px var(--neon-core));">
+        </div>
+        <div class="w-64 h-1 bg-white/5 rounded-full overflow-hidden relative">
+            <div class="h-full bg-[var(--neon-core)] transition-all duration-300 ease-out shadow-[0_0_15px_var(--neon-core)]" :style="`width: ${loadingProgress}%`"></div>
+        </div>
+        <p class="mt-4 text-[10px] font-code text-[var(--neon-core)] tracking-[0.3em] uppercase animate-pulse">
+            <span x-text="loadingText">BOOTING</span> <span x-text="loadingProgress + '%'"></span>
+        </p>
     </div>
 
     <div class="fixed top-5 right-5 z-[10000] space-y-2 pointer-events-none">
-      <template x-for="n in notifications" :key="n.id">
-        <div
-          class="glass border-l-4 px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl pointer-events-auto"
-          :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}"
-        >
-          <i
-            x-show="n.type==='error'"
-            class="fa-solid fa-circle-xmark text-red-500"
-          ></i>
-          <i
-            x-show="n.type==='success'"
-            class="fa-solid fa-circle-check text-green-500"
-          ></i>
-          <i
-            x-show="n.type==='warn'"
-            class="fa-solid fa-triangle-exclamation text-yellow-500"
-          ></i>
-          <span
-            x-text="n.message"
-            class="font-bold text-xs tracking-wider text-white font-brand"
-          ></span>
-        </div>
-      </template>
+        <template x-for="n in notifications" :key="n.id">
+            <div class="glass border-l-4 px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl pointer-events-auto"
+                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
+                <i x-show="n.type==='error'" class="fa-solid fa-circle-xmark text-red-500"></i>
+                <i x-show="n.type==='success'" class="fa-solid fa-circle-check text-green-500"></i>
+                <i x-show="n.type==='warn'" class="fa-solid fa-triangle-exclamation text-yellow-500"></i>
+                <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
+            </div>
+        </template>
     </div>
 
-    <div
-      x-show="!user && !isGuest && !systemLoading"
-      class="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4"
-    >
-      <div
-        class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-2xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.15)] text-center relative overflow-hidden"
-      >
-        <div
-          class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--neon-core)] to-transparent opacity-50"
-        ></div>
-        <div class="mb-8">
-          <img
-            src="images/zenite_logo.svg"
-            class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_10px_var(--neon-core)]"
-          />
-          <h1 class="text-4xl font-brand text-white mb-2 tracking-widest">
-            ZENITE <span class="text-[var(--neon-core)]">OS</span>
-          </h1>
-          <p
-            class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em]"
-          >
-            Acesso Restrito // Nível 5
-          </p>
+    <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-2xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.15)] text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--neon-core)] to-transparent opacity-50"></div>
+            <div class="mb-8">
+                <img src="images/zenite_logo.svg" class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_10px_var(--neon-core)]">
+                <h1 class="text-4xl font-brand text-white mb-2 tracking-widest">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
+                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em]">Acesso Restrito // Nível 5</p>
+            </div>
+            <div class="space-y-4">
+                <button @click="doSocialAuth('google')" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors relative overflow-hidden disabled:opacity-50">
+                    <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-google text-red-600"></i> GOOGLE</div>
+                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> ...</div>
+                </button>
+                <button @click="doSocialAuth('discord')" :disabled="authLoading" class="w-full py-3 bg-[#5865F2] text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-[#4752C4] transition-colors relative overflow-hidden disabled:opacity-50">
+                    <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-discord"></i> DISCORD</div>
+                    <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> ...</div>
+                </button>
+                <div class="border-t border-white/10 pt-6 mt-6">
+                    <button @click="enterGuest()" class="w-full py-2 border border-dashed border-gray-700 text-gray-500 text-[10px] font-bold hover:text-white hover:border-white/30 rounded-lg uppercase tracking-wider group transition-colors">
+                        ENTRAR OFFLINE <span class="block text-[8px] normal-case text-gray-600 group-hover:text-gray-400 mt-0.5">Dados locais (Sem Cloud Sync)</span>
+                    </button>
+                </div>
+            </div>
+            <p x-text="authMsg" class="text-xs font-bold mt-4 min-h-[1rem]" :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"></p>
         </div>
-        <div class="space-y-4">
-          <button
-            @click="doSocialAuth('google')"
-            :disabled="authLoading"
-            class="w-full py-3 bg-white text-black font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors relative overflow-hidden disabled:opacity-50"
-          >
-            <div x-show="!authLoading" class="flex items-center gap-2">
-              <i class="fa-brands fa-google text-red-600"></i> GOOGLE
-            </div>
-            <div x-show="authLoading" class="flex items-center gap-2">
-              <i class="fa-solid fa-circle-notch fa-spin"></i> ...
-            </div>
-          </button>
-          <button
-            @click="doSocialAuth('discord')"
-            :disabled="authLoading"
-            class="w-full py-3 bg-[#5865F2] text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-[#4752C4] transition-colors relative overflow-hidden disabled:opacity-50"
-          >
-            <div x-show="!authLoading" class="flex items-center gap-2">
-              <i class="fa-brands fa-discord"></i> DISCORD
-            </div>
-            <div x-show="authLoading" class="flex items-center gap-2">
-              <i class="fa-solid fa-circle-notch fa-spin"></i> ...
-            </div>
-          </button>
-          <div class="border-t border-white/10 pt-6 mt-6">
-            <button
-              @click="enterGuest()"
-              class="w-full py-2 border border-dashed border-gray-700 text-gray-500 text-[10px] font-bold hover:text-white hover:border-white/30 rounded-lg uppercase tracking-wider group transition-colors"
-            >
-              ENTRAR OFFLINE
-              <span
-                class="block text-[8px] normal-case text-gray-600 group-hover:text-gray-400 mt-0.5"
-                >Dados locais (Sem Cloud Sync)</span
-              >
-            </button>
-          </div>
-        </div>
-        <p
-          x-text="authMsg"
-          class="text-xs font-bold mt-4 min-h-[1rem]"
-          :class="authMsgType === 'error' ? 'text-red-500' : 'text-green-500'"
-        ></p>
-      </div>
     </div>
 
-    <header
-      class="relative z-20 max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center"
-    >
-      <div
-        class="flex items-center justify-between w-full md:w-auto mb-4 md:mb-0"
-      >
-        <div
-          class="flex items-center gap-3 cursor-pointer group"
-          @click="handleLogoClick()"
-        >
-          <div
-            class="glass px-2 py-2 pr-5 rounded-full flex items-center gap-3 border border-white/5 hover:border-[var(--neon-core)] transition-all hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.2)]"
-          >
-            <img
-              src="images/zenite_logo.svg"
-              class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform"
-            />
-            <div class="flex flex-col">
-              <h1
-                class="text-lg font-bold text-white tracking-widest font-brand leading-none"
-              >
-                ZENITE
-              </h1>
-              <span
-                class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase"
-                >SYSTEM</span
-              >
+    <header class="relative z-20 max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center">
+        <div class="flex items-center justify-between w-full md:w-auto mb-4 md:mb-0">
+            <div class="flex items-center gap-3 cursor-pointer group" @click="handleLogoClick()">
+                <div class="glass px-2 py-2 pr-5 rounded-full flex items-center gap-3 border border-white/5 hover:border-[var(--neon-core)] transition-all hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.2)]">
+                    <img src="images/zenite_logo.svg" class="w-10 h-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform">
+                    <div class="flex flex-col">
+                        <h1 class="text-lg font-bold text-white tracking-widest font-brand leading-none">ZENITE</h1>
+                        <span class="text-[8px] font-code text-[var(--neon-core)] tracking-[0.2em] uppercase">SYSTEM</span>
+                    </div>
+                </div>
             </div>
-          </div>
+
+            <div x-show="user" class="relative md:ml-4" @click.outside="userMenuOpen=false">
+                <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+                    <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
+                    <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
+                </button>
+                <div x-show="userMenuOpen" class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10" x-transition>
+                    <div class="px-4 py-3 border-b border-white/5 bg-black/40">
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Agente</p>
+                        <p class="text-xs text-white font-bold break-all" x-text="user?.email"></p>
+                    </div>
+                    <button @click="askLogout()" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"><i class="fa-solid fa-power-off mr-2"></i> ENCERRAR SESSÃO</button>
+                </div>
+            </div>
         </div>
 
-        <div
-          x-show="user"
-          class="relative md:ml-4"
-          @click.outside="userMenuOpen=false"
-        >
-          <button
-            @click="userMenuOpen=!userMenuOpen"
-            class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors"
-          >
-            <div
-              class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"
-            >
-              <i class="fa-solid fa-user"></i>
-            </div>
-            <span
-              class="text-xs font-bold hidden md:block truncate max-w-[100px]"
-              x-text="user?.email"
-            ></span>
-            <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
-          </button>
-          <div
-            x-show="userMenuOpen"
-            class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10"
-            x-transition
-          >
-            <div class="px-4 py-3 border-b border-white/5 bg-black/40">
-              <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">
-                Agente
-              </p>
-              <p
-                class="text-xs text-white font-bold break-all"
-                x-text="user?.email"
-              ></p>
-            </div>
-            <button
-              @click="askLogout()"
-              class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"
-            >
-              <i class="fa-solid fa-power-off mr-2"></i> ENCERRAR SESSÃO
-            </button>
-          </div>
+        <div class="flex gap-3 items-center justify-center w-full md:w-auto">
+            <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded-lg hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
+            <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SYNC...</div>
+            <button @click="configModal=true" class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-colors"><i class="fa-solid fa-gear"></i></button>
+            <button x-show="currentView === 'dashboard'" @click="openWizard()" class="px-6 py-2 rounded-lg bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 transition-all flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
         </div>
-      </div>
-
-      <div class="flex gap-3 items-center justify-center w-full md:w-auto">
-        <button
-          x-show="isGuest"
-          @click="askSwitchToOnline()"
-          class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded-lg hover:bg-yellow-500/20 flex items-center gap-2"
-        >
-          <i class="fa-solid fa-cloud"></i>
-          <span class="hidden md:inline">ONLINE</span>
-        </button>
-        <div
-          x-show="isSyncing"
-          class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse"
-        >
-          SYNC...
-        </div>
-        <button
-          @click="configModal=true"
-          class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-colors"
-        >
-          <i class="fa-solid fa-gear"></i>
-        </button>
-        <button
-          x-show="currentView === 'dashboard'"
-          @click="openWizard()"
-          class="px-6 py-2 rounded-lg bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 transition-all flex items-center gap-2"
-        >
-          <i class="fa-solid fa-plus"></i>
-          <span class="hidden md:inline">NOVO AGENTE</span>
-        </button>
-      </div>
     </header>
 
-    <main
-      x-show="currentView === 'dashboard'"
-      class="relative z-10 max-w-7xl mx-auto p-6 pb-32"
-      x-transition.opacity
-    >
-      <div class="mb-8 border-b border-white/5 pb-4">
-        <div class="flex justify-between items-end mb-2">
-          <h2
-            class="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"
-          >
-            <i class="fa-solid fa-database"></i> Banco de Dados
-          </h2>
-          <div class="text-[10px] font-code text-gray-600">
-            CAPACIDADE:
-            <span x-text="agentCount" class="text-white font-bold"></span> / 30
-          </div>
-        </div>
-        <div class="relative group">
-          <input
-            id="search-dashboard"
-            name="search_query"
-            x-model="searchQuery"
-            type="text"
-            placeholder="Buscar Identidade..."
-            aria-label="Buscar Identidade"
-            class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-10 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber"
-          />
-          <i
-            class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"
-          ></i>
-        </div>
-      </div>
-      <template x-if="agentCount === 0"
-        ><div class="py-32 text-center opacity-30 select-none">
-          <div
-            class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"
-          >
-            <i class="fa-solid fa-network-wired text-4xl"></i>
-          </div>
-          <p class="font-brand text-xl">SISTEMA VAZIO</p>
-        </div></template
-      >
-      <div
-        x-show="agentCount > 0"
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-      >
-        <template x-for="(c, id) in filteredChars" :key="id">
-          <div
-            @click="loadCharacter(id)"
-            class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]"
-          >
-            <div class="relative z-10 flex-shrink-0">
-              <div
-                class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors"
-              >
-                <img
-                  :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'"
-                  class="w-full h-full rounded-full object-cover"
-                />
-              </div>
+    <main x-show="currentView === 'dashboard'" class="relative z-10 max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
+        <div class="mb-8 border-b border-white/5 pb-4">
+            <div class="flex justify-between items-end mb-2">
+                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-database"></i> Banco de Dados</h2>
+                <div class="text-[10px] font-code text-gray-600">CAPACIDADE: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
             </div>
-            <div class="relative z-10 overflow-hidden">
-              <h3
-                class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors"
-                x-text="c.name || 'DESCONHECIDO'"
-              ></h3>
-              <div class="flex items-center gap-2 mt-1">
-                <span
-                  class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400"
-                  x-text="c.class"
-                ></span
-                ><span
-                  class="text-[9px] font-code text-gray-500"
-                  x-text="'NVL ' + c.level"
-                ></span>
-              </div>
+            <div class="relative group">
+                <input id="search-dashboard" name="search_query" x-model="searchQuery" type="text" placeholder="Buscar Identidade..." aria-label="Buscar Identidade" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-10 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber">
+                <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
-            <button
-              @click.stop="askDeleteChar(id)"
-              class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"
-            >
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
-            <div
-              class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"
-            ></div>
-          </div>
+        </div>
+        <template x-if="agentCount === 0">
+            <div class="py-32 text-center opacity-30 select-none">
+                <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
+                <p class="font-brand text-xl">SISTEMA VAZIO</p>
+            </div>
         </template>
-      </div>
+        <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <template x-for="(c, id) in filteredChars" :key="id">
+                <div @click="loadCharacter(id)" class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]">
+                    <div class="relative z-10 flex-shrink-0">
+                        <div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors">
+                            <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full rounded-full object-cover">
+                        </div>
+                    </div>
+                    <div class="relative z-10 overflow-hidden">
+                        <h3 class="text-white font-bold truncate font-brand text-xl group-hover:text-[var(--neon-core)] transition-colors" x-text="c.name || 'DESCONHECIDO'"></h3>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 border border-white/5 text-gray-400" x-text="c.class"></span>
+                            <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
+                        </div>
+                    </div>
+                    <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"><i class="fa-solid fa-trash-can"></i></button>
+                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
+                </div>
+            </template>
+        </div>
     </main>
 
     <template x-if="currentView === 'sheet' && char">
-      <main
-        class="relative z-10 max-w-7xl mx-auto p-4 pb-48"
-        x-transition.opacity
-      >
-        <div
-          class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10 shadow-lg"
-        >
-          <div class="flex items-center gap-3 px-2">
-            <button
-              @click="attemptGoBack()"
-              class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors"
-            >
-              <i class="fa-solid fa-chevron-left"></i> VOLTAR
-            </button>
-            <div class="w-px h-4 bg-white/10"></div>
-            <span
-              class="text-[10px] font-code text-[var(--neon-core)]"
-              x-text="activeCharId.slice(-6)"
-            ></span>
-          </div>
-          <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
-            <button
-              @click="activeTab='profile'"
-              :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'"
-              class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
-            >
-              Perfil
-            </button>
-            <button
-              @click="activeTab='powers'"
-              :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'"
-              class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
-            >
-              Poderes
-            </button>
-            <button
-              @click="activeTab='logistics'"
-              :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'"
-              class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
-            >
-              Logística
-            </button>
-          </div>
-        </div>
+        <main class="relative z-10 max-w-7xl mx-auto p-4 pb-48" x-transition.opacity>
+            <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10 shadow-lg">
+                <div class="flex items-center gap-3 px-2">
+                    <button @click="attemptGoBack()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                    <div class="w-px h-4 bg-white/10"></div>
+                    <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
+                </div>
+                <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
+                    <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Perfil</button>
+                    <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Poderes</button>
+                    <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Logística</button>
+                </div>
+            </div>
 
-        <div
-          x-show="activeTab === 'profile'"
-          class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in"
-        >
-          <div class="lg:col-span-4 space-y-6">
-            <div class="glass p-6 rounded-2xl text-center relative group">
-              <div
-                @click="openImageEditor('sheet')"
-                class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors"
-              >
-                <img
-                  :src="char.photo"
-                  class="w-full h-full object-cover"
-                  x-show="char.photo"
-                />
-                <div
-                  class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <i class="fa-solid fa-camera text-white"></i>
-                </div>
-              </div>
-              <div class="mt-4 flex justify-center">
-                <div
-                  class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2"
-                >
-                  <label class="text-[10px] text-gray-500 font-bold"
-                    >NÍVEL</label
-                  ><input
-                    type="number"
-                    x-model="char.level"
-                    min="1"
-                    max="10"
-                    @change="recalcDerivedStats()"
-                    class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none"
-                  />
-                </div>
-              </div>
-              <div class="mt-6 space-y-3 text-left">
-                <div
-                  class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-red-500/30 transition-colors"
-                >
-                  <div class="flex justify-between text-[10px] font-bold mb-1">
-                    <span class="text-red-500">PV</span>
-                    <div class="flex gap-1 text-white font-code">
-                      <input
-                        type="number"
-                        x-model="char.stats.pv.current"
-                        class="bg-transparent w-8 text-right outline-none font-bold text-white"
-                      />
-                      /
-                      <input
-                        type="number"
-                        x-model="char.stats.pv.max"
-                        class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"
-                      />
+            <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="glass p-6 rounded-2xl text-center relative group">
+                        <div @click="openImageEditor('sheet')" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors">
+                            <img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo">
+                            <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-camera text-white"></i></div>
+                        </div>
+                        <div class="mt-4 flex justify-center">
+                            <div class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2">
+                                <label class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
+                                <input type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" aria-label="Nível do Personagem" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
+                            </div>
+                        </div>
+                        <div class="mt-6 space-y-3 text-left">
+                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-red-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-red-500">PV</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" x-model="char.stats.pv.current" aria-label="Pontos de Vida Atuais" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" x-model="char.stats.pv.max" aria-label="Pontos de Vida Máximos" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded font-bold hover:text-white hover:bg-red-500">-5</button>
+                                    <button @click="modStat('pv', -1)" class="px-3 bg-red-900/20 text-red-500 text-xs rounded hover:text-white hover:bg-red-500">-1</button>
+                                    <button @click="modStat('pv', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
+                            </div>
+                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-amber-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-amber-500">PF</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" x-model="char.stats.pf.current" aria-label="Pontos de Foco Atuais" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" x-model="char.stats.pf.max" aria-label="Pontos de Foco Máximos" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded font-bold hover:text-white hover:bg-amber-500">-5</button>
+                                    <button @click="modStat('pf', -1)" class="px-3 bg-amber-900/20 text-amber-500 text-xs rounded hover:text-white hover:bg-amber-500">-1</button>
+                                    <button @click="modStat('pf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
+                            </div>
+                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-violet-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-violet-500">PDF</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" x-model="char.stats.pdf.current" aria-label="Pontos de Defesa Atuais" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" x-model="char.stats.pdf.max" aria-label="Pontos de Defesa Máximos" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded font-bold hover:text-white hover:bg-violet-500">-5</button>
+                                    <button @click="modStat('pdf', -1)" class="px-3 bg-violet-900/20 text-violet-500 text-xs rounded hover:text-white hover:bg-violet-500">-1</button>
+                                    <button @click="modStat('pdf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-red-500 transition-all"
-                      :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"
-                    ></div>
-                  </div>
-                  <div class="flex gap-1 mt-2 justify-between">
-                    <button
-                      @click="modStat('pv', -5)"
-                      class="px-2 bg-red-900/20 text-red-500 text-xs rounded font-bold hover:text-white hover:bg-red-500"
-                    >
-                      -5</button
-                    ><button
-                      @click="modStat('pv', -1)"
-                      class="px-3 bg-red-900/20 text-red-500 text-xs rounded hover:text-white hover:bg-red-500"
-                    >
-                      -1</button
-                    ><button
-                      @click="modStat('pv', 1)"
-                      class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500"
-                    >
-                      +1</button
-                    ><button
-                      @click="modStat('pv', 5)"
-                      class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500"
-                    >
-                      +5
-                    </button>
-                  </div>
                 </div>
-                <div
-                  class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-amber-500/30 transition-colors"
-                >
-                  <div class="flex justify-between text-[10px] font-bold mb-1">
-                    <span class="text-amber-500">PF</span>
-                    <div class="flex gap-1 text-white font-code">
-                      <input
-                        type="number"
-                        x-model="char.stats.pf.current"
-                        class="bg-transparent w-8 text-right outline-none font-bold text-white"
-                      />
-                      /
-                      <input
-                        type="number"
-                        x-model="char.stats.pf.max"
-                        class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"
-                      />
-                    </div>
-                  </div>
-                  <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-amber-500 transition-all"
-                      :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"
-                    ></div>
-                  </div>
-                  <div class="flex gap-1 mt-2 justify-between">
-                    <button
-                      @click="modStat('pf', -5)"
-                      class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded font-bold hover:text-white hover:bg-amber-500"
-                    >
-                      -5</button
-                    ><button
-                      @click="modStat('pf', -1)"
-                      class="px-3 bg-amber-900/20 text-amber-500 text-xs rounded hover:text-white hover:bg-amber-500"
-                    >
-                      -1</button
-                    ><button
-                      @click="modStat('pf', 1)"
-                      class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500"
-                    >
-                      +1</button
-                    ><button
-                      @click="modStat('pf', 5)"
-                      class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500"
-                    >
-                      +5
-                    </button>
-                  </div>
+                
+                <div class="lg:col-span-8 space-y-6">
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <input x-model="char.name" aria-label="Codinome" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME">
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-grow">
+                                <input x-model="char.identity" aria-label="Identidade Real" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL">
+                            </div>
+                            <div class="w-24">
+                                <input x-model="char.age" type="number" min="0" aria-label="Idade" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDADE">
+                            </div>
+                        </div>
+                        <div>
+                            <select x-model="char.class" @change="recalcDerivedStats()" aria-label="Classe" class="input-cyber w-full p-3 text-sm bg-black">
+                                <option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option>
+                            </select>
+                        </div>
+                     </div>
+                     <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
+                        <div class="w-full md:w-1/2 space-y-2">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
+                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
+                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
+                     </div>
+                     <div class="glass p-6 rounded-2xl border-l-2 border-yellow-500">
+                        <div class="flex justify-between mb-4 items-center">
+                            <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
+                            <button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="(s, idx) in char.skills" :key="idx">
+                                <div class="bg-black/40 p-3 rounded-lg flex justify-between items-center">
+                                    <input x-model="s.name" aria-label="Nome da Perícia" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome">
+                                    <div class="flex gap-1">
+                                        <template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template>
+                                    </div>
+                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                     </div>
+                     <div class="glass p-4 rounded-2xl border-l-2 border-[var(--neon-core)]">
+                        <textarea x-model="char.history" aria-label="História do Personagem" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea>
+                     </div>
                 </div>
-                <div
-                  class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-violet-500/30 transition-colors"
-                >
-                  <div class="flex justify-between text-[10px] font-bold mb-1">
-                    <span class="text-violet-500">PDF</span>
-                    <div class="flex gap-1 text-white font-code">
-                      <input
-                        type="number"
-                        x-model="char.stats.pdf.current"
-                        class="bg-transparent w-8 text-right outline-none font-bold text-white"
-                      />
-                      /
-                      <input
-                        type="number"
-                        x-model="char.stats.pdf.max"
-                        class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white"
-                      />
-                    </div>
-                  </div>
-                  <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-violet-500 transition-all"
-                      :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"
-                    ></div>
-                  </div>
-                  <div class="flex gap-1 mt-2 justify-between">
-                    <button
-                      @click="modStat('pdf', -5)"
-                      class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded font-bold hover:text-white hover:bg-violet-500"
-                    >
-                      -5</button
-                    ><button
-                      @click="modStat('pdf', -1)"
-                      class="px-3 bg-violet-900/20 text-violet-500 text-xs rounded hover:text-white hover:bg-violet-500"
-                    >
-                      -1</button
-                    ><button
-                      @click="modStat('pdf', 1)"
-                      class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500"
-                    >
-                      +1</button
-                    ><button
-                      @click="modStat('pdf', 5)"
-                      class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500"
-                    >
-                      +5
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
-          </div>
+            
+            <div x-show="activeTab === 'logistics'" class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-white font-brand">LOGÍSTICA</h3>
+                    <div class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2">
+                        <span class="text-amber-500">₵</span>
+                        <input type="number" x-model="char.credits" aria-label="Créditos" class="bg-transparent w-24 text-right outline-none font-code">
+                    </div>
+                </div>
+                <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
+                    <button @click="logisticsTab = 'inventory'" :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Inventário</button>
+                    <button @click="logisticsTab = 'backpack'" :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Mochila</button>
+                    <button @click="logisticsTab = 'social'" :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'" class="px-3 py-1 text-xs font-bold uppercase transition-all">Social</button>
+                </div>
+                
+                <div x-show="logisticsTab === 'inventory'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"><span>Arsenal</span><button @click="addItem('weapons')" class="hover:text-white">ADD</button></div>
+                        <div class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"><span class="col-span-5">Nome</span> <span class="col-span-3 text-center">Dano</span> <span class="col-span-3 text-center">Alcance</span></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(w, i) in char.inventory.weapons" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="w.name" aria-label="Nome da Arma" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="...">
+                                    <input x-model="w.dmg" aria-label="Dano" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <input x-model="w.range" aria-label="Alcance" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"><span>Proteção</span><button @click="addItem('armor')" class="hover:text-white">ADD</button></div>
+                        <div class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"><span class="col-span-6">Nome</span> <span class="col-span-3 text-center">Defesa</span> <span class="col-span-2 text-center">Pen</span></div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(a, i) in char.inventory.armor" :key="i">
+                                <div class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs">
+                                    <input x-model="a.name" aria-label="Nome do Traje" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="...">
+                                    <input x-model="a.def" aria-label="Defesa" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <input x-model="a.pen" aria-label="Penalidade" class="col-span-2 bg-transparent outline-none text-center text-gray-400" placeholder="...">
+                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
 
-          <div class="lg:col-span-8 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="md:col-span-2">
-                <input
-                  x-model="char.name"
-                  class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase"
-                  placeholder="CODINOME"
-                />
-              </div>
-              <div class="flex gap-4">
-                <div class="flex-grow">
-                  <input
-                    x-model="char.identity"
-                    class="input-cyber w-full p-3 text-sm"
-                    placeholder="IDENTIDADE REAL"
-                  />
+                <div x-show="logisticsTab === 'backpack'" class="space-y-4 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"><span>Suprimentos</span><button @click="addItem('gear')" class="hover:text-white">ADD</button></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4">
+                            <template x-for="(g, i) in char.inventory.gear" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between items-center text-xs">
+                                    <div class="flex-grow flex gap-2">
+                                        <input x-model="g.name" aria-label="Nome do Item" class="bg-transparent outline-none font-bold text-white w-1/3" placeholder="Item">
+                                        <input x-model="g.desc" aria-label="Descrição do Item" class="bg-transparent outline-none text-gray-500 w-2/3" placeholder="Descrição">
+                                    </div>
+                                    <input x-model="g.qty" type="number" aria-label="Quantidade" class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]">
+                                    <button @click="deleteItem('gear', i)" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="border-t border-white/10 pt-4">
+                            <textarea x-model="char.inventory.backpack" aria-label="Mochila e Outros Itens" class="w-full h-32 bg-black/40 text-sm text-gray-300 p-3 rounded-lg border border-white/5 resize-none outline-none" placeholder="Outros..."></textarea>
+                        </div>
+                    </div>
                 </div>
-                <div class="w-24">
-                  <input
-                    x-model="char.age"
-                    type="number"
-                    min="0"
-                    class="input-cyber w-full p-3 text-sm text-center"
-                    placeholder="IDADE"
-                  />
+
+                <div x-show="logisticsTab === 'social'" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2">
+                            <template x-for="(p, i) in char.inventory.social.people" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between text-xs">
+                                    <input x-model="p.name" aria-label="Nome do NPC" class="bg-transparent font-bold text-white w-1/2" placeholder="Nome">
+                                    <input x-model="p.role" aria-label="Relação" class="bg-transparent text-gray-500 w-1/2" placeholder="Relação">
+                                    <button @click="deleteItem('social', i, 'people')" class="text-red-500">x</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="glass p-4 rounded-lg">
+                        <div class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"><span>Objetos</span><button @click="addItem('social_objects')" class="hover:text-white">ADD</button></div>
+                        <div class="space-y-2">
+                            <template x-for="(o, i) in char.inventory.social.objects" :key="i">
+                                <div class="bg-black/40 p-2 rounded flex justify-between text-xs">
+                                    <input x-model="o.name" aria-label="Nome do Objeto" class="bg-transparent font-bold text-white w-1/2" placeholder="Objeto">
+                                    <input x-model="o.desc" aria-label="Detalhes do Objeto" class="bg-transparent text-gray-500 w-1/2" placeholder="Detalhe">
+                                    <button @click="deleteItem('social', i, 'objects')" class="text-red-500">x</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                 </div>
-              </div>
-              <div>
-                <select
-                  x-model="char.class"
-                  @change="recalcDerivedStats()"
-                  class="input-cyber w-full p-3 text-sm bg-black"
-                >
-                  <option>Titã</option>
-                  <option>Estrategista</option>
-                  <option>Infiltrador</option>
-                  <option>Controlador</option>
-                  <option>Psíquico</option>
-                </select>
-              </div>
             </div>
-            <div
-              class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8"
-            >
-              <div class="w-full md:w-1/2 space-y-2">
-                <template x-for="key in ['for','agi','int','von','pod']"
-                  ><div
-                    class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5"
-                  >
-                    <span
-                      class="text-xs font-bold uppercase w-24"
-                      :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}"
-                      x-text="key"
-                    ></span>
-                    <div class="flex items-center gap-3">
-                      <button
-                        @click="modAttr(key, -1)"
-                        class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]"
-                      >
-                        -</button
-                      ><span
-                        class="font-mono font-bold text-lg w-6 text-center"
-                        x-text="char?.attrs?.[key]"
-                      ></span
-                      ><button
-                        @click="modAttr(key, 1)"
-                        class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]"
-                      >
-                        +
-                      </button>
+            
+            <div x-show="activeTab === 'powers'" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="glass p-4 rounded-lg">
+                        <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4>
+                        <textarea x-model="char.powers.passive" aria-label="Poder Passivo" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
                     </div>
-                  </div></template
-                >
-              </div>
-              <div class="w-full md:w-1/2 h-64 relative">
-                <canvas id="radarChart"></canvas>
-              </div>
-            </div>
-            <div class="glass p-6 rounded-2xl border-l-2 border-yellow-500">
-              <div class="flex justify-between mb-4 items-center">
-                <h3 class="text-xs font-bold text-yellow-500 uppercase">
-                  Perícias
-                </h3>
-                <button
-                  @click="addSkill()"
-                  class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
-                >
-                  ADD
-                </button>
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <template x-for="(s, idx) in char.skills" :key="idx"
-                  ><div
-                    class="bg-black/40 p-3 rounded-lg flex justify-between items-center"
-                  >
-                    <input
-                      x-model="s.name"
-                      class="bg-transparent outline-none text-sm text-white w-1/2"
-                      placeholder="Nome"
-                    />
-                    <div class="flex gap-1">
-                      <template x-for="i in 5"
-                        ><div
-                          @click="setSkillLevel(idx, i)"
-                          class="skill-dot"
-                          :class="i <= s.level ? 'active' : 'bg-black/50'"
-                        ></div
-                      ></template>
+                    <div class="glass p-4 rounded-lg">
+                        <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4>
+                        <textarea x-model="char.powers.active" aria-label="Poder Ativo" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
                     </div>
-                    <button
-                      @click="deleteSkill(idx)"
-                      class="ml-2 text-red-500 text-xs"
-                    >
-                      <i class="fa-solid fa-xmark"></i>
-                    </button></div
-                ></template>
-              </div>
-            </div>
-            <div
-              class="glass p-4 rounded-2xl border-l-2 border-[var(--neon-core)]"
-            >
-              <textarea
-                x-model="char.history"
-                class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code"
-                placeholder="Uma linda história..."
-              ></textarea>
-            </div>
-          </div>
-        </div>
-
-        <div x-show="activeTab === 'logistics'" class="space-y-6">
-          <div class="flex justify-between items-center">
-            <h3 class="text-white font-brand">LOGÍSTICA</h3>
-            <div
-              class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2"
-            >
-              <span class="text-amber-500">₵</span
-              ><input
-                type="number"
-                x-model="char.credits"
-                class="bg-transparent w-24 text-right outline-none font-code"
-              />
-            </div>
-          </div>
-          <div class="flex gap-2 border-b border-white/10 pb-2 mb-4">
-            <button
-              @click="logisticsTab = 'inventory'"
-              :class="logisticsTab === 'inventory' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'"
-              class="px-3 py-1 text-xs font-bold uppercase transition-all"
-            >
-              Inventário</button
-            ><button
-              @click="logisticsTab = 'backpack'"
-              :class="logisticsTab === 'backpack' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'"
-              class="px-3 py-1 text-xs font-bold uppercase transition-all"
-            >
-              Mochila</button
-            ><button
-              @click="logisticsTab = 'social'"
-              :class="logisticsTab === 'social' ? 'text-[var(--neon-core)] border-b-2 border-[var(--neon-core)]' : 'text-gray-500'"
-              class="px-3 py-1 text-xs font-bold uppercase transition-all"
-            >
-              Social
-            </button>
-          </div>
-          <div
-            x-show="logisticsTab === 'inventory'"
-            class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
-          >
-            <div class="glass p-4 rounded-lg">
-              <div
-                class="flex justify-between mb-4 text-[var(--neon-alert)] font-bold text-xs uppercase tracking-widest"
-              >
-                <span>Arsenal</span
-                ><button @click="addItem('weapons')" class="hover:text-white">
-                  ADD
-                </button>
-              </div>
-              <div
-                class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"
-              >
-                <span class="col-span-5">Nome</span>
-                <span class="col-span-3 text-center">Dano</span>
-                <span class="col-span-3 text-center">Alcance</span>
-              </div>
-              <div class="space-y-2 max-h-60 overflow-y-auto">
-                <template x-for="(w, i) in char.inventory.weapons" :key="i"
-                  ><div
-                    class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs"
-                  >
-                    <input
-                      x-model="w.name"
-                      class="col-span-5 bg-transparent outline-none font-bold text-white"
-                      placeholder="..."
-                    /><input
-                      x-model="w.dmg"
-                      class="col-span-3 bg-transparent outline-none text-center text-gray-400"
-                      placeholder="..."
-                    /><input
-                      x-model="w.range"
-                      class="col-span-3 bg-transparent outline-none text-center text-gray-400"
-                      placeholder="..."
-                    /><button
-                      @click="deleteItem('weapons', i)"
-                      class="col-span-1 text-red-500 text-right"
-                    >
-                      <i class="fa-solid fa-xmark"></i>
-                    </button></div
-                ></template>
-              </div>
-            </div>
-            <div class="glass p-4 rounded-lg">
-              <div
-                class="flex justify-between mb-4 text-blue-400 font-bold text-xs uppercase tracking-widest"
-              >
-                <span>Proteção</span
-                ><button @click="addItem('armor')" class="hover:text-white">
-                  ADD
-                </button>
-              </div>
-              <div
-                class="grid grid-cols-12 gap-2 text-[10px] text-gray-500 uppercase mb-1 px-2"
-              >
-                <span class="col-span-6">Nome</span>
-                <span class="col-span-3 text-center">Defesa</span>
-                <span class="col-span-2 text-center">Pen</span>
-              </div>
-              <div class="space-y-2 max-h-60 overflow-y-auto">
-                <template x-for="(a, i) in char.inventory.armor" :key="i"
-                  ><div
-                    class="bg-black/40 p-2 rounded grid grid-cols-12 gap-2 items-center text-xs"
-                  >
-                    <input
-                      x-model="a.name"
-                      class="col-span-6 bg-transparent outline-none font-bold text-white"
-                      placeholder="..."
-                    /><input
-                      x-model="a.def"
-                      class="col-span-3 bg-transparent outline-none text-center text-gray-400"
-                      placeholder="..."
-                    /><input
-                      x-model="a.pen"
-                      class="col-span-2 bg-transparent outline-none text-center text-gray-400"
-                      placeholder="..."
-                    /><button
-                      @click="deleteItem('armor', i)"
-                      class="col-span-1 text-red-500 text-right"
-                    >
-                      <i class="fa-solid fa-xmark"></i>
-                    </button></div
-                ></template>
-              </div>
-            </div>
-          </div>
-          <div
-            x-show="logisticsTab === 'backpack'"
-            class="space-y-4 animate-fade-in"
-          >
-            <div class="glass p-4 rounded-lg">
-              <div
-                class="flex justify-between mb-4 text-[var(--neon-success)] font-bold text-xs uppercase tracking-widest"
-              >
-                <span>Suprimentos</span
-                ><button @click="addItem('gear')" class="hover:text-white">
-                  ADD
-                </button>
-              </div>
-              <div
-                class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto mb-4"
-              >
-                <template x-for="(g, i) in char.inventory.gear" :key="i"
-                  ><div
-                    class="bg-black/40 p-2 rounded flex justify-between items-center text-xs"
-                  >
-                    <div class="flex-grow flex gap-2">
-                      <input
-                        x-model="g.name"
-                        class="bg-transparent outline-none font-bold text-white w-1/3"
-                        placeholder="Item"
-                      /><input
-                        x-model="g.desc"
-                        class="bg-transparent outline-none text-gray-500 w-2/3"
-                        placeholder="Descrição"
-                      />
+                </div>
+                <div class="glass p-6 rounded-2xl border-l-2 border-emerald-500">
+                    <div class="flex justify-between mb-4 items-center">
+                        <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas</h3>
+                        <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
                     </div>
-                    <input
-                      x-model="g.qty"
-                      type="number"
-                      class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]"
-                    /><button
-                      @click="deleteItem('gear', i)"
-                      class="ml-2 text-red-500"
-                    >
-                      <i class="fa-solid fa-xmark"></i>
-                    </button></div
-                ></template>
-              </div>
-              <div class="border-t border-white/10 pt-4">
-                <textarea
-                  x-model="char.inventory.backpack"
-                  class="w-full h-32 bg-black/40 text-sm text-gray-300 p-3 rounded-lg border border-white/5 resize-none outline-none"
-                  placeholder="Outros..."
-                ></textarea>
-              </div>
+                    <div class="space-y-3">
+                        <template x-for="(t, idx) in char.powers.techniques" :key="idx">
+                            <div class="bg-black/40 p-3 rounded-lg">
+                                <div class="flex justify-between mb-2">
+                                    <input x-model="t.name" aria-label="Nome da Técnica" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome">
+                                    <button @click="deleteTechnique(idx)" class="text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <textarea x-model="t.desc" aria-label="Descrição da Técnica" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Efeito..."></textarea>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Evolução</h3>
+                    <div class="space-y-4">
+                        <template x-for="lvl in [3,6,9,10]">
+                            <div class="bg-black/20 p-3 rounded-lg border border-white/5">
+                                <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500">
+                                    <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
+                                </div>
+                                <textarea x-model="char.powers['lvl'+lvl]" aria-label="Descrição da Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div
-            x-show="logisticsTab === 'social'"
-            class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
-          >
-            <div class="glass p-4 rounded-lg">
-              <div
-                class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"
-              >
-                <span>Pessoas</span
-                ><button
-                  @click="addItem('social_people')"
-                  class="hover:text-white"
-                >
-                  ADD
-                </button>
-              </div>
-              <div class="space-y-2">
-                <template
-                  x-for="(p, i) in char.inventory.social.people"
-                  :key="i"
-                  ><div
-                    class="bg-black/40 p-2 rounded flex justify-between text-xs"
-                  >
-                    <input
-                      x-model="p.name"
-                      class="bg-transparent font-bold text-white w-1/2"
-                      placeholder="Nome"
-                    /><input
-                      x-model="p.role"
-                      class="bg-transparent text-gray-500 w-1/2"
-                      placeholder="Relação"
-                    /><button
-                      @click="deleteItem('social', i, 'people')"
-                      class="text-red-500"
-                    >
-                      x
-                    </button>
-                  </div></template
-                >
-              </div>
-            </div>
-            <div class="glass p-4 rounded-lg">
-              <div
-                class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"
-              >
-                <span>Objetos</span
-                ><button
-                  @click="addItem('social_objects')"
-                  class="hover:text-white"
-                >
-                  ADD
-                </button>
-              </div>
-              <div class="space-y-2">
-                <template
-                  x-for="(o, i) in char.inventory.social.objects"
-                  :key="i"
-                  ><div
-                    class="bg-black/40 p-2 rounded flex justify-between text-xs"
-                  >
-                    <input
-                      x-model="o.name"
-                      class="bg-transparent font-bold text-white w-1/2"
-                      placeholder="Objeto"
-                    /><input
-                      x-model="o.desc"
-                      class="bg-transparent text-gray-500 w-1/2"
-                      placeholder="Detalhe"
-                    /><button
-                      @click="deleteItem('social', i, 'objects')"
-                      class="text-red-500"
-                    >
-                      x
-                    </button>
-                  </div></template
-                >
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div x-show="activeTab === 'powers'" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="glass p-4 rounded-lg">
-              <h4
-                class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2"
-              >
-                Passiva
-              </h4>
-              <textarea
-                x-model="char.powers.passive"
-                class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"
-              ></textarea>
-            </div>
-            <div class="glass p-4 rounded-lg">
-              <h4
-                class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2"
-              >
-                Ativa
-              </h4>
-              <textarea
-                x-model="char.powers.active"
-                class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"
-              ></textarea>
-            </div>
-          </div>
-          <div class="glass p-6 rounded-2xl border-l-2 border-emerald-500">
-            <div class="flex justify-between mb-4 items-center">
-              <h3 class="text-xs font-bold text-emerald-500 uppercase">
-                Técnicas
-              </h3>
-              <button
-                @click="addTechnique()"
-                class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded"
-              >
-                ADD
-              </button>
-            </div>
-            <div class="space-y-3">
-              <template x-for="(t, idx) in char.powers.techniques" :key="idx"
-                ><div class="bg-black/40 p-3 rounded-lg">
-                  <div class="flex justify-between mb-2">
-                    <input
-                      x-model="t.name"
-                      class="bg-transparent font-bold text-sm text-white w-full outline-none"
-                      placeholder="Nome"
-                    /><button
-                      @click="deleteTechnique(idx)"
-                      class="text-red-500 text-xs"
-                    >
-                      <i class="fa-solid fa-xmark"></i>
-                    </button>
-                  </div>
-                  <textarea
-                    x-model="t.desc"
-                    class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400"
-                    placeholder="Efeito..."
-                  ></textarea></div
-              ></template>
-            </div>
-          </div>
-          <div class="glass p-6 rounded-2xl">
-            <h3
-              class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2"
-            >
-              Evolução
-            </h3>
-            <div class="space-y-4">
-              <template x-for="lvl in [3,6,9,10]"
-                ><div class="bg-black/20 p-3 rounded-lg border border-white/5">
-                  <div
-                    class="flex justify-between text-[10px] font-bold mb-1 text-gray-500"
-                  >
-                    <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
-                  </div>
-                  <textarea
-                    x-model="char.powers['lvl'+lvl]"
-                    class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white"
-                    placeholder="Bloqueado..."
-                  ></textarea></div
-              ></template>
-            </div>
-          </div>
-        </div>
-      </main>
+        </main>
     </template>
 
     <template x-if="diceTrayOpen && currentView === 'sheet'">
-      <div
-        x-cloak
-        class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt"
-        :class="{'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}"
-        :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95"
-        x-transition:enter-end="opacity-100 scale-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100 scale-100"
-        x-transition:leave-end="opacity-0 scale-95 translate-y-10"
-      >
-        <div
-          @mousedown="startDragTray($event)"
-          class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none"
-          :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}"
-        >
-          <div class="flex items-center gap-2">
-            <span
-              class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"
-              ><i class="fa-solid fa-dice mr-2"></i>DICE</span
-            >
-            <div class="flex gap-1 ml-2" x-show="!isMobile">
-              <button
-                @click="setDockMode('dock-left')"
-                class="p-1 hover:text-white"
-                :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"
-              >
-                <i class="fa-solid fa-arrow-left"></i></button
-              ><button
-                @click="setDockMode('float')"
-                class="p-1 hover:text-white"
-                :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"
-              >
-                <i class="fa-solid fa-up-down-left-right"></i></button
-              ><button
-                @click="setDockMode('dock-right')"
-                class="p-1 hover:text-white"
-                :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"
-              >
-                <i class="fa-solid fa-arrow-right"></i>
-              </button>
+        <div x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt" 
+             :class="{'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
+             :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" 
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95 translate-y-10">
+            
+            <div @mousedown="startDragTray($event)" class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none" :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
+                    <div class="flex gap-1 ml-2" x-show="!isMobile">
+                        <button @click="setDockMode('dock-left')" class="p-1 hover:text-white" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
+                        <button @click="setDockMode('float')" class="p-1 hover:text-white" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
+                        <button @click="setDockMode('dock-right')" class="p-1 hover:text-white" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+                <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
-          </div>
-          <button
-            @click="toggleDiceTray()"
-            class="text-gray-500 hover:text-red-500 transition-colors"
-          >
-            <i class="fa-solid fa-xmark"></i>
-          </button>
+            
+            <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col">
+                <div class="mb-3 space-y-2">
+                    <input type="text" x-model="diceReason" aria-label="Motivo da Rolagem" placeholder="Motivo do teste (opcional)..." class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors">
+                    <div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">MOD</span>
+                            <input type="number" x-model="diceMod" aria-label="Modificador de Dados" class="w-12 bg-transparent text-center text-lg font-bold text-[var(--neon-core)] outline-none border-b border-white/20 focus:border-[var(--neon-core)]">
+                        </div>
+                        <div class="text-4xl font-bold font-brand animate-pulse" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mb-4">
+                    <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
+                </div>
+                <div class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2">
+                    <div class="flex justify-between items-center mb-2 px-1"><span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span><button @click="diceLog=[]" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button></div>
+                    <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-1">
+                        <template x-for="log in diceLog" :key="log.id">
+                            <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-1 animate-fade-in">
+                                <div class="flex justify-between">
+                                    <span x-text="log.time"></span><span class="text-white font-bold" x-text="log.formula"></span>
+                                    <span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-gray-300'" x-text="log.result"></span>
+                                </div>
+                                <div x-show="log.reason" class="text-[9px] text-[var(--neon-core)] italic truncate" x-text="log.reason"></div>
+                            </div>
+                        </template>
+                        <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col">
-          <div class="mb-3 space-y-2">
-            <input
-              type="text"
-              x-model="diceReason"
-              placeholder="Motivo do teste (opcional)..."
-              class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors"
-            />
-            <div
-              class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5"
-            >
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] font-bold text-gray-500 uppercase"
-                  >MOD</span
-                ><input
-                  type="number"
-                  x-model="diceMod"
-                  class="w-12 bg-transparent text-center text-lg font-bold text-[var(--neon-core)] outline-none border-b border-white/20 focus:border-[var(--neon-core)]"
-                />
-              </div>
-              <div
-                class="text-4xl font-bold font-brand animate-pulse"
-                :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'"
-                x-text="lastRoll"
-              >
-                --
-              </div>
-            </div>
-          </div>
-          <div class="grid grid-cols-4 gap-2 mb-4">
-            <template x-for="d in [3,4,6,8,10,12,20,100]"
-              ><button
-                @click="roll(d)"
-                class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg"
-                x-text="'D'+d"
-              ></button
-            ></template>
-          </div>
-          <div
-            class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2"
-          >
-            <div class="flex justify-between items-center mb-2 px-1">
-              <span class="text-[10px] font-bold text-gray-500 uppercase"
-                >Histórico</span
-              ><button
-                @click="diceLog=[]"
-                class="text-[10px] text-red-900 hover:text-red-500"
-              >
-                LIMPAR
-              </button>
-            </div>
-            <div
-              class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-1"
-            >
-              <template x-for="log in diceLog" :key="log.id"
-                ><div
-                  class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-1 animate-fade-in"
-                >
-                  <div class="flex justify-between">
-                    <span x-text="log.time"></span
-                    ><span
-                      class="text-white font-bold"
-                      x-text="log.formula"
-                    ></span
-                    ><span
-                      :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-gray-300'"
-                      x-text="log.result"
-                    ></span>
-                  </div>
-                  <div
-                    x-show="log.reason"
-                    class="text-[9px] text-[var(--neon-core)] italic truncate"
-                    x-text="log.reason"
-                  ></div></div
-              ></template>
-              <div
-                x-show="diceLog.length===0"
-                class="text-center text-[10px] text-gray-700 mt-4"
-              >
-                Role os dados...
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </template>
 
-    <div
-      x-show="!diceTrayOpen && currentView === 'sheet'"
-      class="fixed bottom-6 right-6 z-[8000]"
-    >
-      <div
-        x-show="showDiceTip"
-        class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce z-[60]"
-        x-transition
-      >
-        <div class="text-xs font-bold">Abra a bandeja aqui!</div>
-        <div
-          class="w-3 h-3 bg-[var(--neon-core)] rotate-45 absolute -bottom-1 right-6"
-        ></div>
-      </div>
-      <button
-        @click="toggleDiceTray()"
-        class="w-14 h-14 bg-black border border-[var(--neon-core)] rounded-full text-[var(--neon-core)] shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] hover:scale-110 transition-transform flex items-center justify-center text-2xl glass"
-      >
-        <i class="fa-solid fa-dice-d20"></i>
-      </button>
+    <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-[8000]">
+        <div x-show="showDiceTip" class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce z-[60]" x-transition>
+            <div class="text-xs font-bold">Abra a bandeja aqui!</div>
+            <div class="w-3 h-3 bg-[var(--neon-core)] rotate-45 absolute -bottom-1 right-6"></div>
+        </div>
+        <button @click="toggleDiceTray()" class="w-14 h-14 bg-black border border-[var(--neon-core)] rounded-full text-[var(--neon-core)] shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] hover:scale-110 transition-transform flex items-center justify-center text-2xl glass"><i class="fa-solid fa-dice-d20"></i></button>
     </div>
 
-    <div
-      x-show="unsavedChanges && !isGuest"
-      class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9500] flex justify-center pointer-events-none"
-      x-transition.opacity
-    >
-      <div
-        class="glass bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-2 py-2 flex items-center shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all duration-300"
-        :class="{'pr-6 pl-6 gap-4 bg-red-900/40 border-red-500': revertConfirmMode, 'pr-2 pl-6 gap-4': !revertConfirmMode, 'shake-anim': shakeAlert}"
-      >
-        <div
-          x-show="!revertConfirmMode"
-          class="flex items-center gap-4 animate-fade-in"
-        >
-          <span
-            class="text-xs md:text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2"
-            ><i
-              class="fa-solid fa-pen-to-square text-[var(--neon-core)] animate-pulse"
-            ></i
-            ><span class="hidden md:inline">ALTERADO</span></span
-          >
-          <div class="h-4 w-px bg-white/20"></div>
-          <div class="flex gap-2">
-            <button
-              @click.stop="toggleRevertMode()"
-              class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"
-            >
-              <i class="fa-solid fa-rotate-left"></i></button
-            ><button
-              @click.stop="syncCloud()"
-              class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2"
-            >
-              <span x-show="!isSyncing">SALVAR</span
-              ><i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i
-              ><span x-show="isSyncing"
-                ><i class="fa-solid fa-circle-notch fa-spin"></i
-              ></span>
-            </button>
-          </div>
-        </div>
-        <div
-          x-show="revertConfirmMode"
-          class="flex items-center gap-4 animate-fade-in"
-          style="display: none"
-        >
-          <span
-            class="text-xs font-bold text-red-500 uppercase tracking-widest whitespace-nowrap"
-            ><i class="fa-solid fa-triangle-exclamation mr-1"></i> Descartar
-            tudo?</span
-          >
-          <div class="flex gap-2">
-            <button
-              @click.stop="toggleRevertMode()"
-              class="px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold text-gray-300 hover:bg-white/10 transition-colors"
-            >
-              CANCELAR</button
-            ><button
-              @click.stop="performRevert()"
-              class="px-4 py-1.5 rounded-full bg-red-600 text-white text-xs font-bold hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all"
-            >
-              SIM, DESCARTAR
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div
-      x-show="configModal"
-      class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4"
-    >
-      <div
-        class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl"
-      >
-        <button
-          @click="configModal=false"
-          class="absolute top-4 right-4 text-gray-500 hover:text-white"
-        >
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-        <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
-        <div class="space-y-4">
-          <div>
-            <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">
-              COR DE DESTAQUE
-            </p>
-            <div class="flex gap-2">
-              <button
-                @click="toggleSetting('themeColor', 'cyan')"
-                class="flex-1 py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all"
-                :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}"
-              >
-                CYAN
-              </button>
-              <button
-                @click="toggleSetting('themeColor', 'purple')"
-                class="flex-1 py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all"
-                :class="{'ring-2 ring-white': settings.themeColor === 'purple'}"
-              >
-                ROXO
-              </button>
-              <button
-                @click="toggleSetting('themeColor', 'gold')"
-                class="flex-1 py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all"
-                :class="{'ring-2 ring-white': settings.themeColor === 'gold'}"
-              >
-                OURO
-              </button>
-            </div>
-          </div>
-          <div class="border-t border-white/10"></div>
-          <div class="grid grid-cols-2 gap-3">
-            <button
-              x-show="!isMobile"
-              @click="toggleSetting('mouseTrail')"
-              class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors"
-              :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'"
-            >
-              RASTRO MOUSE
-            </button>
-            <button
-              @click="toggleSetting('sfxEnabled')"
-              class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors"
-              :class="settings.sfxEnabled ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'"
-            >
-              SFX (SONS)
-            </button>
-            <button
-              x-show="isMobile"
-              @click="toggleSetting('compactMode')"
-              class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2"
-              :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'"
-            >
-              MODO COMPACTO (MOBILE)
-            </button>
-            <button
-              @click="toggleSetting('crtMode')"
-              class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2"
-              :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'"
-            >
-              MODO CRT (PIXEL)
-            </button>
-          </div>
-          <div class="grid grid-cols-2 gap-3 pt-2">
-            <button
-              @click="exportData()"
-              class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded-lg text-xs hover:bg-blue-600/30 transition-colors"
-            >
-              <i class="fa-solid fa-download mr-2"></i> BACKUP
-            </button>
-            <button
-              @click="triggerFileImport()"
-              class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded-lg text-xs hover:bg-emerald-600/30 transition-colors"
-            >
-              <i class="fa-solid fa-upload mr-2"></i> RESTAURAR
-            </button>
-            <input
-              type="file"
-              id="import-file"
-              class="hidden"
-              accept=".json"
-              @change="processImport($event)"
-            />
-          </div>
-          <div class="border-t border-white/10 my-4"></div>
-          <button
-            @click="askHardReset()"
-            class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors"
-          >
-            LIMPAR CACHE LOCAL
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div
-      x-show="wizardOpen"
-      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-    >
-      <div
-        class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl"
-      >
-        <div
-          class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]"
-        >
-          <div>
-            <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
-            <div
-              class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase"
-            >
-              PASSO <span x-text="wizardStep"></span> / 3
-            </div>
-          </div>
-          <button
-            @click="wizardOpen=false"
-            class="text-gray-500 hover:text-white"
-          >
-            <i class="fa-solid fa-xmark fa-lg"></i>
-          </button>
-        </div>
-        <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
-          <div x-show="wizardStep === 1" class="animate-fade-in">
-            <h3
-              class="text-center text-white font-bold mb-8 uppercase tracking-widest"
-            >
-              Selecione o Arquétipo
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <template x-for="arch in archetypes"
-                ><div
-                  @click="selectArchetype(arch)"
-                  class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center bg-black/40"
-                >
-                  <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
-                  <h3
-                    class="text-xl font-bold text-white mb-2"
-                    x-text="arch.class"
-                  ></h3>
-                  <p
-                    class="text-xs text-gray-500 leading-relaxed"
-                    x-text="arch.desc"
-                  ></p></div
-              ></template>
-            </div>
-          </div>
-          <div x-show="wizardStep === 2" class="animate-fade-in">
-            <div
-              class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg border-l-4 border-[var(--neon-core)]"
-            >
-              <div>
-                <span
-                  class="text-2xl font-brand text-white uppercase"
-                  x-text="wizardData.class"
-                ></span>
-                <p class="text-xs text-gray-500">
-                  Ajuste os atributos iniciais
-                </p>
-              </div>
-              <div class="text-right">
-                <div class="text-[10px] text-gray-500 uppercase font-bold">
-                  Pontos Restantes
+    <div x-show="unsavedChanges && !isGuest" class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9500] flex justify-center pointer-events-none" x-transition.opacity>
+        <div class="glass bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-2 py-2 flex items-center shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all duration-300" 
+             :class="{'pr-6 pl-6 gap-4 bg-red-900/40 border-red-500': revertConfirmMode, 'pr-2 pl-6 gap-4': !revertConfirmMode, 'shake-anim': shakeAlert}">
+            <div x-show="!revertConfirmMode" class="flex items-center gap-4 animate-fade-in">
+                <span class="text-xs md:text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-[var(--neon-core)] animate-pulse"></i><span class="hidden md:inline">ALTERADO</span></span>
+                <div class="h-4 w-px bg-white/20"></div>
+                <div class="flex gap-2">
+                    <button @click.stop="toggleRevertMode()" class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-rotate-left"></i></button>
+                    <button @click.stop="syncCloud()" class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2">
+                        <span x-show="!isSyncing">SALVAR</span><i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i><span x-show="isSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                    </button>
                 </div>
-                <div
-                  class="text-3xl font-mono font-bold"
-                  :class="wizardPoints>0?'text-[var(--neon-success)]':'text-gray-600'"
-                  x-text="wizardPoints"
-                ></div>
-              </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-              <div class="space-y-4">
-                <template x-for="key in ['for','agi','int','von','pod']"
-                  ><div
-                    class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors"
-                  >
-                    <span
-                      class="uppercase font-bold text-xs w-12"
-                      :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'"
-                      x-text="key"
-                    ></span>
-                    <div class="flex items-center gap-3">
-                      <button
-                        @click="modWizardAttr(key, -1)"
-                        class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20"
-                        :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)"
-                      >
-                        -</button
-                      ><span
-                        class="w-8 text-center font-mono font-bold text-lg text-white"
-                        x-text="wizardData.attrs[key]"
-                      ></span
-                      ><button
-                        @click="modWizardAttr(key, 1)"
-                        class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700 disabled:scale-100 transition-transform"
-                        :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0"
-                      >
-                        +
-                      </button>
+            <div x-show="revertConfirmMode" class="flex items-center gap-4 animate-fade-in" style="display: none;">
+                <span class="text-xs font-bold text-red-500 uppercase tracking-widest whitespace-nowrap"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Descartar tudo?</span>
+                <div class="flex gap-2">
+                    <button @click.stop="toggleRevertMode()" class="px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold text-gray-300 hover:bg-white/10 transition-colors">CANCELAR</button>
+                    <button @click.stop="performRevert()" class="px-4 py-1.5 rounded-full bg-red-600 text-white text-xs font-bold hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all">SIM, DESCARTAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="configModal" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+        <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl">
+            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
+            <div class="space-y-4">
+                <div>
+                    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
+                    <div class="flex gap-2">
+                        <button @click="toggleSetting('themeColor', 'cyan')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
+                        <button @click="toggleSetting('themeColor', 'purple')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
+                        <button @click="toggleSetting('themeColor', 'gold')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
                     </div>
-                  </div></template
-                >
-              </div>
-              <div
-                class="flex items-center justify-center bg-black/20 rounded-xl p-4 h-64 border border-white/5"
-              >
-                <canvas id="wizChart"></canvas>
-              </div>
+                </div>
+                <div class="border-t border-white/10"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
+                    <button @click="toggleSetting('sfxEnabled')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.sfxEnabled ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">SFX (SONS)</button>
+                    <button x-show="isMobile" @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO (MOBILE)</button>
+                    <button @click="toggleSetting('crtMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO CRT (PIXEL)</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded-lg text-xs hover:bg-blue-600/30 transition-colors"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
+                    <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded-lg text-xs hover:bg-emerald-600/30 transition-colors"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
+                    <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                </div>
+                <div class="border-t border-white/10 my-4"></div>
+                <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors">LIMPAR CACHE LOCAL</button>
             </div>
-          </div>
-          <div
-            x-show="wizardStep === 3"
-            class="animate-fade-in max-w-2xl mx-auto space-y-6"
-          >
-            <div class="text-center mb-8">
-              <h3
-                class="text-white font-bold uppercase tracking-widest text-lg"
-              >
-                Identidade do Agente
-              </h3>
-              <p class="text-xs text-gray-500">
-                Finalize o registro no banco de dados.
-              </p>
-            </div>
-            <div class="flex justify-center mb-6">
-              <div
-                @click="openImageEditor('wizard')"
-                class="w-32 h-32 rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors"
-              >
-                <img
-                  :src="wizardData.photo"
-                  class="w-full h-full object-cover"
-                  x-show="wizardData.photo"
-                />
-                <div
-                  class="absolute inset-0 flex flex-col items-center justify-center gap-2"
-                  :class="wizardData.photo ? 'bg-black/50 opacity-0 group-hover:opacity-100' : 'opacity-100'"
-                >
-                  <i
-                    class="fa-solid fa-camera text-2xl text-gray-400 group-hover:text-white"
-                  ></i
-                  ><span
-                    class="text-[8px] uppercase font-bold text-gray-500 group-hover:text-white"
-                    x-text="wizardData.photo ? 'ALTERAR' : 'FOTO'"
-                  ></span>
-                </div>
-              </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="wiz-name" class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-1 block">Codinome (Obrigatório)</label>
-                    <input id="wiz-name" name="agent_name" x-model="wizardData.name" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none font-brand text-lg input-cyber" placeholder="Ex: FANTASMA">
-                </div>
-                <div>
-                    <label for="wiz-age" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Idade</label>
-                    <input id="wiz-age" name="agent_age" x-model="wizardData.age" type="number" min="0" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: 28">
-                </div>
-            </div>
-                <div>
-                    <label for="wiz-identity" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Identidade Real</label>
-                    <input id="wiz-identity" name="agent_real_name" x-model="wizardData.identity" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Nome Civil">
-                </div>
-                <div>
-                    <label for="wiz-history" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Histórico / Origem</label>
-                    <textarea id="wiz-history" name="agent_history" x-model="wizardData.history" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm input-cyber" placeholder="Breve resumo do passado..."></textarea>
-                </div>
-          </div>
         </div>
-        <div
-          class="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center backdrop-blur-sm"
-        >
-          <button
-            x-show="wizardStep > 1"
-            @click="wizardStep--"
-            class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
-          >
-            VOLTAR
-          </button>
-          <div class="flex-grow"></div>
-          <button
-            x-show="wizardStep < 3"
-            @click="wizardStep++"
-            class="px-8 py-2 bg-white/10 text-white font-bold rounded hover:bg-white/20 transition-colors border border-white/5"
-          >
-            PRÓXIMO</button
-          ><button
-            x-show="wizardStep === 3"
-            @click="finishWizard()"
-            class="px-8 py-2 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] transition-all"
-          >
-            <i class="fa-solid fa-check mr-2"></i>INICIALIZAR
-          </button>
-        </div>
-      </div>
     </div>
-    <div
-      x-show="cropperOpen"
-      class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4"
-    >
-      <div class="w-full max-w-lg h-[70vh] flex flex-col">
-        <div
-          class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4"
-        >
-          <img id="crop-target" class="block max-w-full" />
+
+    <div x-show="wizardOpen" class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4">
+        <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
+                <div>
+                    <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
+                    <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
+                </div>
+                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
+                <div x-show="wizardStep === 1" class="animate-fade-in">
+                    <h3 class="text-center text-white font-bold mb-8 uppercase tracking-widest">Selecione o Arquétipo</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <template x-for="arch in archetypes">
+                            <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center bg-black/40">
+                                <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
+                                <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
+                                <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="wizardStep === 2" class="animate-fade-in">
+                    <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg border-l-4 border-[var(--neon-core)]">
+                        <div>
+                            <span class="text-2xl font-brand text-white uppercase" x-text="wizardData.class"></span>
+                            <p class="text-xs text-gray-500">Ajuste os atributos iniciais</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-gray-500 uppercase font-bold">Pontos Restantes</div>
+                            <div class="text-3xl font-mono font-bold" :class="wizardPoints>0?'text-[var(--neon-success)]':'text-gray-600'" x-text="wizardPoints"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+                        <div class="space-y-4">
+                            <template x-for="key in ['for','agi','int','von','pod']">
+                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors">
+                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
+                                        <span class="w-8 text-center font-mono font-bold text-lg text-white" x-text="wizardData.attrs[key]"></span>
+                                        <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700 disabled:scale-100 transition-transform" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex items-center justify-center bg-black/20 rounded-xl p-4 h-64 border border-white/5">
+                            <canvas id="wizChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div x-show="wizardStep === 3" class="animate-fade-in max-w-2xl mx-auto space-y-6">
+                    <div class="text-center mb-8">
+                        <h3 class="text-white font-bold uppercase tracking-widest text-lg">Identidade do Agente</h3>
+                        <p class="text-xs text-gray-500">Finalize o registro no banco de dados.</p>
+                    </div>
+                    <div class="flex justify-center mb-6">
+                        <div @click="openImageEditor('wizard')" class="w-32 h-32 rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors">
+                            <img :src="wizardData.photo" class="w-full h-full object-cover" x-show="wizardData.photo">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center gap-2" :class="wizardData.photo ? 'bg-black/50 opacity-0 group-hover:opacity-100' : 'opacity-100'">
+                                <i class="fa-solid fa-camera text-2xl text-gray-400 group-hover:text-white"></i>
+                                <span class="text-[8px] uppercase font-bold text-gray-500 group-hover:text-white" x-text="wizardData.photo ? 'ALTERAR' : 'FOTO'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="wiz-name" class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-1 block">Codinome (Obrigatório)</label>
+                            <input id="wiz-name" name="agent_name" x-model="wizardData.name" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none font-brand text-lg input-cyber" placeholder="Ex: FANTASMA">
+                        </div>
+                        <div>
+                            <label for="wiz-age" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Idade</label>
+                            <input id="wiz-age" name="agent_age" x-model="wizardData.age" type="number" min="0" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: 28">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="wiz-identity" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Identidade Real</label>
+                        <input id="wiz-identity" name="agent_real_name" x-model="wizardData.identity" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Nome Civil">
+                    </div>
+                    <div>
+                        <label for="wiz-history" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Histórico / Origem</label>
+                        <textarea id="wiz-history" name="agent_history" x-model="wizardData.history" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm input-cyber" placeholder="Breve resumo do passado..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center backdrop-blur-sm">
+                <button x-show="wizardStep > 1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors">VOLTAR</button>
+                <div class="flex-grow"></div>
+                <button x-show="wizardStep < 3" @click="wizardStep++" class="px-8 py-2 bg-white/10 text-white font-bold rounded hover:bg-white/20 transition-colors border border-white/5">PRÓXIMO</button>
+                <button x-show="wizardStep === 3" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] transition-all"><i class="fa-solid fa-check mr-2"></i>INICIALIZAR</button>
+            </div>
         </div>
-        <div class="flex gap-3">
-          <input
-            type="file"
-            id="file-input"
-            class="hidden"
-            accept="image/*"
-            @change="initCropper($event)"
-          /><button
-            @click="document.getElementById('file-input').click()"
-            class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5"
-          >
-            CARREGAR</button
-          ><button
-            @click="applyCrop()"
-            class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold"
-          >
-            SALVAR</button
-          ><button
-            @click="cropperOpen=false"
-            class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"
-          >
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      </div>
     </div>
-    <div
-      x-show="confirmOpen"
-      class="fixed inset-0 z-[11000] bg-black/95 flex items-center justify-center p-4"
-      x-transition.opacity
-    >
-      <div
-        class="glass p-6 rounded-xl max-w-sm w-full text-center border"
-        :class="confirmData.type==='danger'?'border-red-500/50':'border-[var(--neon-core)]'"
-      >
-        <div
-          class="text-4xl mb-4"
-          :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'"
-        >
-          <i
-            class="fa-solid"
-            :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"
-          ></i>
+
+    <div x-show="cropperOpen" class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4">
+        <div class="w-full max-w-lg h-[70vh] flex flex-col">
+            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
+                <img id="crop-target" class="block max-w-full">
+            </div>
+            <div class="flex gap-3">
+                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
+                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
+                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
+                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
+            </div>
         </div>
-        <h3
-          class="text-xl font-bold text-white mb-2"
-          x-text="confirmData.title"
-        ></h3>
-        <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc"></p>
-        <div class="flex gap-3">
-          <button
-            @click="confirmOpen=false"
-            class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5"
-          >
-            CANCELAR
-          </button>
-          <button
-            @click="confirmYes()"
-            class="flex-1 py-2 rounded text-black font-bold text-xs"
-            :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'"
-          >
-            CONFIRMAR
-          </button>
-        </div>
-      </div>
     </div>
-  </body>
+
+    <div x-show="confirmOpen" class="fixed inset-0 z-[11000] bg-black/95 flex items-center justify-center p-4" x-transition.opacity>
+        <div class="glass p-6 rounded-xl max-w-sm w-full text-center border" :class="confirmData.type==='danger'?'border-red-500/50':'border-[var(--neon-core)]'">
+            <div class="text-4xl mb-4" :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'">
+                <i class="fa-solid" :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title"></h3>
+            <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc"></p>
+            <div class="flex gap-3">
+                <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button>
+                <button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div x-data="{ show: !localStorage.getItem('zenite_cookies_accepted') }" 
+         x-show="show" 
+         x-transition.duration.500ms
+         class="fixed bottom-0 left-0 right-0 z-[12000] bg-black/90 border-t border-[var(--neon-core)] p-4 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <i class="fa-solid fa-cookie-bite text-[var(--neon-core)] text-2xl"></i>
+                <p class="text-xs text-gray-300">
+                    Utilizamos cookies essenciais para o funcionamento do Neural Link (Login e Cache Local). 
+                    Ao continuar, você concorda com o processamento de dados.
+                </p>
+            </div>
+            <div class="flex gap-3 w-full md:w-auto">
+                <button @click="show = false" class="text-gray-500 text-[10px] hover:text-white underline">IGNORAR</button>
+                <button @click="localStorage.setItem('zenite_cookies_accepted', 'true'); show = false" 
+                        class="px-6 py-2 bg-[var(--neon-core)] text-black text-xs font-bold rounded shadow-[0_0_15px_rgba(var(--neon-rgb),0.3)] hover:scale-105 transition-transform">
+                    ACEITAR
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body>
 </html>

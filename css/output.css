@@ -347,6 +347,9 @@
   .z-\[11000\] {
     z-index: 11000;
   }
+  .z-\[12000\] {
+    z-index: 12000;
+  }
   .col-span-1 {
     grid-column: span 1 / span 1;
   }
@@ -1429,6 +1432,10 @@
   }
   .shadow-\[0_0_15px_rgba\(220\,38\,38\,0\.5\)\] {
     --tw-shadow: 0 0 15px var(--tw-shadow-color, rgba(220,38,38,0.5));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  .shadow-\[0_0_15px_rgba\(var\(--neon-rgb\)\,0\.3\)\] {
+    --tw-shadow: 0 0 15px var(--tw-shadow-color, rgba(var(--neon-rgb),0.3));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .shadow-\[0_0_15px_var\(--neon-core\)\] {
