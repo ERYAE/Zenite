@@ -1,11 +1,9 @@
 /**
  * ZENITE OS - Core Application
- * Version: v75.0-Koda-Silent-Protocol
+ * Version: v75.1-Koda-Fix-Build
  * Changelog:
- * - Feat: SFX Engine 2.0 (White Noise Synthesis - Tech UI Sounds).
- * - Fix: Anti-spam logic changed from Timer to Element Tracking.
- * - Fix: Mouse Trail force-enabled in render loop if user exists.
- * - Config: SFX Toggle added.
+ * - Fix: Alpine Null Access (Safe navigation '?.' added in HTML)
+ * - Fix: Robust Logout Sequence
  */
 
 const CONSTANTS = {
@@ -546,7 +544,33 @@ function zeniteSystem() {
         },
         
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
-        async logout() { this.systemLoading = true; if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); if(this.supabase) await this.supabase.auth.signOut(); window.location.reload(); },
+        
+        // FIX DO KODA: Logout mais robusto
+        async logout() { 
+            this.systemLoading = true; 
+            
+            // 1. Tenta sincronizar (se falhar, segue o baile)
+            if(this.unsavedChanges && !this.isGuest) { 
+                try { await this.syncCloud(true); } catch(e) { console.warn("Erro ao salvar no logout", e); } 
+            } 
+            
+            // 2. Limpa localmente PRIMEIRO (garante que o usuário "saiu" pra UI)
+            localStorage.removeItem('zenite_cached_db'); 
+            localStorage.removeItem('zenite_is_guest'); 
+            
+            // 3. Tenta chamar Supabase (com try/catch pra não travar)
+            if(this.supabase) {
+                try {
+                    await this.supabase.auth.signOut(); 
+                } catch(e) {
+                    console.error("Erro no Supabase SignOut", e);
+                }
+            }
+            
+            // 4. Reload final
+            window.location.reload(); 
+        },
+
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
