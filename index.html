@@ -241,12 +241,101 @@
             </div>
         </template>
         
-        <div x-show="currentView === 'campaign_panel'" x-transition.opacity>
-             <button @click="currentView='dashboard'" class="mb-4 text-xs font-bold text-gray-500 hover:text-white flex items-center gap-2"><i class="fa-solid fa-arrow-left"></i> VOLTAR</button>
-             <div class="glass p-8 text-center rounded-2xl">
-                <i class="fa-solid fa-network-wired text-4xl text-[var(--neon-core)] mb-4 animate-pulse"></i>
-                <h2 class="text-2xl font-brand text-white">CONECTANDO AO NETLINK...</h2>
-                <p class="text-gray-500 mt-2">Sincronizando dados da campanha em tempo real.</p>
+        <div x-show="currentView === 'campaign_panel' && netLink?.activeCampaign" x-transition.opacity>
+             
+             <div class="glass p-4 rounded-xl mb-6 border border-white/10 flex flex-wrap justify-between items-center gap-4 bg-black/80 backdrop-blur-xl sticky top-2 z-40">
+                <div class="flex items-center gap-4">
+                    <button @click="currentView='dashboard'" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-arrow-left"></i></button>
+                    <div>
+                        <h2 class="text-xl font-brand text-white uppercase tracking-widest" x-text="netLink.activeCampaign.name"></h2>
+                        <div class="flex items-center gap-2 text-[10px] font-code text-gray-500">
+                            <span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20" x-text="netLink.isGM ? 'GM ACCESS' : 'PLAYER'"></span>
+                            <span>CODE: <span class="text-white select-all" x-text="netLink.activeCampaign.code"></span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden md:block">
+                        <div class="text-[8px] uppercase font-bold text-gray-500">Status Ambiental</div>
+                        <div class="text-xs font-bold text-[var(--neon-core)] uppercase" x-text="netLink.activeCampaign.data.atmosphere || 'NEUTRAL'"></div>
+                    </div>
+                    <div class="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center bg-black/50 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                        <i class="fa-solid" :class="{
+                            'fa-cloud-moon': !netLink.activeCampaign.data.atmosphere || netLink.activeCampaign.data.atmosphere === 'neutral',
+                            'fa-cloud-showers-heavy text-blue-400': netLink.activeCampaign.data.atmosphere === 'rain',
+                            'fa-radiation text-green-500': netLink.activeCampaign.data.atmosphere === 'toxic',
+                            'fa-skull text-red-500': netLink.activeCampaign.data.atmosphere === 'combat'
+                        }"></i>
+                    </div>
+                </div>
+             </div>
+
+             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <div class="space-y-6">
+                    
+                    <div x-show="netLink.isGM" class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
+                        <h3 class="text-xs font-bold text-[var(--neon-core)] uppercase mb-3"><i class="fa-solid fa-sliders mr-2"></i>Controle Ambiental</h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="gmSetAtmosphere('neutral')" class="p-2 bg-white/5 hover:bg-white/10 rounded text-[10px] border border-white/5 text-gray-300">NEUTRO</button>
+                            <button @click="gmSetAtmosphere('rain')" class="p-2 bg-blue-900/20 hover:bg-blue-900/40 rounded text-[10px] border border-blue-500/30 text-blue-400">CHUVA</button>
+                            <button @click="gmSetAtmosphere('toxic')" class="p-2 bg-green-900/20 hover:bg-green-900/40 rounded text-[10px] border border-green-500/30 text-green-400">TÓXICO</button>
+                            <button @click="gmSetAtmosphere('combat')" class="p-2 bg-red-900/20 hover:bg-red-900/40 rounded text-[10px] border border-red-500/30 text-red-400 font-bold">COMBATE</button>
+                        </div>
+                    </div>
+
+                    <div class="glass p-0 rounded-xl overflow-hidden flex flex-col max-h-[500px]">
+                        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                            <h3 class="text-xs font-bold text-white uppercase"><i class="fa-solid fa-list-ol mr-2 text-yellow-500"></i>Iniciativa</h3>
+                            <div x-show="netLink.isGM" class="flex gap-1">
+                                <button @click="gmNextTurn()" class="w-6 h-6 rounded bg-[var(--neon-core)] text-black hover:scale-110 transition-transform flex items-center justify-center"><i class="fa-solid fa-forward text-[10px]"></i></button>
+                                <button @click="if(confirm('Limpar iniciativa?')) gmPanel.clearInitiative()" class="w-6 h-6 rounded bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-2 overflow-y-auto custom-scrollbar flex-grow space-y-1 bg-black/20 min-h-[150px]">
+                            <template x-if="!netLink.activeCampaign.data.initiative || netLink.activeCampaign.data.initiative.length === 0">
+                                <div class="text-center py-8 text-[10px] text-gray-600 italic">Sem combate ativo.</div>
+                            </template>
+                            
+                            <template x-for="(init, idx) in netLink.activeCampaign.data.initiative" :key="idx">
+                                <div class="flex items-center gap-3 p-2 rounded border transition-all" 
+                                     :class="init.active ? 'bg-[var(--neon-core)]/10 border-[var(--neon-core)]' : 'bg-black/40 border-white/5 opacity-70'">
+                                    <div class="text-lg font-bold font-mono w-8 text-center" :class="init.active ? 'text-[var(--neon-core)]' : 'text-gray-500'" x-text="init.roll"></div>
+                                    <div class="flex-grow truncate text-xs font-bold text-white" x-text="init.name"></div>
+                                    <button x-show="netLink.isGM" @click="gmRemoveInit(idx)" class="text-gray-600 hover:text-red-500 px-2"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div x-show="netLink.isGM" class="p-3 border-t border-white/10 bg-black/40 flex gap-2">
+                            <input x-model="newInitName" placeholder="Nome" class="bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-white w-full outline-none focus:border-[var(--neon-core)]">
+                            <input x-model="newInitRoll" type="number" placeholder="Roll" class="bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-white w-16 text-center outline-none focus:border-[var(--neon-core)]">
+                            <button @click="gmAddInit()" class="px-3 bg-white/10 hover:bg-white/20 rounded text-xs font-bold text-white">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="glass p-0 rounded-xl overflow-hidden flex flex-col h-full min-h-[400px]">
+                        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+                            <h3 class="text-xs font-bold text-white uppercase"><i class="fa-solid fa-book-journal-whills mr-2 text-purple-500"></i>Diário de Missão</h3>
+                            <button x-show="netLink.isGM" @click="gmSaveNotes()" class="text-[10px] font-bold bg-[var(--neon-core)] text-black px-3 py-1 rounded hover:opacity-80 transition-opacity">SALVAR SINCRONIZADO</button>
+                        </div>
+                        
+                        <div class="flex-grow bg-black/20 relative">
+                            <template x-if="netLink.isGM">
+                                <textarea x-model="netLink.activeCampaign.data.notes" class="w-full h-full bg-transparent p-6 text-sm text-gray-300 font-mono resize-none outline-none leading-relaxed" placeholder="Escreva os logs da missão aqui..."></textarea>
+                            </template>
+                            
+                            <template x-if="!netLink.isGM">
+                                <div class="w-full h-full p-6 text-sm text-gray-300 font-mono whitespace-pre-wrap leading-relaxed overflow-y-auto" x-text="netLink.activeCampaign.data.notes || 'Aguardando transmissão de dados do Mestre...'"></div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
              </div>
         </div>
 
