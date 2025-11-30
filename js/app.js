@@ -1,14 +1,11 @@
 /**
  * ZENITE OS - Core Application
- * Version: v85-zerado
- * Changelog:
- * - Fix: Reading: Null
+ * Version: vFinal-Polished
  */
 
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
-    TOAST_DURATION: 3000,
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
@@ -16,113 +13,24 @@ const CONSTANTS = {
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
+let audioCtx = null, noiseBuffer = null, sfxEnabledGlobal = true, userHasInteracted = false;
 
-/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO FINAL) ---
-let audioCtx = null;
-let noiseBuffer = null;
-let sfxEnabledGlobal = true;
-let userHasInteracted = false; // A trava de segurança
-
-// Inicia o áudio SOMENTE no clique
-const initAudio = () => {
-    if (audioCtx) return; 
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
-    
-    const bufferSize = audioCtx.sampleRate * 2;
-    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-    }
-};
-
-// Listener global para destravar o áudio
-document.addEventListener('click', () => {
-    userHasInteracted = true; // Agora pode tocar som
-    initAudio();
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-}, { once: true });
+const initAudio = () => { if (audioCtx) return; const AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); const bs = audioCtx.sampleRate * 2; noiseBuffer = audioCtx.createBuffer(1, bs, audioCtx.sampleRate); const out = noiseBuffer.getChannelData(0); for (let i = 0; i < bs; i++) out[i] = Math.random() * 2 - 1; };
+document.addEventListener('click', () => { userHasInteracted = true; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true });
 
 const playSFX = (type) => {
-    // SE O USUÁRIO AINDA NÃO CLICOU, NÃO FAZ NADA (Evita o erro do console)
-    if (!userHasInteracted || !audioCtx) return;
-    
-    if (!sfxEnabledGlobal) return;
-
-    const now = audioCtx.currentTime;
-    const gain = audioCtx.createGain();
-    gain.connect(audioCtx.destination);
-
-    if (type === 'hover') {
-        const src = audioCtx.createBufferSource();
-        src.buffer = noiseBuffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 800;
-        filter.Q.value = 10;
-        src.connect(filter);
-        filter.connect(gain);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        src.start(now); src.stop(now + 0.05);
-
-    } else if (type === 'click') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.connect(gain);
-        osc.start(now); osc.stop(now + 0.05);
-
-    } else if (type === 'save') { 
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, now);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-        osc.connect(gain);
-        osc.start(now); osc.stop(now + 0.6);
-
-    } else if (type === 'discard') { 
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sawtooth';
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        osc.frequency.setValueAtTime(100, now);
-        osc.frequency.linearRampToValueAtTime(10, now + 0.3);
-        filter.frequency.setValueAtTime(500, now);
-        filter.frequency.linearRampToValueAtTime(50, now + 0.3);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc.connect(filter); filter.connect(gain);
-        osc.start(now); osc.stop(now + 0.3);
-
-    } else if (type === 'glitch') {
-        const src = audioCtx.createBufferSource();
-        src.buffer = noiseBuffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
-        src.connect(filter);
-        filter.connect(gain);
-        gain.gain.setValueAtTime(0.8, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
-        src.start(now); src.stop(now + 2.0);
-    }
+    if (!userHasInteracted || !audioCtx || !sfxEnabledGlobal) return;
+    const now = audioCtx.currentTime; const g = audioCtx.createGain(); g.connect(audioCtx.destination);
+    if (type === 'hover') { const s = audioCtx.createBufferSource(); s.buffer = noiseBuffer; const f = audioCtx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=800; f.Q.value=10; s.connect(f); f.connect(g); g.gain.setValueAtTime(0.05,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.05); s.start(now); s.stop(now+0.05); }
+    else if (type === 'click') { const o = audioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(1200,now); o.frequency.exponentialRampToValueAtTime(100,now+0.05); g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.05); o.connect(g); o.start(now); o.stop(now+0.05); }
+    else if (type === 'save') { const o = audioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(880,now); g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.6); o.connect(g); o.start(now); o.stop(now+0.6); }
+    else if (type === 'discard') { const o = audioCtx.createOscillator(); o.type='sawtooth'; const f = audioCtx.createBiquadFilter(); f.type='lowpass'; o.frequency.setValueAtTime(100,now); o.frequency.linearRampToValueAtTime(10,now+0.3); f.frequency.setValueAtTime(500,now); f.frequency.linearRampToValueAtTime(50,now+0.3); g.gain.setValueAtTime(0.2,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.3); o.connect(f); f.connect(g); o.start(now); o.stop(now+0.3); }
+    else if (type === 'glitch') { const s = audioCtx.createBufferSource(); s.buffer = noiseBuffer; const f = audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400; s.connect(f); f.connect(g); g.gain.setValueAtTime(0.8,now); g.gain.linearRampToValueAtTime(0.001,now+2.0); s.start(now); s.stop(now+2.0); }
+    else if (type === 'success') { const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(440,now); o.frequency.setValueAtTime(880,now+0.1); g.gain.setValueAtTime(0.1,now); g.gain.linearRampToValueAtTime(0,now+0.3); o.connect(g); o.start(now); o.stop(now+0.3); }
+    else if (type === 'error') { const o = audioCtx.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(100,now); o.frequency.linearRampToValueAtTime(50,now+0.3); g.gain.setValueAtTime(0.3,now); g.gain.linearRampToValueAtTime(0,now+0.3); o.connect(g); o.start(now); o.stop(now+0.3); }
 };
 
-function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
+function debounce(func, wait) { let timeout; return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); }; }
 
 function zeniteSystem() {
     return {
@@ -130,10 +38,25 @@ function zeniteSystem() {
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
-        wizardNameError: false, // Controle da tremedeira
+        wizardNameError: false,
+        
+        // UX & CONFIGS
+        configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
+        isOnboarding: false, 
+        hackerMode: false,   
+        
+        // MUSIC PLAYER (PONTO 9)
+        musicPlayerOpen: false, isPlaying: false, currentTrackIdx: 0,
+        audioElement: null, 
+        playlist: [
+            { title: "HIGHWAY STAR", artist: "Synthwave_Source", url: "https://files.freemusicarchive.org/storage-rec/tracks/d43f07be8c89b8849b28292c3a505b22b10a2f5a?filename=Starfucker%20-%20Mystery.mp3" },
+            { title: "NEURAL LINK", artist: "Zenite_Core", url: "https://files.freemusicarchive.org/storage-rec/tracks/s3r9r6r8r6n2s9s0r6c2x8r8s7r7t2t8r8r8r2r3b8x2r6c3/Podington_Bear_-_Light_and_Motion.mp3" },
+            { title: "GLITCH CITY", artist: "NetRunner", url: "https://files.freemusicarchive.org/storage-rec/tracks/l5s0m4j7m4k4o4s9o7t8n5h4n3k6l9h5/Podington_Bear_-_Density.mp3" }
+        ],
         
         // SECRETS
-        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
+        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false, rebooting: false,
 
         // DATA
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -145,23 +68,14 @@ function zeniteSystem() {
         showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
-        // UX
+        // UX UTILS
         revertConfirmMode: false, isReverting: false, shakeAlert: false,
         isMobile: window.innerWidth < 768,
-
-        // MODALS
-        configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
-        confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // WIZARD
+        // WIZARD DATA
         wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
         
-        // CONFIGS
-        settings: {
-            mouseTrail: true, compactMode: false, performanceMode: false, 
-            crtMode: true, sfxEnabled: true, // NOVO
-            themeColor: 'cyan'
-        },
+        settings: { mouseTrail: true, compactMode: false, performanceMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
         
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
 
@@ -179,16 +93,13 @@ function zeniteSystem() {
             const result = {};
             Object.keys(this.chars).forEach(id => {
                 const c = this.chars[id];
-                if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) {
-                    result[id] = c;
-                }
+                if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) result[id] = c;
             });
             return result;
         },
 
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            
             const savedConfig = localStorage.getItem('zenite_cached_db');
             if (savedConfig) {
                 try {
@@ -198,8 +109,13 @@ function zeniteSystem() {
                         this.applyTheme(this.settings.themeColor);
                         if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                     }
-                } catch(e) { console.warn("Cache config error", e); }
+                } catch(e) {}
             }
+
+            this.audioElement = new Audio();
+            this.audioElement.volume = 0.5; 
+            this.audioElement.loop = false; 
+            this.audioElement.onended = () => { this.nextTrack(true); }; 
 
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
             window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
@@ -214,9 +130,7 @@ function zeniteSystem() {
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 
-                this.setupListeners(); 
-                this.setupCursorEngine(); 
-                this.setupWatchers();
+                this.setupListeners(); this.setupCursorEngine(); this.setupWatchers();
 
                 this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -227,7 +141,7 @@ function zeniteSystem() {
                         try {
                             const { data: { session } } = await this.supabase.auth.getSession();
                             if (session) { this.user = session.user; this.loadingText = 'SYNCING CLOUD'; this.loadingProgress = 70; await this.fetchCloud(); }
-                        } catch(e) { this.notify("Modo Offline", "warn"); }
+                        } catch(e) {}
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) { if (this.user?.id === session.user.id) return; this.user = session.user; this.isGuest = false; localStorage.removeItem('zenite_is_guest'); await this.fetchCloud(); } 
                             else if (event === 'SIGNED_OUT') { this.user = null; this.chars = {}; this.currentView = 'dashboard'; }
@@ -238,22 +152,150 @@ function zeniteSystem() {
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
+                sfxEnabledGlobal = this.settings.sfxEnabled; this.updateVisualState();
                 
-                sfxEnabledGlobal = this.settings.sfxEnabled; 
-                this.updateVisualState();
-                
-                if (!localStorage.getItem('zenite_setup_done') && !this.isGuest) {
-                    this.configModal = true;
-                    this.notify("Bem-vindo, Herói. Configure seu terminal.", "info");
-                    localStorage.setItem('zenite_setup_done', 'true');
+                if ((this.user || this.isGuest) && !localStorage.getItem('zenite_setup_done')) {
+                    setTimeout(() => {
+                        this.isOnboarding = true;
+                        this.configModal = true;
+                        this.notify("Terminal não configurado.", "info");
+                    }, 500);
                 }
+
+                if (this.playlist.length > 0) this.loadTrack(this.currentTrackIdx);
                 
                 this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
-            } catch (err) { console.error("Boot Error:", err); this.notify("Erro na inicialização.", "error"); this.systemLoading = false; }
+            } catch (err) { console.error("Boot Error:", err); this.systemLoading = false; }
+        },
+
+        completeOnboarding() {
+            localStorage.setItem('zenite_setup_done', 'true');
+            this.isOnboarding = false;
+            this.configModal = false;
+            this.notify("Bem-vindo à Academia.", "success");
+            playSFX('success');
+        },
+
+        toggleHackerMode() {
+            this.hackerMode = !this.hackerMode;
+            if(this.hackerMode) {
+                document.body.classList.add('theme-hacker');
+                this.notify("SYSTEM OVERRIDE: HACKER MODE", "success");
+                playSFX('success');
+            } else {
+                document.body.classList.remove('theme-hacker');
+                this.notify("SYSTEM NORMAL", "info");
+                playSFX('click');
+            }
+        },
+
+        handleKeys(e) {
+            const key = e.key.toLowerCase();
+            const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
+            this.konamiBuffer.push(key);
+            if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
+            if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
+                this.toggleHackerMode();
+                this.konamiBuffer = [];
+            }
+        },
+
+        handleLogoClick() {
+            const TIME_WINDOW = 500; 
+            const now = Date.now();
+            if (now - (this.lastClickTime || 0) > TIME_WINDOW) this.logoClickCount = 0;
+            this.lastClickTime = now;
+            
+            clearTimeout(this.logoClickTimer); 
+            this.logoClickCount++;
+            
+            const logo = document.querySelector('header img');
+            if(logo) {
+                logo.style.filter = `drop-shadow(0 0 ${this.logoClickCount * 5}px var(--neon-core))`;
+                setTimeout(() => logo.style.filter = '', 200);
+            }
+            playSFX('click');
+
+            if (this.logoClickCount >= 5) {
+                this.logoClickCount = 0;
+                this.triggerSystemFailure();
+                return;
+            }
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, TIME_WINDOW);
+        },
+
+        // --- MUSIC PLAYER ENGINE ---
+        loadTrack(index) {
+            if (!this.audioElement || index < 0 || index >= this.playlist.length) return;
+            this.currentTrackIdx = index;
+            this.audioElement.src = this.playlist[index].url;
+            this.audioElement.load();
+        },
+        toggleMusic() {
+            if (!this.audioElement) return;
+            if (this.isPlaying) {
+                this.audioElement.pause();
+                this.isPlaying = false;
+                this.notify(`Música: Pausada`, 'info');
+            } else {
+                this.audioElement.play().then(() => {
+                    this.isPlaying = true;
+                    this.notify(`Tocando: ${this.playlist[this.currentTrackIdx].title}`, 'info');
+                }).catch(e => {
+                    this.notify("Música bloqueada: Interação necessária.", "warn");
+                    this.isPlaying = false;
+                });
+            }
+        },
+        nextTrack(fromEnd = false) {
+            if (!this.audioElement) return;
+            const newIndex = (this.currentTrackIdx + 1) % this.playlist.length;
+            this.loadTrack(newIndex);
+            if (this.isPlaying || fromEnd) {
+                this.audioElement.play().then(() => {
+                    this.isPlaying = true;
+                    this.notify(`Próxima Faixa: ${this.playlist[this.currentTrackIdx].title}`, 'info');
+                }).catch(() => {
+                    this.isPlaying = false; 
+                });
+            } else {
+                this.notify(`Pronta: ${this.playlist[this.currentTrackIdx].title}`, 'info');
+            }
+        },
+        // ---------------------------
+
+        triggerSystemFailure() {
+            playSFX('glitch'); 
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(() => {}); }
+            this.systemFailure = true; 
+        },
+        rebootSystem() {
+            if (this.rebooting) return;
+            this.rebooting = true;
+            playSFX('save');
+            setTimeout(() => {
+                this.systemFailure = false; this.rebooting = false;
+                if (document.fullscreenElement) document.exitFullscreen().catch(e => {});
+                this.notify("SISTEMA REINICIADO", "success");
+            }, 2000);
+        },
+
+        handleEsc() {
+            if (this.systemFailure) return; 
+            if (this.confirmOpen) { this.confirmOpen = false; return; }
+            if (this.cropperOpen) { this.cropperOpen = false; return; }
+            if (this.configModal) { 
+                if(this.isOnboarding) return; 
+                this.configModal = false; return; 
+            }
+            if (this.wizardOpen) { this.wizardOpen = false; return; }
+            if (this.diceTrayOpen) { this.toggleDiceTray(); return; }
+            if (this.userMenuOpen) { this.userMenuOpen = false; return; }
+            if (this.currentView === 'sheet') { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve suas alterações (CTRL+S)", "warn"); } else { this.saveAndExit(true); } }
         },
 
         setupListeners() {
@@ -263,236 +305,38 @@ function zeniteSystem() {
                 if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; }
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
             });
-            
-            // --- SFX LISTENER INTELIGENTE (SEM SPAM) ---
-            let lastHovered = null; // Rastreador de elemento
-            
-            document.addEventListener('click', (e) => { 
-                if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); 
-            });
-            
+            let lastHovered = null; 
+            document.addEventListener('click', (e) => { if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); });
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest('button, a, .cursor-pointer');
-                
-                // Só toca se MUDOU de elemento (Entrou num novo)
-                if (target && target !== lastHovered) {
-                    playSFX('hover');
-                    lastHovered = target;
-                } else if (!target) {
-                    lastHovered = null;
-                }
+                if (target && target !== lastHovered) { playSFX('hover'); lastHovered = target; } else if (!target) { lastHovered = null; }
             });
         },
-
-        handleKeys(e) {
-            const key = e.key.toLowerCase();
-            const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
-            this.konamiBuffer.push(key);
-            if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
-            if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
-                document.body.classList.toggle('theme-hacker');
-                if(document.body.classList.contains('theme-hacker')) { playSFX('success'); this.notify("SYSTEM OVERRIDE: HACKER MODE", "success"); } 
-                else { playSFX('click'); this.notify("SYSTEM NORMAL", "info"); }
-                this.konamiBuffer = [];
-            }
-        },
-
-        handleEsc() {
-            if (this.systemFailure) return; 
-            if (this.confirmOpen) { this.confirmOpen = false; return; }
-            if (this.cropperOpen) { this.cropperOpen = false; return; }
-            if (this.configModal) { this.configModal = false; return; }
-            if (this.wizardOpen) { this.wizardOpen = false; return; }
-            
-            if (this.diceTrayOpen) { this.toggleDiceTray(); return; }
-            if (this.userMenuOpen) { this.userMenuOpen = false; return; }
-            
-            if (this.currentView === 'sheet') { 
-                if (this.unsavedChanges && !this.isGuest) {
-                    this.triggerShake();
-                    this.notify("Salve suas alterações (CTRL+S)", "warn");
-                } else {
-                    this.saveAndExit(true); 
-                }
-            }
-        },
-
-// ... (Código anterior mantido) ...
-
-        handleLogoClick() {
-            const TIME_WINDOW = 500; 
-            const now = Date.now();
-            if (now - (this.lastClickTime || 0) > TIME_WINDOW) {
-                this.logoClickCount = 0;
-            }
-            this.lastClickTime = now;
-            
-            clearTimeout(this.logoClickTimer); 
-            this.logoClickCount++;
-            
-            this.triggerFX('glitch');
-            
-            if (this.logoClickCount >= 5) {
-                this.logoClickCount = 0;
-                this.triggerSystemFailure();
-                return;
-            }
-            
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, TIME_WINDOW);
-        },
-
-        triggerSystemFailure() {
-            playSFX('glitch'); 
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch((err) => {
-                    console.log("Fullscreen blocked:", err);
-                });
-            }
-            this.systemFailure = true; 
-        },
-
-        rebootSystem() {
-            if (this.rebooting) return;
-            this.rebooting = true;
-            playSFX('save');
-            setTimeout(() => {
-                this.systemFailure = false;
-                this.rebooting = false;
-                if (document.fullscreenElement) document.exitFullscreen().catch(e => {});
-                this.notify("SISTEMA REINICIADO", "success");
-            }, 2000);
-        },
-// ... (Restante do código) ...
-
-        ensureTrayOnScreen() {
-            if(this.isMobile || this.trayDockMode !== 'float') return;
-            this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
-            this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
-        },
-
-        // --- VISUAL STATE MANAGER ---
         updateVisualState() {
-    const isAuthenticated = this.user || this.isGuest;
-    // Verifica se deve mostrar o rastro
-    const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
-
-    // SÓ esconde o cursor padrão se o rastro estiver ativado E visível
-    if (showTrail) {
-        document.body.classList.add('custom-cursor-active');
-    } else {
-        document.body.classList.remove('custom-cursor-active');
-    }
-
-    // CRT (Pixel Effect)
-    if (isAuthenticated && this.settings.crtMode) {
-        document.body.classList.add('crt-mode');
-    } else {
-        document.body.classList.remove('crt-mode');
-    }
-    
-    // SFX State
-    sfxEnabledGlobal = this.settings.sfxEnabled;
-},
+            const isAuthenticated = this.user || this.isGuest;
+            const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
+            if (showTrail) document.body.classList.add('custom-cursor-active'); else document.body.classList.remove('custom-cursor-active');
+            if (isAuthenticated && this.settings.crtMode) document.body.classList.add('crt-mode'); else document.body.classList.remove('crt-mode');
+            sfxEnabledGlobal = this.settings.sfxEnabled;
+        },
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
-            
             let trailX = 0, trailY = 0;
-
-            document.addEventListener('mousemove', (e) => { 
-                cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) { 
-                    isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; 
-                }
-            });
-            
+            document.addEventListener('mousemove', (e) => { cursorX = e.clientX; cursorY = e.clientY; if(this.settings.mouseTrail && !this.isMobile) { isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; } });
             const renderLoop = () => {
                 if (!trail) return;
                 const isAuthenticated = this.user || this.isGuest;
-                
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    // AQUI ESTAVA 0.15, MUDEI PARA 0.45 (Mais rápido/snappy)
-                    trailX += (cursorX - trailX) * 0.45;
-                    trailY += (cursorY - trailY) * 0.45;
-
-                    trail.style.display = 'block'; 
-                    trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
-                    
+                    trailX += (cursorX - trailX) * 0.45; trailY += (cursorY - trailY) * 0.45;
+                    trail.style.display = 'block'; trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
-                } else { 
-                    trail.style.display = 'none'; 
-                }
+                } else { trail.style.display = 'none'; }
                 renderRafId = requestAnimationFrame(renderLoop);
             };
             renderLoop();
         },
-
-        toggleDiceTray() {
-            if (this.isReverting) return;
-            this.diceTrayOpen = !this.diceTrayOpen;
-            if(this.diceTrayOpen) {
-                if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); }
-                this.showDiceTip = false; this.ensureTrayOnScreen();
-            }
-        },
-        setDockMode(mode) {
-            this.trayDockMode = mode;
-            if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
-        },
-        startDragTray(e) {
-            if(this.isMobile || this.trayDockMode !== 'float') return;
-            // Ignora se clicar em botões dentro da barra
-            if(e.target.closest('button') || e.target.closest('input')) return;
-            
-            // Pega o elemento direto pelo ID para performance máxima
-            const trayEl = document.getElementById('dice-tray-window');
-            if(!trayEl) return;
-
-            this.isDraggingTray = true;
-            
-            // Calcula a distância inicial
-            const startX = e.clientX;
-            const startY = e.clientY;
-            const startLeft = this.trayPosition.x;
-            const startTop = this.trayPosition.y;
-            
-            // Remove a transição suave durante o arrasto para não dar sensação de "elástico"
-            trayEl.style.transition = 'none';
-
-            const moveHandler = (ev) => {
-                if(!this.isDraggingTray) return;
-                
-                // Matemática simples e direta
-                const dx = ev.clientX - startX;
-                const dy = ev.clientY - startY;
-                
-                // Aplica direto no CSS (Zero Lag)
-                trayEl.style.left = `${startLeft + dx}px`;
-                trayEl.style.top = `${startTop + dy}px`;
-            };
-
-            const upHandler = (ev) => {
-                this.isDraggingTray = false;
-                document.removeEventListener('mousemove', moveHandler);
-                document.removeEventListener('mouseup', upHandler);
-                
-                // Salva a posição final na memória do Alpine
-                const dx = ev.clientX - startX;
-                const dy = ev.clientY - startY;
-                this.trayPosition.x = startLeft + dx;
-                this.trayPosition.y = startTop + dy;
-                
-                // Devolve a transição suave para quando abrir/fechar
-                if(trayEl) trayEl.style.transition = '';
-                
-                this.saveLocal(); // Salva a posição preferida
-            };
-
-            document.addEventListener('mousemove', moveHandler);
-            document.addEventListener('mouseup', upHandler);
-        },
-
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar || this.systemLoading || this.isReverting) return;
@@ -504,12 +348,9 @@ function zeniteSystem() {
                 }
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
-            
-            // Watch centralizado
             this.$watch('user', (val) => { this.updateVisualState(); });
             this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },
-
         loadLocal(key) {
             const local = localStorage.getItem(key);
             if(local) {
@@ -522,69 +363,38 @@ function zeniteSystem() {
                     Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
                     this.chars = validChars;
                     this.updateAgentCount();
-                } catch(e) { console.error("Local Load Error", e); }
+                } catch(e) {}
             }
         },
-
         saveLocal() {
             const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
             const payload = { ...this.chars, config: this.settings, trayPos: this.trayPosition, hasSeenTip: this.hasSeenDiceTip };
             localStorage.setItem(key, JSON.stringify(payload));
         },
-
         triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
         attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
-
         saveAndExit(fromHistory = false) {
-            if (this.unsavedChanges && !this.isGuest && !fromHistory) { 
-                this.triggerShake(); 
-                return; 
-            }
-            
-            // Salva o estado atual antes de sair
-            if(this.char && this.activeCharId) { 
-                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
-                this.updateAgentCount(); 
-            } 
-            
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
+            if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
             this.saveLocal(); 
             if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-            
-            // Fecha as janelas flutuantes
-            this.diceTrayOpen = false; 
-            this.showDiceTip = false;
-            
-            // Muda a tela
-            this.currentView = 'dashboard'; 
-            this.activeCharId = null;
-            
-            // IMPORTANTE: NÃO FAZEMOS MAIS "this.char = null" AQUI.
-            // Deixamos o char na memória para evitar o erro do Alpine durante a animação de saída.
-            // Ele será substituído quando carregarmos o próximo personagem.
-            
+            this.diceTrayOpen = false; this.showDiceTip = false; this.currentView = 'dashboard'; this.activeCharId = null;
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
-
         toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
         async performRevert() {
             this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
-            document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
-            playSFX('discard'); // SOM DE RECUSA
+            document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock'); playSFX('discard');
             setTimeout(async () => {
                 try {
                     if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
                     if(this.activeCharId && this.chars[this.activeCharId]) { this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId])); } else { this.currentView = 'dashboard'; this.char = null; }
                     this.unsavedChanges = false;
-                    document.body.classList.remove('animating-out'); document.body.classList.add('animating-in');
-                    this.notify('Dados restaurados.', 'success');
+                    document.body.classList.remove('animating-out'); document.body.classList.add('animating-in'); this.notify('Dados restaurados.', 'success');
                     setTimeout(() => { document.body.classList.remove('animating-in'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }, 400);
-                } catch (e) {
-                    console.error("Revert Error:", e); this.notify("Erro na restauração.", "error");
-                    document.body.classList.remove('animating-out'); document.body.classList.remove('interaction-lock'); this.isReverting = false;
-                }
+                } catch (e) { this.notify("Erro na restauração.", "error"); document.body.classList.remove('animating-out'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }
             }, 300);
         },
-
         async fetchCloud() {
             if (!this.user || !this.supabase) return;
             try {
@@ -602,7 +412,6 @@ function zeniteSystem() {
                 }
             } catch(e) {}
         },
-
         async syncCloud(silent = false) {
              if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
             this.isSyncing = true; if(!silent) this.notify('Sincronizando...', 'info');
@@ -610,11 +419,9 @@ function zeniteSystem() {
                 const payload = { ...this.chars, config: this.settings, hasSeenTip: this.hasSeenDiceTip };
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
-                this.unsavedChanges = false; this.saveStatus = 'success'; 
-                if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); } // SOM DE SALVAR
+                this.unsavedChanges = false; this.saveStatus = 'success'; if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); }
             } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
-        
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã'; const lvl = Math.max(1, parseInt(levelStr) || 1); const get = (v) => parseInt(attrs[v] || 0);
@@ -627,52 +434,23 @@ function zeniteSystem() {
             const diffPv = (c.stats.pv.max||newStats.pv)-c.stats.pv.current; const diffPf = (c.stats.pf.max||newStats.pf)-c.stats.pf.current; const diffPdf = (c.stats.pdf.max||newStats.pdf)-c.stats.pdf.current;
             c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
         },
-        modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
-
+        modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
         openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardStep = 1; this.wizardPoints = 8; this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardFocusAttr = ''; history.pushState({ modal: 'wizard' }, "Wizard", "#new"); this.wizardOpen = true; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
         finishWizard() {
-            if(!this.wizardData.name) { 
-                // Ativa a animação de erro
-                this.wizardNameError = true;
-                this.notify("Codinome obrigatório!", "warn");
-                playSFX('error'); // Se tiver som de erro, toca aqui
-                
-                // Desativa depois de 500ms para poder tremer de novo se clicar
-                setTimeout(() => { this.wizardNameError = false; }, 500);
-                return; 
-            }
-            
-            // ... (Resto do código igual) ...
+            if(!this.wizardData.name) { this.wizardNameError = true; this.notify("Codinome obrigatório!", "warn"); playSFX('error'); setTimeout(() => { this.wizardNameError = false; }, 500); return; }
             const id = 'z_'+Date.now(); 
             const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
             const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
-            
-            this.chars[id] = newChar; 
-            this.updateAgentCount(); 
-            this.saveLocal(); 
-            
-            if(!this.isGuest) { 
-                this.unsavedChanges = true; 
-                this.syncCloud(true); 
-            }
-            
-            this.wizardOpen = false; 
-            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); 
-            this.loadCharacter(id, true); 
-            this.notify('Agente Inicializado.', 'success');
+            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal(); 
+            if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
+            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
         },
-        
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
-            else { 
-                this.settings[key] = !this.settings[key]; 
-                if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
-                if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
-                if(key === 'crtMode') this.updateVisualState();
-            }
+            else { this.settings[key] = !this.settings[key]; if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); } if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); if(key === 'crtMode') this.updateVisualState(); }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
         applyTheme(color) {
@@ -681,39 +459,17 @@ function zeniteSystem() {
             root.style.setProperty('--neon-core', hex); root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`); 
             const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
         },
-        
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
-        
-        // FIX DO KODA: Logout mais robusto
         async logout() { 
             this.systemLoading = true; 
-            
-            // 1. Tenta sincronizar (se falhar, segue o baile)
-            if(this.unsavedChanges && !this.isGuest) { 
-                try { await this.syncCloud(true); } catch(e) { console.warn("Erro ao salvar no logout", e); } 
-            } 
-            
-            // 2. Limpa localmente PRIMEIRO (garante que o usuário "saiu" pra UI)
-            localStorage.removeItem('zenite_cached_db'); 
-            localStorage.removeItem('zenite_is_guest'); 
-            
-            // 3. Tenta chamar Supabase (com try/catch pra não travar)
-            if(this.supabase) {
-                try {
-                    await this.supabase.auth.signOut(); 
-                } catch(e) {
-                    console.error("Erro no Supabase SignOut", e);
-                }
-            }
-            
-            // 4. Reload final
+            if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) { } } 
+            localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); 
+            if(this.supabase) { try { await this.supabase.auth.signOut(); } catch(e) {} }
             window.location.reload(); 
         },
-
         askSwitchToOnline() { this.askConfirm('FICAR ONLINE?', 'Ir para login.', 'info', () => { this.isGuest = false; localStorage.removeItem('zenite_is_guest'); window.location.reload(); }); },
         enterGuest() { this.isGuest = true; localStorage.setItem('zenite_is_guest', 'true'); this.loadLocal('zenite_guest_db'); },
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
-        
         loadCharacter(id, skipPush = false) {
              if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
@@ -731,17 +487,14 @@ function zeniteSystem() {
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
-
         _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
         updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
-        
         triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
         addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
         deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
         addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
-        
         roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); },
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
         openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
@@ -749,6 +502,10 @@ function zeniteSystem() {
         applyCrop() { if(!this.cropperInstance) return; const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; } this.cropperOpen = false; this.notify('Foto processada.', 'success'); },
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
         triggerFileImport() { document.getElementById('import-file').click(); },
-        processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); }
+        processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); },
+        ensureTrayOnScreen() { if(this.isMobile || this.trayDockMode !== 'float') return; this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x)); this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y)); },
+        setDockMode(mode) { this.trayDockMode = mode; if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); } },
+        startDragTray(e) { if(this.isMobile || this.trayDockMode !== 'float') return; if(e.target.closest('button') || e.target.closest('input')) return; const trayEl = document.getElementById('dice-tray-window'); if(!trayEl) return; this.isDraggingTray = true; const startX = e.clientX; const startY = e.clientY; const startLeft = this.trayPosition.x; const startTop = this.trayPosition.y; trayEl.style.transition = 'none'; const moveHandler = (ev) => { if(!this.isDraggingTray) return; const dx = ev.clientX - startX; const dy = ev.clientY - startY; trayEl.style.left = `${startLeft + dx}px`; trayEl.style.top = `${startTop + dy}px`; }; const upHandler = (ev) => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); const dx = ev.clientX - startX; const dy = ev.clientY - startY; this.trayPosition.x = startLeft + dx; this.trayPosition.y = startTop + dy; if(trayEl) trayEl.style.transition = ''; this.saveLocal(); }; document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler); },
+        toggleDiceTray() { if (this.isReverting) return; this.diceTrayOpen = !this.diceTrayOpen; if(this.diceTrayOpen) { if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); } this.showDiceTip = false; this.ensureTrayOnScreen(); } }
     };
 }

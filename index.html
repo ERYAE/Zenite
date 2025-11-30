@@ -113,7 +113,7 @@
                      x-transition:enter="transition ease-out duration-200"
                      x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
                      x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                     class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10 origin-top-right">
+                     class="absolute top-full right-0 md:right-auto md:left-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10 origin-top-right md:origin-top-left">
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Agente Logado</p>
                         <p class="text-xs text-white font-bold break-all" x-text="user?.email"></p>
@@ -194,107 +194,59 @@
                         <div class="mt-4 flex justify-center">
                             <div class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2">
                                 <label for="char_level" class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
-        
-                                <input 
-                                    id="char_level"
-                                    type="number" 
-                                    name="sheet_level" 
-                                    x-model="char.level" 
-                                    min="1" 
-                                    max="10" 
-                                    @change="recalcDerivedStats()" 
-                                    aria-label="Nível" 
-                                    class="bg-transparent w-12 text-center text-xl font-bold text-white         outline-none"
-                                >
+                                <input id="char_level" type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
                             </div>
                         </div>
                         <div class="mt-6 space-y-3 text-left">
                             <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-red-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-red-500">PV</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <input type="number" name="stat_pv_cur" x-model="char.stats.pv.current" aria-label="PV Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
-                                        <input type="number" name="stat_pv_max" x-model="char.stats.pv.max" aria-label="PV Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
-                                    </div>
-                                </div>
+                                <div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-red-500">PV (Vida)</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pv.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-8 text-right outline-none text-gray-400"></div></div>
                                 <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2 justify-between">
-                                    <button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded font-bold hover:text-white hover:bg-red-500">-5</button>
-                                    <button @click="modStat('pv', -1)" class="px-3 bg-red-900/20 text-red-500 text-xs rounded hover:text-white hover:bg-red-500">-1</button>
-                                    <button @click="modStat('pv', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
-                                    <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
-                                </div>
                             </div>
-                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-amber-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-amber-500">PF</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <input type="number" name="stat_pf_cur" x-model="char.stats.pf.current" aria-label="PF Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
-                                        <input type="number" name="stat_pf_max" x-model="char.stats.pf.max" aria-label="PF Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
-                                    </div>
-                                </div>
-                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2 justify-between">
-                                    <button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded font-bold hover:text-white hover:bg-amber-500">-5</button>
-                                    <button @click="modStat('pf', -1)" class="px-3 bg-amber-900/20 text-amber-500 text-xs rounded hover:text-white hover:bg-amber-500">-1</button>
-                                    <button @click="modStat('pf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
-                                    <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
-                                </div>
                             </div>
-                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-violet-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1">
-                                    <span class="text-violet-500">PDF</span>
-                                    <div class="flex gap-1 text-white font-code">
-                                        <input type="number" name="stat_pdf_cur" x-model="char.stats.pdf.current" aria-label="PDF Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
-                                        <input type="number" name="stat_pdf_max" x-model="char.stats.pdf.max" aria-label="PDF Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
-                                    </div>
-                                </div>
-                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
-                                <div class="flex gap-1 mt-2 justify-between">
-                                    <button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded font-bold hover:text-white hover:bg-violet-500">-5</button>
-                                    <button @click="modStat('pdf', -1)" class="px-3 bg-violet-900/20 text-violet-500 text-xs rounded hover:text-white hover:bg-violet-500">-1</button>
-                                    <button @click="modStat('pdf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
-                                    <button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
                 
                 <div class="lg:col-span-8 space-y-6">
                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
-                            <input name="char_codename" x-model="char.name" aria-label="Codinome" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME">
+                            <input name="char_codename" x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME">
                         </div>
                         <div class="flex gap-4">
-                            <div class="flex-grow">
-                                <input name="char_identity" x-model="char.identity" aria-label="Identidade Real" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL">
-                            </div>
-                            <div class="w-24">
-                                <input name="char_age" x-model="char.age" type="number" min="0" aria-label="Idade" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDADE">
-                            </div>
+                            <div class="flex-grow"><input name="char_identity" x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
+                            <div class="w-24"><input name="char_age" x-model="char.age" type="number" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDADE"></div>
                         </div>
                         <div>
-                            <select name="char_class" x-model="char.class" @change="recalcDerivedStats()" aria-label="Classe" class="input-cyber w-full p-3 text-sm bg-black">
+                            <select name="char_class" x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm bg-black">
                                 <option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option>
                             </select>
                         </div>
                      </div>
+                     
                      <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
-                        <div class="w-full md:w-1/2 space-y-2">
+                        <div class="w-full md:w-1/2 space-y-3">
                             <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
-                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
-                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
-                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
+                                <div class="flex justify-between items-center group">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold uppercase cursor-help border-b border-dashed border-white/20 w-max" 
+                                        :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" 
+                                        x-text="key"></span>
+                                        <span class="text-[9px] text-gray-500" x-show="key=='for'">Força Física</span>
+                                        <span class="text-[9px] text-gray-500" x-show="key=='agi'">Agilidade</span>
+                                        <span class="text-[9px] text-gray-500" x-show="key=='int'">Intelecto</span>
+                                        <span class="text-[9px] text-gray-500" x-show="key=='von'">Vontade</span>
+                                        <span class="text-[9px] text-gray-500" x-show="key=='pod'">Poder</span>
+                                    </div>
+                                    <div class="flex gap-2 items-center">
+                                        <button @click="modAttr(key, -1)" class="text-gray-600 hover:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">-</button>
+                                        <span class="text-xl font-mono font-bold text-white" x-text="char.attrs[key]"></span>
+                                        <button @click="modAttr(key, 1)" class="text-gray-600 hover:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">+</button>
                                     </div>
                                 </div>
                             </template>
                         </div>
                         <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
                      </div>
+                     
                      <div class="glass p-6 rounded-2xl border-l-2 border-yellow-500">
                         <div class="flex justify-between mb-4 items-center">
                             <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
@@ -303,17 +255,15 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <template x-for="(s, idx) in char.skills" :key="idx">
                                 <div class="bg-black/40 p-3 rounded-lg flex justify-between items-center">
-                                    <input :name="'skill_name_' + idx" x-model="s.name" aria-label="Nome da Perícia" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome">
-                                    <div class="flex gap-1">
-                                        <template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template>
-                                    </div>
+                                    <input :name="'skill_name_' + idx" x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome">
+                                    <div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div>
                                     <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
                                 </div>
                             </template>
                         </div>
                      </div>
                      <div class="glass p-4 rounded-2xl border-l-2 border-[var(--neon-core)]">
-                        <textarea name="char_history" x-model="char.history" aria-label="História" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea>
+                        <textarea name="char_history" x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea>
                      </div>
                 </div>
             </div>
@@ -538,13 +488,22 @@
         </div>
     </div>
 
-    <div x-show="configModal" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+    <div x-show="configModal" 
+         x-transition:enter="transition duration-300 ease-out" 
+         x-transition:enter-start="genie-enter-start" 
+         x-transition:enter-end="genie-enter-end"
+         x-transition:leave="transition duration-200 ease-in" 
+         x-transition:leave-start="genie-leave-start" 
+         x-transition:leave-end="genie-leave-end"
+         class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+        
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl">
-            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
+            <button x-show="!isOnboarding" @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-brand text-white mb-2" x-text="isOnboarding ? 'BEM-VINDO, AGENTE' : 'CONFIGURAÇÕES'"></h3>
+            <p x-show="isOnboarding" class="text-xs text-gray-400 mb-6">Configure seu terminal antes de acessar o sistema.</p>
             <div class="space-y-4">
                 <div>
-                    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
+                    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">INTERFACE NEURAL (TEMA)</p>
                     <div class="flex gap-2">
                         <button @click="toggleSetting('themeColor', 'cyan')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
                         <button @click="toggleSetting('themeColor', 'purple')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
@@ -555,17 +514,20 @@
                 <div class="grid grid-cols-2 gap-3">
                     <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
                     <button @click="toggleSetting('sfxEnabled')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.sfxEnabled ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">SFX (SONS)</button>
-                    <button x-show="isMobile" @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO (MOBILE)</button>
+                    <button x-show="isMobile" @click="toggleSetting('compactMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.compactMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO COMPACTO</button>
                     <button @click="toggleSetting('crtMode')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors col-span-2" :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">MODO CRT (PIXEL)</button>
                 </div>
-                <div class="grid grid-cols-2 gap-3 pt-2">
-                    <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded-lg text-xs hover:bg-blue-600/30 transition-colors"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
-                    <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded-lg text-xs hover:bg-emerald-600/30 transition-colors"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
-                    <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                <div x-show="!isOnboarding" class="space-y-4 pt-2">
+                    <div class="grid grid-cols-2 gap-3">
+                        <button @click="exportData()" class="py-3 bg-blue-600/20 border border-blue-500/50 text-blue-400 font-bold rounded-lg text-xs hover:bg-blue-600/30 transition-colors"><i class="fa-solid fa-download mr-2"></i> BACKUP</button>
+                        <button @click="triggerFileImport()" class="py-3 bg-emerald-600/20 border border-emerald-500/50 text-emerald-400 font-bold rounded-lg text-xs hover:bg-emerald-600/30 transition-colors"><i class="fa-solid fa-upload mr-2"></i> RESTAURAR</button>
+                        <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                    </div>
+                    <div class="border-t border-white/10 my-4"></div>
+                    <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors">LIMPAR CACHE LOCAL</button>
+                    <button @click="toggleHackerMode()" class="w-full py-2 border border-green-500/30 text-green-500 rounded-lg text-[10px] font-bold hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2" x-show="hackerMode"><i class="fa-solid fa-terminal"></i> DESATIVAR MODO HACKER</button>
                 </div>
-                <button onclick="document.body.classList.remove('theme-hacker')" class="w-full py-2 mt-2 border border-green-500/30 text-green-500 rounded-lg text-[10px] font-bold hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2" x-show="document.body.classList.contains('theme-hacker')"><i class="fa-solid fa-terminal"></i> DESATIVAR MODO HACKER</button>
-                <div class="border-t border-white/10 my-4"></div>
-                <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors">LIMPAR CACHE LOCAL</button>
+                <button x-show="isOnboarding" @click="completeOnboarding()" class="w-full mt-4 py-3 bg-[var(--neon-core)] text-black font-bold rounded-lg text-sm hover:scale-105 transition-transform shadow-[0_0_20px_rgba(var(--neon-rgb),0.3)]">INICIAR SISTEMA</button>
             </div>
         </div>
     </div>
@@ -621,11 +583,11 @@
                                     <div class="flex items-center justify-between mb-2">
                                         <div class="flex flex-col">
                                             <span class="uppercase font-bold text-sm text-white" x-text="key"></span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='for'">Força Física</span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='agi'">Agilidade</span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='int'">Inteligência</span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='von'">Vontade</span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='pod'">Poder/Quirk</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='for'">Força Física, capacidade de carga</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='agi'">Agilidade, destreza, reflexos</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='int'">Inteligência, ideia, raciocínio</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='von'">Vontade, mente, sanidade</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider" x-show="key=='pod'">Poder, energia interna</span>
                                         </div>
                                         <div class="flex items-center gap-3">
                                             <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
@@ -711,13 +673,41 @@
         </div>
     </div>
 
-    <div x-show="saveStatus === 'success'" x-transition.duration.1000ms class="fixed bottom-6 left-6 z-50 text-[var(--neon-core)] pointer-events-none text-xs font-bold flex items-center gap-2">
+    <div x-show="user || isGuest" class="fixed bottom-6 left-6 z-[8000] flex items-end gap-2">
+        <div x-show="musicPlayerOpen" 
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+             class="glass p-3 rounded-xl w-64 mb-2 border border-[var(--neon-core)] bg-black/90">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest flex items-center gap-1"><i class="fa-solid fa-music"></i> NEURAL RADIO</span>
+                <button @click="musicPlayerOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-minus"></i></button>
+            </div>
+            <div class="text-xs text-white font-bold truncate mb-1" x-text="playlist[currentTrackIdx].title"></div>
+            <div class="text-[10px] text-gray-500 truncate mb-3" x-text="playlist[currentTrackIdx].artist"></div>
+            <div class="flex justify-center gap-4 text-white">
+                <button @click="currentTrackIdx = (currentTrackIdx - 1 + playlist.length) % playlist.length" class="hover:text-[var(--neon-core)]"><i class="fa-solid fa-backward-step"></i></button>
+                <button @click="toggleMusic()" class="w-8 h-8 rounded-full bg-[var(--neon-core)] text-black flex items-center justify-center hover:scale-110 transition-transform">
+                    <i class="fa-solid" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
+                </button>
+                <button @click="nextTrack()" class="hover:text-[var(--neon-core)]"><i class="fa-solid fa-forward-step"></i></button>
+            </div>
+            <div class="mt-2 h-1 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-[var(--neon-core)] animate-pulse" style="width: 45%" x-show="isPlaying"></div>
+            </div>
+        </div>
+        <button @click="musicPlayerOpen = !musicPlayerOpen" class="w-10 h-10 glass rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:border-[var(--neon-core)] transition-colors border border-white/10 shadow-lg">
+            <i class="fa-solid fa-headphones" :class="{'text-[var(--neon-core)] animate-pulse': isPlaying}"></i>
+        </button>
+    </div>
+
+    <div x-show="saveStatus === 'success'" x-transition.duration.1000ms class="fixed bottom-20 right-6 z-50 text-[var(--neon-core)] pointer-events-none text-xs font-bold flex items-center gap-2 bg-black/50 px-2 py-1 rounded">
         <i class="fa-solid fa-floppy-disk animate-bounce"></i> SALVO
     </div>
 
     <div class="fixed bottom-1 right-2 z-[9000] opacity-30 hover:opacity-100 transition-opacity pointer-events-auto">
         <span class="ai-badge cursor-help" title="Arquitetado por Humano, Potencializado por IA">
-            <i class="fa-solid fa-microchip mr-1"></i> AI ASSISTED
+            <i class="fa-solid fa-microchip mr-1"></i> AI POWERED CORE
         </span>
     </div>
 
@@ -729,8 +719,7 @@
             <div class="flex items-center gap-4">
                 <i class="fa-solid fa-cookie-bite text-[var(--neon-core)] text-2xl"></i>
                 <p class="text-xs text-gray-300">
-                    Utilizamos cookies essenciais para o funcionamento do Neural Link (Login e Cache Local). 
-                    Ao continuar, você concorda com o processamento de dados.
+                    Utilizamos cookies essenciais para o funcionamento do Neural Link (Login e Cache Local).
                 </p>
             </div>
             <div class="flex gap-3 w-full md:w-auto">

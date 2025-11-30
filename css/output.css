@@ -311,6 +311,9 @@
   .bottom-16 {
     bottom: calc(var(--spacing) * 16);
   }
+  .bottom-20 {
+    bottom: calc(var(--spacing) * 20);
+  }
   .bottom-32 {
     bottom: calc(var(--spacing) * 32);
   }
@@ -551,6 +554,9 @@
   .w-full {
     width: 100%;
   }
+  .w-max {
+    width: max-content;
+  }
   .w-px {
     width: 1px;
   }
@@ -618,6 +624,10 @@
   }
   .translate-y-0 {
     --tw-translate-y: calc(var(--spacing) * 0);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
+  .translate-y-4 {
+    --tw-translate-y: calc(var(--spacing) * 4);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .translate-y-10 {
@@ -1472,6 +1482,10 @@
     --tw-shadow: 0 0 15px var(--tw-shadow-color, var(--neon-core));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .shadow-\[0_0_20px_rgba\(var\(--neon-rgb\)\,0\.3\)\] {
+    --tw-shadow: 0 0 20px var(--tw-shadow-color, rgba(var(--neon-rgb),0.3));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
   .shadow-\[0_0_20px_rgba\(var\(--neon-rgb\)\,0\.4\)\] {
     --tw-shadow: 0 0 20px var(--tw-shadow-color, rgba(var(--neon-rgb),0.4));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -1959,6 +1973,13 @@
       }
     }
   }
+  .hover\:text-\[var\(--neon-core\)\] {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--neon-core);
+      }
+    }
+  }
   .hover\:text-black {
     &:hover {
       @media (hover: hover) {
@@ -2066,9 +2087,19 @@
       opacity: 50%;
     }
   }
+  .md\:right-auto {
+    @media (width >= 48rem) {
+      right: auto;
+    }
+  }
   .md\:bottom-12 {
     @media (width >= 48rem) {
       bottom: calc(var(--spacing) * 12);
+    }
+  }
+  .md\:left-0 {
+    @media (width >= 48rem) {
+      left: calc(var(--spacing) * 0);
     }
   }
   .md\:col-span-2 {
@@ -2104,6 +2135,11 @@
   .md\:w-auto {
     @media (width >= 48rem) {
       width: auto;
+    }
+  }
+  .md\:origin-top-left {
+    @media (width >= 48rem) {
+      transform-origin: 0 0;
     }
   }
   .md\:grid-cols-2 {
