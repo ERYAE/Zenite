@@ -1,111 +1,97 @@
 window.audioCtx = null;
 window.sfxEnabled = true;
-let lastHoverTime = 0;
 
-// Buffer de ruído para sons de textura (High Tech)
-let noiseBuffer = null;
-
-window.initAudio = () => {
-    if (!window.audioCtx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) {
-            window.audioCtx = new AC();
-            // Cria buffer de ruído
-            const size = window.audioCtx.sampleRate * 2;
-            noiseBuffer = window.audioCtx.createBuffer(1, size, window.audioCtx.sampleRate);
-            const out = noiseBuffer.getChannelData(0);
-            for(let i=0; i<size; i++) out[i] = Math.random() * 2 - 1;
-        }
-    }
-    if (window.audioCtx && window.audioCtx.state === 'suspended') {
-        window.audioCtx.resume().catch(e => console.log("Audio resume failed", e));
-    }
-};
-
+// Gerenciador de Áudio Ambiente e SFX
 window.SFX = {
-    play(type) {
-        if (!window.sfxEnabled) return;
-        window.initAudio();
-        if (!window.audioCtx || !noiseBuffer) return;
-
-        const now = window.audioCtx.currentTime;
-        
-        // Anti-Spam para Hover (250ms)
-        if (type === 'hover') {
-            if (now - lastHoverTime < 0.25) return;
-            lastHoverTime = now;
+    ambienceNode: null,
+    currentAmbience: null,
+    
+    init() {
+        if (!window.audioCtx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            window.audioCtx = new AC();
         }
+        if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+    },
 
+    play(type) {
+        if (!window.sfxEnabled || !window.audioCtx) return;
+        this.init();
+        const t = window.audioCtx.currentTime;
+        const osc = window.audioCtx.createOscillator();
         const gain = window.audioCtx.createGain();
         gain.connect(window.audioCtx.destination);
 
+        // Sons de Interface "High Tech" sutis
         if (type === 'hover') {
-            // Som de ar comprimido curto (Tech UI)
+            // Ruído branco filtrado muito curto
+            const buffer = window.audioCtx.createBuffer(1, 22050, 44100);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < 22050; i++) data[i] = Math.random() * 0.1; // Volume baixo
             const src = window.audioCtx.createBufferSource();
-            src.buffer = noiseBuffer;
+            src.buffer = buffer;
             const filter = window.audioCtx.createBiquadFilter();
-            filter.type = 'bandpass'; filter.frequency.value = 2000;
+            filter.type = 'highpass'; filter.frequency.value = 1000;
             src.connect(filter).connect(gain);
-            
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-            src.start(now); src.stop(now + 0.05);
-
-        } else if (type === 'click') {
-            // Click cristalino
-            const osc = window.audioCtx.createOscillator();
+            src.start(t); src.stop(t + 0.05);
+        } 
+        else if (type === 'click') {
+            osc.frequency.setValueAtTime(800, t);
+            osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
+            gain.gain.setValueAtTime(0.05, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            osc.connect(gain); osc.start(t); osc.stop(t + 0.1);
+        }
+        else if (type === 'save') {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-            osc.connect(gain); osc.start(now); osc.stop(now + 0.05);
-
-        } else if (type === 'save') {
-            // Confirmação suave
-            const osc = window.audioCtx.createOscillator();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.linearRampToValueAtTime(880, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
-            osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
-
-        } else if (type === 'discard') {
-            // Erro / Cancelar
-            const osc = window.audioCtx.createOscillator();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(200, now);
-            osc.frequency.linearRampToValueAtTime(50, now + 0.15);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.15);
-            osc.connect(gain); osc.start(now); osc.stop(now + 0.15);
-
-        } else if (type === 'roll') {
-            const osc = window.audioCtx.createOscillator();
-            osc.frequency.setValueAtTime(300, now);
-            osc.frequency.linearRampToValueAtTime(600, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-            osc.connect(gain); osc.start(now); osc.stop(now + 0.1);
-
-        } else if (type === 'glitch') {
-            // BSOD Sound
-            const osc = window.audioCtx.createOscillator();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(50, now);
-            
-            const lfo = window.audioCtx.createOscillator();
-            lfo.frequency.value = 30;
-            const lfoGain = window.audioCtx.createGain();
-            lfoGain.gain.value = 500;
-            lfo.connect(lfoGain).connect(osc.frequency);
-            lfo.start(now); lfo.stop(now+1.5);
-            
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 1.5);
-            osc.connect(gain); osc.start(now); osc.stop(now + 1.5);
+            osc.frequency.setValueAtTime(440, t);
+            osc.frequency.setValueAtTime(880, t + 0.1);
+            gain.gain.setValueAtTime(0.05, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.3);
+            osc.connect(gain); osc.start(t); osc.stop(t + 0.3);
         }
     },
-    toggle(val) { window.sfxEnabled = val; }
+
+    // Sistema de Ambiente (Drone Sintetizado)
+    setAmbience(type) {
+        if (!window.sfxEnabled) return;
+        this.init();
+        
+        if (this.currentAmbience === type) return;
+        if (this.ambienceNode) { this.ambienceNode.stop(); this.ambienceNode = null; }
+        
+        this.currentAmbience = type;
+        if (type === 'none') return;
+
+        const osc = window.audioCtx.createOscillator();
+        const gain = window.audioCtx.createGain();
+        const filter = window.audioCtx.createBiquadFilter();
+
+        // Configurações por tipo de clima
+        if (type === 'rain') {
+            // Chuva é melhor com Noise Buffer, mas faremos um drone grave aqui por simplicidade
+            osc.type = 'triangle';
+            osc.frequency.value = 50; 
+            filter.type = 'lowpass'; filter.frequency.value = 200;
+            // LFO para variar volume
+        } else if (type === 'combat') {
+            osc.type = 'sawtooth';
+            osc.frequency.value = 30; // Grave tenso
+            filter.type = 'lowpass'; filter.frequency.value = 100;
+        } else {
+            // Neutral (Drone espacial)
+            osc.type = 'sine';
+            osc.frequency.value = 60;
+        }
+
+        gain.gain.value = 0.02; // Muito baixo, só fundo
+        osc.connect(filter).connect(gain).connect(window.audioCtx.destination);
+        osc.start();
+        this.ambienceNode = osc;
+    },
+
+    toggle(val) { 
+        window.sfxEnabled = val; 
+        if(!val && this.ambienceNode) { this.ambienceNode.stop(); this.ambienceNode = null; }
+    }
 };
