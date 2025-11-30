@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/app.js"></script>
 </head>
-<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
+<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" @keydown.escape.window="attemptGoBack()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div id="mouse-trail"></div>
     <div class="bg-grid"></div>
@@ -103,15 +103,27 @@
             <div x-show="user" class="relative md:ml-4" @click.outside="userMenuOpen=false">
                 <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
-                    <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
+                    <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email?.split('@')[0] || 'Agente'"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
                 </button>
-                <div x-show="userMenuOpen" class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10" x-transition>
+                
+                <div x-show="userMenuOpen" 
+                     class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10 origin-top-right" 
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
+                     x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                     x-transition:leave-end="opacity-0 scale-95 -translate-y-2">
+                    
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
-                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Agente</p>
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Identidade Ativa</p>
                         <p class="text-xs text-white font-bold break-all" x-text="user?.email"></p>
                     </div>
-                    <button @click="askLogout()" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"><i class="fa-solid fa-power-off mr-2"></i> ENCERRAR SESSÃO</button>
+                    <div class="px-4 py-2 bg-white/[0.02] border-b border-white/5">
+                        <p class="text-[8px] text-gray-600 font-code uppercase tracking-wider">SYSTEM: HYBRID (HUMAN/AI)</p>
+                    </div>
+                    <button @click="askLogout()" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"><i class="fa-solid fa-power-off mr-2"></i> DESCONECTAR</button>
                 </div>
             </div>
         </div>
@@ -135,9 +147,10 @@
             </div>
         </div>
         <template x-if="agentCount === 0">
-            <div class="py-32 text-center opacity-30 select-none">
+            <div class="py-32 text-center opacity-30 select-none animate-pulse">
                 <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
-                <p class="font-brand text-xl">SISTEMA VAZIO</p>
+                <p class="font-brand text-xl tracking-widest">NENHUM REGISTRO NEURAL</p>
+                <p class="text-xs font-code mt-2 text-gray-500">Inicie um novo protocolo de recrutamento.</p>
             </div>
         </template>
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -275,16 +288,23 @@
                      </div>
                      <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
                         <div class="w-full md:w-1/2 space-y-2">
-                            <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
-                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
-                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
-                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
-                                    </div>
-                                </div>
-                            </template>
+                    <template x-for="key in ['for','agi','int','von','pod']">
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5 group relative"> <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black border border-white/20 rounded text-[9px] text-gray-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-xl backdrop-blur-md">
+                            <span x-show="key=='for'">Força Física</span>
+                            <span x-show="key=='agi'">Agilidade & Reflexos</span>
+                            <span x-show="key=='int'">Intelecto & Estratégia</span>
+                            <span x-show="key=='von'">Vontade & Resistência</span>
+                            <span x-show="key=='pod'">Poder Sobrenatural</span>
+                        </div>
+
+                        <span class="text-xs font-bold uppercase w-24 cursor-help" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+                        <div class="flex items-center gap-3">
+                            <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px] active:scale-90 transition-transform">-</button>
+                            <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
+                            <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px] active:scale-90 transition-transform">+</button>
+                        </div>
+                    </div>
+                    </template>
                         </div>
                         <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
                      </div>

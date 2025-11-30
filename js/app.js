@@ -229,10 +229,23 @@ function zeniteSystem() {
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
                 sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
+                // No final do método initSystem(), antes de "this.loadingProgress = 100;"
+// ... existing code ...
                 this.updateVisualState();
                 
                 this.updateAgentCount();
+
+                // PONTO 14: Checar se é a primeira vez (Setup Wizard)
+                if (!this.isGuest && this.user && !localStorage.getItem('zenite_setup_done')) {
+                    setTimeout(() => {
+                        this.configModal = true;
+                        this.notify("Bem-vindo, Agente. Configure seu terminal.", "info");
+                        localStorage.setItem('zenite_setup_done', 'true');
+                    }, 1500);
+                }
+
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+// ... existing code ...
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
@@ -283,6 +296,7 @@ function zeniteSystem() {
 // ... (Código anterior mantido) ...
 
         handleLogoClick() {
+            // PONTO 10: Aumentei para 4000ms (4s) para dar tempo de clicar 5 vezes sem pressa absurda
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
@@ -292,10 +306,10 @@ function zeniteSystem() {
                 return;
             }
             
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            // O timer reseta se você parar de clicar por 4 segundos
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 1000);
             
-            // Toggle Fullscreen normal (clicks 1-4)
-            if (!this.systemFailure) { // Só alterna se não estiver em erro
+            if (!this.systemFailure) {
                  if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(()=>{});
                 } else if (document.exitFullscreen) {
