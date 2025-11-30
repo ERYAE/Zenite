@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/app.js"></script>
 </head>
-<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" @keydown.escape.window="handleEsc()" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
+<body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
     <div id="mouse-trail"></div>
     <div class="bg-grid"></div>
@@ -106,7 +106,7 @@
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
                 </button>
-                <div x-show="userMenuOpen" class="absolute top-full right-0 md:left-0 md:right-auto mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10" x-transition>
+                <div x-show="userMenuOpen" class="absolute top-full right-0 mt-2 w-64 glass rounded-xl overflow-hidden z-50 shadow-xl border border-white/10" x-transition>
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Agente</p>
                         <p class="text-xs text-white font-bold break-all" x-text="user?.email"></p>
@@ -130,14 +130,14 @@
                 <div class="text-[10px] font-code text-gray-600">CAPACIDADE: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
             </div>
             <div class="relative group">
-                <input id="search-dashboard" name="search_query" x-model="searchQuery" type="text" placeholder="Buscar no Arquivo..." aria-label="Buscar Identidade" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-10 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber">
+                <input id="search-dashboard" name="search_query" x-model="searchQuery" type="text" placeholder="Buscar Identidade..." aria-label="Buscar Identidade" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-10 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber">
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
         </div>
         <template x-if="agentCount === 0">
             <div class="py-32 text-center opacity-30 select-none">
                 <div class="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center mx-auto mb-4"><i class="fa-solid fa-network-wired text-4xl"></i></div>
-                <p class="font-brand text-xl">NENHUM HERÓI REGISTRADO</p>
+                <p class="font-brand text-xl">SISTEMA VAZIO</p>
             </div>
         </template>
         <div x-show="agentCount > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -276,16 +276,12 @@
                      <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
                         <div class="w-full md:w-1/2 space-y-2">
                             <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="group relative">
-                                    <span class="text-xs font-bold uppercase w-24 cursor-help border-b border-dashed border-white/20" 
-                                    :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi' /*...*/ }" 
-                                    x-text="key"></span>
-                                    <div class="absolute bottom-full left-0 mb-2 w-48 bg-black border border-white/20 p-2 rounded text-[10px] text-gray-300 hidden group-hover:block z-50 shadow-xl pointer-events-none">
-                                        <span x-show="key=='for'">Potência física e capacidade de carga.</span>
-                                        <span x-show="key=='agi'">Reflexos, destreza manual e velocidade.</span>
-                                        <span x-show="key=='int'">Raciocínio lógico, memória e dedução.</span>
-                                        <span x-show="key=='von'">Resistência mental e força de vontade.</span>
-                                        <span x-show="key=='pod'">Potencial sobrenatural e energia interna.</span>
+                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+                                    <div class="flex items-center gap-3">
+                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
+                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
+                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
                                     </div>
                                 </div>
                             </template>
@@ -459,7 +455,7 @@
              :class="{'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
              :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" 
-             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95 translate-y-10" origin-bottom transition-all duration-500 ease-[cubic-bezier(0.68,-0.55,0.27,1.55)]>
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95 translate-y-10">
             <div @mousedown="startDragTray($event)" class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none" :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}">
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
@@ -712,9 +708,6 @@
                 </button>
             </div>
         </div>
-    </div>
-    <div class="fixed bottom-1 left-2 z-[9000] opacity-30 hover:opacity-100 transition-opacity pointer-events-auto">
-    <span class="text-[8px] font-code text-gray-600 cursor-help" title="Arquitetado por Humano, Codificado por IA">🤖 AI ASSISTED</span>
     </div>
 
 </body>
