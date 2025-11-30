@@ -31,16 +31,19 @@
     <div class="bg-grid"></div>
 
     <div id="system-failure" x-show="systemFailure" class="fixed inset-0 z-[11000] bg-black text-red-600 flex flex-col items-center justify-center p-8 font-code" style="display: none;">
-        <div class="bsod-container max-w-2xl w-full">
+        <div class="bsod-container max-w-2xl w-full text-center">
             <span class="bsod-header bg-red-600 text-black px-2 font-bold mb-4 inline-block">ZENITE_OS KERNEL PANIC</span>
-            <div class="text-4xl md:text-6xl font-bold mb-6 mt-4 glitch-text">FATAL_ERROR</div>
-            <p class="text-sm mb-8 opacity-80">A interface neural foi desconectada abruptamente. Violação de protocolo nível 5.</p>
-            <button @click="rebootSystem()" class="group relative px-8 py-3 bg-red-900/20 border border-red-600 text-red-500 font-bold tracking-[0.2em] hover:bg-red-600 hover:text-black transition-all overflow-hidden cursor-pointer">
-                <span x-show="!rebooting">INICIAR SEQUÊNCIA DE REBOOT</span>
-                <span x-show="rebooting" class="animate-pulse">REINICIANDO SISTEMAS...</span>
-                <div class="absolute inset-0 bg-red-600/20 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300"></div>
-            </button>
-            <div class="mt-12 text-[10px] opacity-50 font-mono">ERR_CODE: 0xDEAD_BEEF<br>MEMORY_DUMP: COMPLETED</div>
+            <div class="text-4xl md:text-6xl font-bold mb-6 mt-4 glitch-text">SYSTEM_HALT</div>
+            <p class="text-sm mb-8 opacity-80">Sequência de reinicialização manual exigida.</p>
+            
+            <div class="reboot-sequence-display text-[var(--neon-core)] font-mono bg-black/50 p-4 rounded border border-red-500/30">
+                <span x-text="rebootSequence"></span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2 mb-8">DIGITE A SEQUÊNCIA ACIMA PARA REINICIAR</p>
+            
+            <div class="mt-12 text-[10px] opacity-50 font-mono">
+                ERR_CODE: 0xDEAD_BEEF<br>MEMORY_DUMP: COMPLETED
+            </div>
         </div>
     </div>
 
