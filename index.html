@@ -194,79 +194,72 @@
                         <div class="mt-4 flex justify-center">
                             <div class="bg-black/40 px-4 py-2 rounded-lg border border-white/10 flex items-center gap-2">
                                 <label for="char_level" class="text-[10px] text-gray-500 font-bold">NÍVEL</label>
-                                <input id="char_level" type="number" x-model="char.level" min="1" max="10" @change="recalcDerivedStats()" class="bg-transparent w-12 text-center text-xl font-bold text-white outline-none">
+        
+                                <input 
+                                    id="char_level"
+                                    type="number" 
+                                    name="sheet_level" 
+                                    x-model="char.level" 
+                                    min="1" 
+                                    max="10" 
+                                    @change="recalcDerivedStats()" 
+                                    aria-label="Nível" 
+                                    class="bg-transparent w-12 text-center text-xl font-bold text-white         outline-none"
+                                >
                             </div>
                         </div>
                         <div class="mt-6 space-y-3 text-left">
                             <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-red-500/30 transition-colors">
-                                <div class="flex justify-between text-[10px] font-bold mb-1"><span class="text-red-500">PV (Vida)</span><div class="flex gap-1 text-white font-code"><input type="number" x-model="char.stats.pv.current" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / <input type="number" x-model="char.stats.pv.max" class="bg-transparent w-8 text-right outline-none text-gray-400"></div></div>
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-red-500">PV (Vida)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" name="stat_pv_cur" x-model="char.stats.pv.current" aria-label="PV Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" name="stat_pv_max" x-model="char.stats.pv.max" aria-label="PV Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
                                 <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-red-500 transition-all" :style="`width:${Math.min(100, (char.stats.pv.current/char.stats.pv.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pv', -5)" class="px-2 bg-red-900/20 text-red-500 text-xs rounded font-bold hover:text-white hover:bg-red-500">-5</button>
+                                    <button @click="modStat('pv', -1)" class="px-3 bg-red-900/20 text-red-500 text-xs rounded hover:text-white hover:bg-red-500">-1</button>
+                                    <button @click="modStat('pv', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pv', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
                             </div>
+                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-amber-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-amber-500">PF (Fadiga)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" name="stat_pf_cur" x-model="char.stats.pf.current" aria-label="PF Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" name="stat_pf_max" x-model="char.stats.pf.max" aria-label="PF Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-amber-500 transition-all" :style="`width:${Math.min(100, (char.stats.pf.current/char.stats.pf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pf', -5)" class="px-2 bg-amber-900/20 text-amber-500 text-xs rounded font-bold hover:text-white hover:bg-amber-500">-5</button>
+                                    <button @click="modStat('pf', -1)" class="px-3 bg-amber-900/20 text-amber-500 text-xs rounded hover:text-white hover:bg-amber-500">-1</button>
+                                    <button @click="modStat('pf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
                             </div>
+                            <div class="bg-black/40 p-3 rounded-xl border border-white/5 hover:border-violet-500/30 transition-colors">
+                                <div class="flex justify-between text-[10px] font-bold mb-1">
+                                    <span class="text-violet-500">PDF (Poder)</span>
+                                    <div class="flex gap-1 text-white font-code">
+                                        <input type="number" name="stat_pdf_cur" x-model="char.stats.pdf.current" aria-label="PDF Atual" class="bg-transparent w-8 text-right outline-none font-bold text-white"> / 
+                                        <input type="number" name="stat_pdf_max" x-model="char.stats.pdf.max" aria-label="PDF Max" class="bg-transparent w-8 text-right outline-none text-gray-400 focus:text-white">
+                                    </div>
+                                </div>
+                                <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div class="h-full bg-violet-500 transition-all" :style="`width:${Math.min(100, (char.stats.pdf.current/char.stats.pdf.max)*100)}%`"></div></div>
+                                <div class="flex gap-1 mt-2 justify-between">
+                                    <button @click="modStat('pdf', -5)" class="px-2 bg-violet-900/20 text-violet-500 text-xs rounded font-bold hover:text-white hover:bg-violet-500">-5</button>
+                                    <button @click="modStat('pdf', -1)" class="px-3 bg-violet-900/20 text-violet-500 text-xs rounded hover:text-white hover:bg-violet-500">-1</button>
+                                    <button @click="modStat('pdf', 1)" class="px-3 bg-green-900/20 text-green-500 text-xs rounded hover:text-white hover:bg-green-500">+1</button>
+                                    <button @click="modStat('pdf', 5)" class="px-2 bg-green-900/20 text-green-500 text-xs rounded font-bold hover:text-white hover:bg-green-500">+5</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="lg:col-span-8 space-y-6">
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2">
-                            <input name="char_codename" x-model="char.name" class="input-cyber w-full p-4 text-2xl font-light font-brand uppercase" placeholder="CODINOME">
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="flex-grow"><input name="char_identity" x-model="char.identity" class="input-cyber w-full p-3 text-sm" placeholder="IDENTIDADE REAL"></div>
-                            <div class="w-24"><input name="char_age" x-model="char.age" type="number" class="input-cyber w-full p-3 text-sm text-center" placeholder="IDADE"></div>
-                        </div>
-                        <div>
-                            <select name="char_class" x-model="char.class" @change="recalcDerivedStats()" class="input-cyber w-full p-3 text-sm bg-black">
-                                <option>Titã</option><option>Estrategista</option><option>Infiltrador</option><option>Controlador</option><option>Psíquico</option>
-                            </select>
-                        </div>
-                     </div>
-                     
-                     <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
-                        <div class="w-full md:w-1/2 space-y-3">
-                            <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex justify-between items-center group">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold uppercase cursor-help border-b border-dashed border-white/20 w-max" 
-                                        :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" 
-                                        x-text="key"></span>
-                                        <span class="text-[9px] text-gray-500" x-show="key=='for'">Força Física</span>
-                                        <span class="text-[9px] text-gray-500" x-show="key=='agi'">Agilidade</span>
-                                        <span class="text-[9px] text-gray-500" x-show="key=='int'">Intelecto</span>
-                                        <span class="text-[9px] text-gray-500" x-show="key=='von'">Vontade</span>
-                                        <span class="text-[9px] text-gray-500" x-show="key=='pod'">Poder</span>
-                                    </div>
-                                    <div class="flex gap-2 items-center">
-                                        <button @click="modAttr(key, -1)" class="text-gray-600 hover:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">-</button>
-                                        <span class="text-xl font-mono font-bold text-white" x-text="char.attrs[key]"></span>
-                                        <button @click="modAttr(key, 1)" class="text-gray-600 hover:text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">+</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
-                     </div>
-                     
-                     <div class="glass p-6 rounded-2xl border-l-2 border-yellow-500">
-                        <div class="flex justify-between mb-4 items-center">
-                            <h3 class="text-xs font-bold text-yellow-500 uppercase">Perícias</h3>
-                            <button @click="addSkill()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <template x-for="(s, idx) in char.skills" :key="idx">
-                                <div class="bg-black/40 p-3 rounded-lg flex justify-between items-center">
-                                    <input :name="'skill_name_' + idx" x-model="s.name" class="bg-transparent outline-none text-sm text-white w-1/2" placeholder="Nome">
-                                    <div class="flex gap-1"><template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template></div>
-                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                            </template>
-                        </div>
-                     </div>
-                     <div class="glass p-4 rounded-2xl border-l-2 border-[var(--neon-core)]">
-                        <textarea name="char_history" x-model="char.history" class="w-full h-32 bg-transparent text-sm text-gray-300 resize-none outline-none font-code" placeholder="Uma linda história..."></textarea>
-                     </div>
-                </div>
-            </div>
             
             <div x-show="activeTab === 'logistics'" class="space-y-6">
                 <div class="flex justify-between items-center">
@@ -411,8 +404,8 @@
         <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt" 
              :class="{'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
              :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
-             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" 
-             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95 translate-y-10">
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95 translate-y-10" x-transition:enter-end="opacity-100 scale-100 translate-y-0" 
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95 translate-y-10" origin-bottom transition-all duration-500 ease-[cubic-bezier(0.68,-0.55,0.27,1.55)]>
             <div @mousedown="startDragTray($event)" class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none" :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}">
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
@@ -438,7 +431,21 @@
                 <div class="grid grid-cols-4 gap-2 mb-4">
                     <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
                 </div>
-                <div class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2">
+
+                <div x-show="dicePresets.length > 0" class="border-t border-white/10 pt-2 space-y-1">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase px-1">Presets Rápidos</span>
+                    <div class="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                        <template x-for="p in dicePresets">
+                            <button @click="diceReason = p.reason; roll(20); diceMod=p.formula.includes('+')?parseInt(p.formula.split('+')[1]):0; roll(p.formula.includes('d')?parseInt(p.formula.split('d')[0])>1?parseInt(p.formula.split('d')[1]):parseInt(p.formula.split('d')[1]):20" class="w-full text-left bg-white/5 hover:bg-white/10 p-1 rounded text-[10px] font-code truncate" :class="p.type === 'weapon' ? 'text-red-300' : 'text-cyan-300'">
+                                <i class="fa-solid" :class="p.type === 'weapon' ? 'fa-gun' : 'fa-graduation-cap'"></i> 
+                                <span x-text="p.label"></span>
+                                <span class="text-gray-600 float-right" x-text="'[' + p.formula + ']'"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2 mt-2">
                     <div class="flex justify-between items-center mb-2 px-1"><span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span><button @click="diceLog=[]" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button></div>
                     <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-1">
                         <template x-for="log in diceLog" :key="log.id">

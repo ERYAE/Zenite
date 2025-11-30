@@ -1,6 +1,6 @@
 /**
  * ZENITE OS - Core Application
- * Version: vFinal-Polished
+ * Version: vFinal-Polished-UX
  */
 
 const CONSTANTS = {
@@ -13,7 +13,10 @@ const CONSTANTS = {
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
+
+// --- AUDIO ENGINE (REESCRITO PARA MODERN TERMINAL) (PONTO 9) ---
 let audioCtx = null, noiseBuffer = null, sfxEnabledGlobal = true, userHasInteracted = false;
+let sequenceBuffer = ''; // PONTO 6: Buffer para o minigame
 
 const initAudio = () => { if (audioCtx) return; const AC = window.AudioContext || window.webkitAudioContext; audioCtx = new AC(); const bs = audioCtx.sampleRate * 2; noiseBuffer = audioCtx.createBuffer(1, bs, audioCtx.sampleRate); const out = noiseBuffer.getChannelData(0); for (let i = 0; i < bs; i++) out[i] = Math.random() * 2 - 1; };
 document.addEventListener('click', () => { userHasInteracted = true; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true });
@@ -21,13 +24,21 @@ document.addEventListener('click', () => { userHasInteracted = true; initAudio()
 const playSFX = (type) => {
     if (!userHasInteracted || !audioCtx || !sfxEnabledGlobal) return;
     const now = audioCtx.currentTime; const g = audioCtx.createGain(); g.connect(audioCtx.destination);
-    if (type === 'hover') { const s = audioCtx.createBufferSource(); s.buffer = noiseBuffer; const f = audioCtx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=800; f.Q.value=10; s.connect(f); f.connect(g); g.gain.setValueAtTime(0.05,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.05); s.start(now); s.stop(now+0.05); }
-    else if (type === 'click') { const o = audioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(1200,now); o.frequency.exponentialRampToValueAtTime(100,now+0.05); g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.05); o.connect(g); o.start(now); o.stop(now+0.05); }
-    else if (type === 'save') { const o = audioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(880,now); g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.6); o.connect(g); o.start(now); o.stop(now+0.6); }
-    else if (type === 'discard') { const o = audioCtx.createOscillator(); o.type='sawtooth'; const f = audioCtx.createBiquadFilter(); f.type='lowpass'; o.frequency.setValueAtTime(100,now); o.frequency.linearRampToValueAtTime(10,now+0.3); f.frequency.setValueAtTime(500,now); f.frequency.linearRampToValueAtTime(50,now+0.3); g.gain.setValueAtTime(0.2,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.3); o.connect(f); f.connect(g); o.start(now); o.stop(now+0.3); }
-    else if (type === 'glitch') { const s = audioCtx.createBufferSource(); s.buffer = noiseBuffer; const f = audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400; s.connect(f); f.connect(g); g.gain.setValueAtTime(0.8,now); g.gain.linearRampToValueAtTime(0.001,now+2.0); s.start(now); s.stop(now+2.0); }
-    else if (type === 'success') { const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(440,now); o.frequency.setValueAtTime(880,now+0.1); g.gain.setValueAtTime(0.1,now); g.gain.linearRampToValueAtTime(0,now+0.3); o.connect(g); o.start(now); o.stop(now+0.3); }
-    else if (type === 'error') { const o = audioCtx.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(100,now); o.frequency.linearRampToValueAtTime(50,now+0.3); g.gain.setValueAtTime(0.3,now); g.gain.linearRampToValueAtTime(0,now+0.3); o.connect(g); o.start(now); o.stop(now+0.3); }
+    
+    // Configuração para Pulsos Sincronizados de Terminal Moderno (Menos 8bit)
+    if (type === 'hover') {
+        const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(440,now); g.gain.setValueAtTime(0.02,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.03); o.connect(g); o.start(now); o.stop(now+0.03);
+    } else if (type === 'click') {
+        const o = audioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(880,now); o.frequency.exponentialRampToValueAtTime(440,now+0.04); g.gain.setValueAtTime(0.08,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.05); o.connect(g); o.start(now); o.stop(now+0.05);
+    } else if (type === 'save') { 
+        const o = audioCtx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(600,now); o.frequency.setValueAtTime(900,now+0.1); g.gain.setValueAtTime(0.1,now); g.gain.linearRampToValueAtTime(0.001,now+0.4); o.connect(g); o.start(now); o.stop(now+0.4); 
+    } else if (type === 'discard' || type === 'error') { 
+        const o = audioCtx.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(150,now); o.frequency.linearRampToValueAtTime(75,now+0.1); g.gain.setValueAtTime(0.2,now); g.gain.linearRampToValueAtTime(0.001,now+0.2); o.connect(g); o.start(now); o.stop(now+0.2); 
+    } else if (type === 'glitch') {
+        const s = audioCtx.createBufferSource(); s.buffer = noiseBuffer; const f = audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400; s.connect(f); f.connect(g); g.gain.setValueAtTime(0.8,now); g.gain.linearRampToValueAtTime(0.001,now+0.8); s.start(now); s.stop(now+0.8);
+    } else if (type === 'success') {
+        const o1 = audioCtx.createOscillator(); o1.type='square'; o1.frequency.setValueAtTime(500,now); o1.frequency.setValueAtTime(750,now+0.05); g.gain.setValueAtTime(0.15,now); g.gain.linearRampToValueAtTime(0.001,now+0.2); o1.connect(g); o1.start(now); o1.stop(now+0.2);
+    }
 };
 
 function debounce(func, wait) { let timeout; return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); }; }
@@ -50,14 +61,16 @@ function zeniteSystem() {
         musicPlayerOpen: false, isPlaying: false, currentTrackIdx: 0,
         audioElement: null, 
         playlist: [
-            { title: "HIGHWAY STAR", artist: "Synthwave_Source", url: "https://files.freemusicarchive.org/storage-rec/tracks/d43f07be8c89b8849b28292c3a505b22b10a2f5a?filename=Starfucker%20-%20Mystery.mp3" },
-            { title: "NEURAL LINK", artist: "Zenite_Core", url: "https://files.freemusicarchive.org/storage-rec/tracks/s3r9r6r8r6n2s9s0r6c2x8r8s7r7t2t8r8r8r2r3b8x2r6c3/Podington_Bear_-_Light_and_Motion.mp3" },
-            { title: "GLITCH CITY", artist: "NetRunner", url: "https://files.freemusicarchive.org/storage-rec/tracks/l5s0m4j7m4k4o4s9o7t8n5h4n3k6l9h5/Podington_Bear_-_Density.mp3" }
+            // ATENÇÃO: SUBSTITUA OS LINKS ABAIXO PELOS SEUS ARQUIVOS MP3 DIRETOS (.mp3)!
+            { title: "FRACTAL CHAOS MIX", artist: "Breakcore_Source", url: "https://stocktune.com/fractal_chaos_beats_surge.mp3" }, 
+            { title: "ANGELIC ASCENSION (55M)", artist: "CC_Mix", url: "https://newgrounds.com/the_angel_download.mp3" },
+            { title: "HIGHWAY STAR", artist: "Synthwave_Source", url: "https://files.freemusicarchive.org/storage-rec/tracks/d43f07be8c89b8849b28292c3a505b22b10a2f5a?filename=Starfucker%20-%20Mystery.mp3" }
         ],
         
-        // SECRETS
+        // SECRETS & MINIGAME (PONTO 6)
         konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false, rebooting: false,
-
+        rebootSequence: '', // Sequência gerada
+        
         // DATA
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory', searchQuery: '',
@@ -96,6 +109,28 @@ function zeniteSystem() {
                 if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) result[id] = c;
             });
             return result;
+        },
+
+        // PONTO 8: Presets de rolagem dinâmicos
+        get dicePresets() {
+            if (!this.char) return [];
+            const presets = [];
+            
+            // Armas
+            if (this.char.inventory?.weapons?.length > 0) {
+                this.char.inventory.weapons.forEach(w => {
+                    if (w.name && w.dmg) presets.push({ type: 'weapon', label: `Dano: ${w.name}`, reason: `Ataque: ${w.name}`, formula: w.dmg });
+                });
+            }
+
+            // Perícias
+            if (this.char.skills?.length > 0) {
+                this.char.skills.forEach(s => {
+                    if (s.name) presets.push({ type: 'skill', label: `Perícia: ${s.name}`, reason: `Teste de ${s.name} (NVL ${s.level})`, formula: `1d20 + ${s.level}` });
+                });
+            }
+
+            return presets;
         },
 
         async initSystem() {
@@ -193,8 +228,36 @@ function zeniteSystem() {
             }
         },
 
+        // PONTO 6: Lógica do Minigame de Reboot (Teclas)
+        generateRebootSequence() {
+            const keys = ['q','w','e','r','t','y','u','i','o','p','a','s','d','f','g','h','j','k','l','z','x','c','v','b','n','m'];
+            let seq = '';
+            for(let i=0; i<5; i++) { seq += keys[Math.floor(Math.random() * keys.length)]; }
+            this.rebootSequence = seq;
+            console.error(`\n\n*** REBOOT_SEQUENCE_REQUIRED ***\nINSIRA ESTA SEQUÊNCIA NA TELA PARA REINICIAR:\n\n >> ${seq.toUpperCase()} <<\n\n**********************************\n`);
+        },
+
         handleKeys(e) {
             const key = e.key.toLowerCase();
+            
+            // Minigame de Reboot (PONTO 6)
+            if (this.systemFailure) {
+                if (key.length === 1 && key.match(/[a-z]/)) {
+                    sequenceBuffer += key;
+                    if (this.rebootSequence.startsWith(sequenceBuffer)) {
+                        if (sequenceBuffer.length === this.rebootSequence.length) {
+                            this.rebootSystem();
+                        }
+                    } else {
+                        sequenceBuffer = '';
+                        this.notify("Sequência incorreta.", "error");
+                        playSFX('error');
+                    }
+                    return;
+                }
+            }
+
+            // Konami Code
             const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
@@ -272,6 +335,8 @@ function zeniteSystem() {
             playSFX('glitch'); 
             if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(() => {}); }
             this.systemFailure = true; 
+            this.generateRebootSequence(); // Inicia o minigame
+            sequenceBuffer = ''; // Limpa o buffer de entrada
         },
         rebootSystem() {
             if (this.rebooting) return;
@@ -281,13 +346,18 @@ function zeniteSystem() {
                 this.systemFailure = false; this.rebooting = false;
                 if (document.fullscreenElement) document.exitFullscreen().catch(e => {});
                 this.notify("SISTEMA REINICIADO", "success");
-            }, 2000);
+            }, 500); // Reboot mais rápido para UX
         },
 
         handleEsc() {
             if (this.systemFailure) return; 
             if (this.confirmOpen) { this.confirmOpen = false; return; }
-            if (this.cropperOpen) { this.cropperOpen = false; return; }
+            if (this.cropperOpen) { 
+                this.cropperOpen = false; 
+                // Fix para garantir que o cursor volte se sair da tela de crop
+                document.body.classList.remove('custom-cursor-active'); 
+                return; 
+            }
             if (this.configModal) { 
                 if(this.isOnboarding) return; 
                 this.configModal = false; return; 
@@ -318,6 +388,8 @@ function zeniteSystem() {
             if (showTrail) document.body.classList.add('custom-cursor-active'); else document.body.classList.remove('custom-cursor-active');
             if (isAuthenticated && this.settings.crtMode) document.body.classList.add('crt-mode'); else document.body.classList.remove('crt-mode');
             sfxEnabledGlobal = this.settings.sfxEnabled;
+            // PONTO 6: Garante que o cursor suma na tela de erro
+            if (this.systemFailure) document.body.classList.remove('custom-cursor-active');
         },
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
@@ -443,7 +515,8 @@ function zeniteSystem() {
             if(!this.wizardData.name) { this.wizardNameError = true; this.notify("Codinome obrigatório!", "warn"); playSFX('error'); setTimeout(() => { this.wizardNameError = false; }, 500); return; }
             const id = 'z_'+Date.now(); 
             const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
-            const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
+            // PONTO 4: Nova estrutura de poderes
+            const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { concept:'', abilities:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
             this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal(); 
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
             this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
@@ -478,6 +551,12 @@ function zeniteSystem() {
                 this.char = JSON.parse(JSON.stringify(this.chars[id]));
                 if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
                 if(!this.char.age) this.char.age = ""; 
+                // PONTO 4: Atualiza o objeto para nova estrutura de poderes se for antiga
+                if (this.char.powers.passive !== undefined) {
+                    this.char.powers.abilities = `${this.char.powers.passive || ''}\n\n${this.char.powers.active || ''}`;
+                    delete this.char.powers.passive;
+                    delete this.char.powers.active;
+                }
                 this.currentView = 'sheet'; this.activeTab = 'profile'; this.diceTrayOpen = false; 
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
                 this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
@@ -485,6 +564,7 @@ function zeniteSystem() {
          },
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
+        // PONTO 5: Símbolos nas notificações
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
         _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
@@ -496,7 +576,18 @@ function zeniteSystem() {
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, deleteSkill(idx) { this.char.skills.splice(idx,1); }, setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
         addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
         roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); },
-        notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
+        // PONTO 5: Mapeamento de Símbolos
+        notify(msg, type='info') { 
+            const iconMap = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-triangle',
+                warn: 'fa-bell',
+                info: 'fa-info-circle'
+            };
+            const id = Date.now(); 
+            this.notifications.push({id, message: msg, type, icon: iconMap[type]}); 
+            setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); 
+        },
         openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
         initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); e.target.value = ''; }, 
         applyCrop() { if(!this.cropperInstance) return; const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; } this.cropperOpen = false; this.notify('Foto processada.', 'success'); },
