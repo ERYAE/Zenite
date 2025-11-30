@@ -331,26 +331,27 @@ function zeniteSystem() {
 
         // --- VISUAL STATE MANAGER ---
         updateVisualState() {
-            const isAuthenticated = this.user || this.isGuest;
-            
-            // CURSOR CLASS
-            if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                document.body.classList.add('custom-cursor-active');
-            } else {
-                document.body.classList.remove('custom-cursor-active');
-            }
+    const isAuthenticated = this.user || this.isGuest;
+    // Verifica se deve mostrar o rastro
+    const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
 
-            // CRT (Pixel Effect)
-            if (isAuthenticated && this.settings.crtMode) {
-                document.body.classList.add('crt-mode');
-            } else {
-                document.body.classList.remove('crt-mode');
-            }
-            
-            // SFX State
-            sfxEnabledGlobal = this.settings.sfxEnabled;
-        },
-        
+    // SÓ esconde o cursor padrão se o rastro estiver ativado E visível
+    if (showTrail) {
+        document.body.classList.add('custom-cursor-active');
+    } else {
+        document.body.classList.remove('custom-cursor-active');
+    }
+
+    // CRT (Pixel Effect)
+    if (isAuthenticated && this.settings.crtMode) {
+        document.body.classList.add('crt-mode');
+    } else {
+        document.body.classList.remove('crt-mode');
+    }
+    
+    // SFX State
+    sfxEnabledGlobal = this.settings.sfxEnabled;
+},
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
