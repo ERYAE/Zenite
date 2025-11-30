@@ -152,7 +152,6 @@ function zeniteSystem() {
         // MODALS
         configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
-        setupMode: false, // NOVO: Controle de Setup Inicial
         
         // WIZARD
         wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
@@ -160,9 +159,7 @@ function zeniteSystem() {
         // CONFIGS
         settings: {
             mouseTrail: true, compactMode: false, performanceMode: false, 
-            crtMode: true, sfxEnabled: true,
-            gridEnabled: true,
-            hackerMode: false, // NOVO: Estado para o tema hacker
+            crtMode: true, sfxEnabled: true, // NOVO
             themeColor: 'cyan'
         },
         
@@ -226,33 +223,16 @@ function zeniteSystem() {
                     }
                 }
 
-                // ... existing code ...
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                // NOVO: Aplica o estado da grid
-                this.toggleGrid(this.settings.gridEnabled);
-                
-                sfxEnabledGlobal = this.settings.sfxEnabled;
+                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
                 this.updateVisualState();
                 
                 this.updateAgentCount();
-
-                if (this.settings.hackerMode) document.body.classList.add('theme-hacker');
-
-                // REVISADO: Lógica de Setup Inicial com flag setupMode
-                if (!this.isGuest && this.user && !localStorage.getItem('zenite_setup_done')) {
-                    setTimeout(() => {
-                        this.setupMode = true; // Ativa modo setup (muda titulo e texto)
-                        this.configModal = true;
-                        localStorage.setItem('zenite_setup_done', 'true');
-                    }, 1000);
-                }
-
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
-
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
@@ -292,13 +272,10 @@ function zeniteSystem() {
             const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
-            
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
-                // Usa toggleSetting para alternar o estado, salvar e aplicar a classe CSS
-                this.toggleSetting('hackerMode', !this.settings.hackerMode);
-                
-                if(this.settings.hackerMode) { playSFX('save'); this.notify("SYSTEM OVERRIDE: HACKER MODE ACTIVATED", "success"); } 
-                else { playSFX('discard'); this.notify("SYSTEM NORMAL", "info"); }
+                document.body.classList.toggle('theme-hacker');
+                if(document.body.classList.contains('theme-hacker')) { playSFX('success'); this.notify("SYSTEM OVERRIDE: HACKER MODE", "success"); } 
+                else { playSFX('click'); this.notify("SYSTEM NORMAL", "info"); }
                 this.konamiBuffer = [];
             }
         },
@@ -306,7 +283,6 @@ function zeniteSystem() {
 // ... (Código anterior mantido) ...
 
         handleLogoClick() {
-            // PONTO 10: Aumentei para 4000ms (4s) para dar tempo de clicar 5 vezes sem pressa absurda
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
@@ -316,10 +292,10 @@ function zeniteSystem() {
                 return;
             }
             
-            // O timer reseta se você parar de clicar por 4 segundos
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 1000);
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
             
-            if (!this.systemFailure) {
+            // Toggle Fullscreen normal (clicks 1-4)
+            if (!this.systemFailure) { // Só alterna se não estiver em erro
                  if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(()=>{});
                 } else if (document.exitFullscreen) {
@@ -655,17 +631,9 @@ function zeniteSystem() {
                 if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
                 if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
                 if(key === 'crtMode') this.updateVisualState();
-                if(key === 'gridEnabled') this.toggleGrid(this.settings.gridEnabled);
-                if(key === 'hackerMode') document.body.classList.toggle('theme-hacker', this.settings.hackerMode); // NOVO
             }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
-
-        toggleGrid(enable) {
-            const grid = document.querySelector('.bg-grid');
-            if(grid) grid.style.display = enable ? 'block' : 'none';
-        },
-
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
@@ -736,34 +704,7 @@ function zeniteSystem() {
         roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); },
         notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
         openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
-        initCropper(e) { 
-            const file = e.target.files[0]; 
-            if(!file) return; 
-            
-            const reader = new FileReader(); 
-            const imgEl = document.getElementById('crop-target');
-            
-            reader.onload = (evt) => { 
-                // AQUI: Define o SRC e espera o evento onload do elemento <img>
-                imgEl.src = evt.target.result; 
-                this.cropperOpen = true; 
-                
-                imgEl.onload = () => {
-                    this.$nextTick(() => { 
-                        if(this.cropperInstance) this.cropperInstance.destroy(); 
-                        this.cropperInstance = new Cropper(imgEl, { 
-                            aspectRatio: 1, 
-                            viewMode: 1 
-                        }); 
-                        // Garante que o evento não dispare de novo em futuros loads
-                        imgEl.onload = null;
-                    }); 
-                };
-
-            }; 
-            reader.readAsDataURL(file); 
-            e.target.value = ''; 
-        }, 
+        initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); e.target.value = ''; }, 
         applyCrop() { if(!this.cropperInstance) return; const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; } this.cropperOpen = false; this.notify('Foto processada.', 'success'); },
         exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
         triggerFileImport() { document.getElementById('import-file').click(); },
