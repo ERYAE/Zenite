@@ -1,97 +1,153 @@
-window.audioCtx = null;
-window.sfxEnabled = true;
+/**
+ * ZENITE OS - Audio Engine 2.0
+ * SFX de Interface + Gerador de Atmosfera Procedural (Sem arquivos pesados).
+ */
 
-// Gerenciador de Áudio Ambiente e SFX
 window.SFX = {
-    ambienceNode: null,
-    currentAmbience: null,
-    
+    ctx: null,
+    enabled: true,
+    ambienceNodes: [], // Para guardar os osciladores ativos
+    currentAmbienceType: null,
+
     init() {
-        if (!window.audioCtx) {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            window.audioCtx = new AC();
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
         }
-        if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
     },
 
-    play(type) {
-        if (!window.sfxEnabled || !window.audioCtx) return;
-        this.init();
-        const t = window.audioCtx.currentTime;
-        const osc = window.audioCtx.createOscillator();
-        const gain = window.audioCtx.createGain();
-        gain.connect(window.audioCtx.destination);
+    toggle(state) {
+        this.enabled = state;
+        if (!state) this.stopAmbience();
+        else if (this.currentAmbienceType) this.setAmbience(this.currentAmbienceType);
+    },
 
-        // Sons de Interface "High Tech" sutis
-        if (type === 'hover') {
-            // Ruído branco filtrado muito curto
-            const buffer = window.audioCtx.createBuffer(1, 22050, 44100);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < 22050; i++) data[i] = Math.random() * 0.1; // Volume baixo
-            const src = window.audioCtx.createBufferSource();
-            src.buffer = buffer;
-            const filter = window.audioCtx.createBiquadFilter();
-            filter.type = 'highpass'; filter.frequency.value = 1000;
-            src.connect(filter).connect(gain);
-            src.start(t); src.stop(t + 0.05);
-        } 
-        else if (type === 'click') {
-            osc.frequency.setValueAtTime(800, t);
-            osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
+    // --- UI SOUNDS (Interface Tech) ---
+    play(type) {
+        if (!this.enabled) return;
+        this.init();
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        gain.connect(this.ctx.destination);
+
+        if (type === 'click') {
+            // Click agudo e rápido
+            osc.frequency.setValueAtTime(1000, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
             gain.gain.setValueAtTime(0.05, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-            osc.connect(gain); osc.start(t); osc.stop(t + 0.1);
+            osc.connect(gain);
+            osc.start(t); osc.stop(t + 0.1);
+        } 
+        else if (type === 'hover') {
+            // "Sopro" digital muito sutil
+            // (Simulado com senoidal pura baixa para não pesar processamento com buffer de ruído)
+            osc.frequency.setValueAtTime(200, t);
+            gain.gain.setValueAtTime(0.02, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.05);
+            osc.connect(gain);
+            osc.start(t); osc.stop(t + 0.05);
         }
         else if (type === 'save') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, t);
-            osc.frequency.setValueAtTime(880, t + 0.1);
-            gain.gain.setValueAtTime(0.05, t);
-            gain.gain.linearRampToValueAtTime(0.001, t + 0.3);
-            osc.connect(gain); osc.start(t); osc.stop(t + 0.3);
+            // Sucesso (Acorde maior arpejado rápido)
+            this.playTone(660, t, 0.1);
+            this.playTone(880, t + 0.1, 0.2);
+        }
+        else if (type === 'error') {
+            // Erro (Grave e dissonante)
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.linearRampToValueAtTime(100, t + 0.3);
+            gain.gain.setValueAtTime(0.1, t);
+            gain.gain.linearRampToValueAtTime(0, t + 0.3);
+            osc.connect(gain);
+            osc.start(t); osc.stop(t + 0.3);
         }
     },
 
-    // Sistema de Ambiente (Drone Sintetizado)
+    playTone(freq, time, duration) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.05, time);
+        gain.gain.linearRampToValueAtTime(0, time + duration);
+        osc.start(time);
+        osc.stop(time + duration);
+    },
+
+    // --- ATMOSFERA (Ambience Engine) ---
+    stopAmbience() {
+        this.ambienceNodes.forEach(node => {
+            try { node.stop(); } catch(e){}
+        });
+        this.ambienceNodes = [];
+    },
+
     setAmbience(type) {
-        if (!window.sfxEnabled) return;
+        if (!this.enabled) {
+            this.currentAmbienceType = type;
+            return;
+        }
         this.init();
         
-        if (this.currentAmbience === type) return;
-        if (this.ambienceNode) { this.ambienceNode.stop(); this.ambienceNode = null; }
-        
-        this.currentAmbience = type;
-        if (type === 'none') return;
+        // Se já está tocando o mesmo, ignora
+        if (this.currentAmbienceType === type && this.ambienceNodes.length > 0) return;
 
-        const osc = window.audioCtx.createOscillator();
-        const gain = window.audioCtx.createGain();
-        const filter = window.audioCtx.createBiquadFilter();
+        // Transição suave: para o anterior
+        this.stopAmbience();
+        this.currentAmbienceType = type;
 
-        // Configurações por tipo de clima
-        if (type === 'rain') {
-            // Chuva é melhor com Noise Buffer, mas faremos um drone grave aqui por simplicidade
-            osc.type = 'triangle';
-            osc.frequency.value = 50; 
-            filter.type = 'lowpass'; filter.frequency.value = 200;
-            // LFO para variar volume
-        } else if (type === 'combat') {
-            osc.type = 'sawtooth';
-            osc.frequency.value = 30; // Grave tenso
-            filter.type = 'lowpass'; filter.frequency.value = 100;
-        } else {
-            // Neutral (Drone espacial)
-            osc.type = 'sine';
-            osc.frequency.value = 60;
+        if (type === 'neutral') {
+            // Espacial / Sala de Servidor (Drone Grave Constante)
+            this.createDrone(60, 'sine', 0.05);
+            this.createDrone(110, 'triangle', 0.02);
+        } 
+        else if (type === 'rain') {
+            // Chuva Cyberpunk (Pink Noise simulado com osciladores dessincronizados)
+            // É uma aproximação para não usar script processor pesado
+            this.createDrone(100, 'sawtooth', 0.01); // Vento
+            // Sons aleatórios de gotas seriam feitos no loop principal, 
+            // mas aqui deixamos apenas a "bed" sonora.
         }
-
-        gain.gain.value = 0.02; // Muito baixo, só fundo
-        osc.connect(filter).connect(gain).connect(window.audioCtx.destination);
-        osc.start();
-        this.ambienceNode = osc;
+        else if (type === 'combat') {
+            // Tensão (Pulsante)
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 40; // Muito grave
+            
+            // LFO para pulsar o volume
+            const lfo = this.ctx.createOscillator();
+            lfo.frequency.value = 2; // 2x por segundo
+            const lfoGain = this.ctx.createGain();
+            lfoGain.gain.value = 0.02; // Intensidade da pulsação
+            
+            lfo.connect(lfoGain);
+            lfoGain.connect(gain.gain);
+            
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(); lfo.start();
+            
+            this.ambienceNodes.push(osc, lfo);
+        }
     },
 
-    toggle(val) { 
-        window.sfxEnabled = val; 
-        if(!val && this.ambienceNode) { this.ambienceNode.stop(); this.ambienceNode = null; }
+    createDrone(freq, type, vol) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.value = vol;
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        this.ambienceNodes.push(osc);
     }
 };
