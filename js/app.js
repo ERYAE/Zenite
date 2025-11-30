@@ -11,106 +11,100 @@ const CONSTANTS = {
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
-    SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j'
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
 
 let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let sfxEnabledGlobal = true; // Controlled by Alpine state later
+// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO) ---
+let audioCtx = null;
+let noiseBuffer = null;
+let sfxEnabledGlobal = true;
 
-// Gera buffer de ruído branco (para sons percussivos/tech)
-const bufferSize = audioCtx.sampleRate * 2; // 2 seconds buffer
-const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-const output = noiseBuffer.getChannelData(0);
-for (let i = 0; i < bufferSize; i++) {
-    output[i] = Math.random() * 2 - 1;
-}
+// Função para iniciar o áudio apenas quando necessário
+const initAudio = () => {
+    if (audioCtx) return; // Se já iniciou, não faz nada
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+    
+    // Cria o ruído branco
+    const bufferSize = audioCtx.sampleRate * 2;
+    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+};
 
 const playSFX = (type) => {
-    if (!sfxEnabledGlobal || audioCtx.state === 'suspended') {
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-        if(!sfxEnabledGlobal) return;
-    }
+    // Tenta iniciar o áudio se ainda não existe
+    if (!audioCtx) initAudio();
+    
+    // Se estiver suspenso ou desligado, tenta retomar ou sai
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!sfxEnabledGlobal) return;
 
     const now = audioCtx.currentTime;
     const gain = audioCtx.createGain();
     gain.connect(audioCtx.destination);
 
     if (type === 'hover') {
-        // Tech "Air" Click (Noise burst with Bandpass)
         const src = audioCtx.createBufferSource();
         src.buffer = noiseBuffer;
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'bandpass';
-        filter.frequency.value = 800; // Frequency center
-        filter.Q.value = 10; // Sharp resonance
-
+        filter.frequency.value = 800;
+        filter.Q.value = 10;
         src.connect(filter);
         filter.connect(gain);
-
         gain.gain.setValueAtTime(0.05, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        src.start(now);
-        src.stop(now + 0.05);
+        src.start(now); src.stop(now + 0.05);
 
     } else if (type === 'click') {
-        // High-pitch sharp click
         const osc = audioCtx.createOscillator();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(1200, now);
         osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        
         osc.connect(gain);
         osc.start(now); osc.stop(now + 0.05);
 
     } else if (type === 'save') { 
-        // Glassy Chime (FM-like)
         const osc = audioCtx.createOscillator();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, now); // A5
+        osc.frequency.setValueAtTime(880, now);
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
         osc.connect(gain);
         osc.start(now); osc.stop(now + 0.6);
 
     } else if (type === 'discard') { 
-        // Power Down
         const osc = audioCtx.createOscillator();
         osc.type = 'sawtooth';
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
-        
         osc.frequency.setValueAtTime(100, now);
         osc.frequency.linearRampToValueAtTime(10, now + 0.3);
-        
         filter.frequency.setValueAtTime(500, now);
         filter.frequency.linearRampToValueAtTime(50, now + 0.3);
-
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-
         osc.connect(filter); filter.connect(gain);
         osc.start(now); osc.stop(now + 0.3);
 
     } else if (type === 'glitch') {
-        // Heavy Distortion
         const src = audioCtx.createBufferSource();
         src.buffer = noiseBuffer;
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
         filter.frequency.value = 400;
-        
         src.connect(filter);
         filter.connect(gain);
-        
-        gain.gain.setValueAtTime(0.8, now); // LOUD
+        gain.gain.setValueAtTime(0.8, now);
         gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
         src.start(now); src.stop(now + 2.0);
     }
@@ -354,18 +348,28 @@ function zeniteSystem() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
             
+            // Variáveis locais para a suavização
+            let trailX = 0, trailY = 0;
+
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
-                if(this.settings.mouseTrail && !this.isMobile) { isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; }
+                if(this.settings.mouseTrail && !this.isMobile) { 
+                    isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; 
+                }
             });
             
             const renderLoop = () => {
                 if (!trail) return;
                 const isAuthenticated = this.user || this.isGuest;
                 
-                // FORCE CHECK: Garante que o rastro renderize se logado
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    trail.style.display = 'block'; trail.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`; 
+                    // Matemática de suavização (LERP)
+                    trailX += (cursorX - trailX) * 0.15;
+                    trailY += (cursorY - trailY) * 0.15;
+
+                    trail.style.display = 'block'; 
+                    trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
+                    
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
                 } else { 
