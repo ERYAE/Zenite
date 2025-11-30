@@ -457,7 +457,10 @@ function zeniteSystem() {
             if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
             this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
             this.diceTrayOpen = false; this.showDiceTip = false;
-            this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; 
+            this.currentView = 'dashboard'; 
+            this.activeCharId = null; 
+            // Espera 500ms para limpar a ficha, evitando erro na animação de saída
+            setTimeout(() => { this.char = null; }, 500); 
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
 
