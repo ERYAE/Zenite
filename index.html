@@ -19,11 +19,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <link rel="stylesheet" href="css/style.css">
+    
     <script src="js/config.js"></script>
-    <script src="js/utils.js"></script> <script src="js/audio.js"></script>
+    <script src="js/utils.js"></script> 
+    <script src="js/audio.js"></script>
+    <script src="js/rpg.js"></script> <script src="js/netlink.js"></script> <script src="js/app.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 </head>
 <body x-data="zeniteSystem()" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
 
@@ -32,7 +37,6 @@
     </div>
 
     <div class="bg-grid"></div>
-
 
     <div id="system-failure" x-show="systemFailure" x-transition.opacity.duration.50ms style="display: none;">
         <div class="bsod-content">
