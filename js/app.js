@@ -152,6 +152,7 @@ function zeniteSystem() {
         // MODALS
         configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
+        setupMode: false, // NOVO: Controle de Setup Inicial
         
         // WIZARD
         wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
@@ -160,6 +161,7 @@ function zeniteSystem() {
         settings: {
             mouseTrail: true, compactMode: false, performanceMode: false, 
             crtMode: true, sfxEnabled: true, // NOVO
+            gridEnabled: true,
             themeColor: 'cyan'
         },
         
@@ -223,29 +225,31 @@ function zeniteSystem() {
                     }
                 }
 
+                // ... existing code ...
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
-                // No final do método initSystem(), antes de "this.loadingProgress = 100;"
-// ... existing code ...
+                // NOVO: Aplica o estado da grid
+                this.toggleGrid(this.settings.gridEnabled);
+                
+                sfxEnabledGlobal = this.settings.sfxEnabled;
                 this.updateVisualState();
                 
                 this.updateAgentCount();
 
-                // PONTO 14: Checar se é a primeira vez (Setup Wizard)
+                // REVISADO: Lógica de Setup Inicial com flag setupMode
                 if (!this.isGuest && this.user && !localStorage.getItem('zenite_setup_done')) {
                     setTimeout(() => {
+                        this.setupMode = true; // Ativa modo setup (muda titulo e texto)
                         this.configModal = true;
-                        this.notify("Bem-vindo, Agente. Configure seu terminal.", "info");
                         localStorage.setItem('zenite_setup_done', 'true');
-                    }, 1500);
+                    }, 1000);
                 }
 
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
-// ... existing code ...
+
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
@@ -648,6 +652,12 @@ function zeniteSystem() {
             }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
+
+        toggleGrid(enable) {
+            const grid = document.querySelector('.bg-grid');
+            if(grid) grid.style.display = enable ? 'block' : 'none';
+        },
+        
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
