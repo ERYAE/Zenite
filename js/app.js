@@ -1,6 +1,6 @@
 /**
  * ZENITE OS - Core Application
- * Version: v75.1-Koda-Fix-Build
+ * Version: v83-Im-getting-crazy
  * Changelog:
  * - Fix: Alpine Null Access (Safe navigation '?.' added in HTML)
  * - Fix: Robust Logout Sequence
@@ -18,18 +18,18 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO) ---
+/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO FINAL) ---
 let audioCtx = null;
 let noiseBuffer = null;
 let sfxEnabledGlobal = true;
+let userHasInteracted = false; // A trava de segurança
 
-// Função para iniciar o áudio apenas quando necessário
+// Inicia o áudio SOMENTE no clique
 const initAudio = () => {
-    if (audioCtx) return; // Se já iniciou, não faz nada
+    if (audioCtx) return; 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContext();
     
-    // Cria o ruído branco
     const bufferSize = audioCtx.sampleRate * 2;
     noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
@@ -38,12 +38,19 @@ const initAudio = () => {
     }
 };
 
+// Listener global para destravar o áudio
+document.addEventListener('click', () => {
+    userHasInteracted = true; // Agora pode tocar som
+    initAudio();
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}, { once: true });
+
 const playSFX = (type) => {
-    // Tenta iniciar o áudio se ainda não existe
-    if (!audioCtx) initAudio();
+    // SE O USUÁRIO AINDA NÃO CLICOU, NÃO FAZ NADA (Evita o erro do console)
+    if (!userHasInteracted || !audioCtx) return;
     
-    // Se estiver suspenso ou desligado, tenta retomar ou sai
-    if (audioCtx.state === 'suspended') audioCtx.resume();
     if (!sfxEnabledGlobal) return;
 
     const now = audioCtx.currentTime;
@@ -348,7 +355,6 @@ function zeniteSystem() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
             
-            // Variáveis locais para a suavização
             let trailX = 0, trailY = 0;
 
             document.addEventListener('mousemove', (e) => { 
@@ -363,9 +369,9 @@ function zeniteSystem() {
                 const isAuthenticated = this.user || this.isGuest;
                 
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    // Matemática de suavização (LERP)
-                    trailX += (cursorX - trailX) * 0.15;
-                    trailY += (cursorY - trailY) * 0.15;
+                    // AQUI ESTAVA 0.15, MUDEI PARA 0.45 (Mais rápido/snappy)
+                    trailX += (cursorX - trailX) * 0.45;
+                    trailY += (cursorY - trailY) * 0.45;
 
                     trail.style.display = 'block'; 
                     trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
