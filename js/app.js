@@ -453,14 +453,32 @@ function zeniteSystem() {
         attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
 
         saveAndExit(fromHistory = false) {
-            if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
-            if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
-            this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-            this.diceTrayOpen = false; this.showDiceTip = false;
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) { 
+                this.triggerShake(); 
+                return; 
+            }
+            
+            // Salva o estado atual antes de sair
+            if(this.char && this.activeCharId) { 
+                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
+                this.updateAgentCount(); 
+            } 
+            
+            this.saveLocal(); 
+            if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+            
+            // Fecha as janelas flutuantes
+            this.diceTrayOpen = false; 
+            this.showDiceTip = false;
+            
+            // Muda a tela
             this.currentView = 'dashboard'; 
-            this.activeCharId = null; 
-            // Espera 500ms para limpar a ficha, evitando erro na animação de saída
-            setTimeout(() => { this.char = null; }, 500); 
+            this.activeCharId = null;
+            
+            // IMPORTANTE: NÃO FAZEMOS MAIS "this.char = null" AQUI.
+            // Deixamos o char na memória para evitar o erro do Alpine durante a animação de saída.
+            // Ele será substituído quando carregarmos o próximo personagem.
+            
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
 
