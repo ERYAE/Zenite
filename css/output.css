@@ -596,6 +596,9 @@
   .border-collapse {
     border-collapse: collapse;
   }
+  .origin-top-right {
+    transform-origin: 100% 0;
+  }
   .translate-x-0 {
     --tw-translate-x: calc(var(--spacing) * 0);
     translate: var(--tw-translate-x) var(--tw-translate-y);

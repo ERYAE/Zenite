@@ -88,14 +88,14 @@ body.crt-mode::before {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
 }
 
-/* --- CURSOR --- */
-body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important; }
-/* Exceção para inputs e botões onde o cursor nativo é melhor para UX */
+/* APAGUE ESTE BLOCO INTEIRO PARA O MOUSE CUSTOMIZADO FUNCIONAR SEMPRE */
+/*
 body.custom-cursor-active button, 
 body.custom-cursor-active input,
 body.custom-cursor-active textarea,
 body.custom-cursor-active select,
 body.custom-cursor-active a { cursor: pointer !important; }
+*/
 
 #mouse-trail {
     pointer-events: none; position: fixed; top: 0; left: 0; z-index: 100000;

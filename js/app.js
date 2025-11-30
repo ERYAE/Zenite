@@ -268,11 +268,23 @@ function zeniteSystem() {
         handleLogoClick() {
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
+            
+            // Lógica do Clique Simples (Fullscreen)
+            if (this.logoClickCount === 1) {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+            
+            // Lógica do Segredo (5 Cliques)
             if (this.logoClickCount >= 5) {
                 this.logoClickCount = 0;
                 this.triggerSystemFailure();
                 return;
             }
+            
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
         },
 
