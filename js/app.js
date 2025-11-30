@@ -1,9 +1,8 @@
 /**
  * ZENITE OS - Core Application
- * Version: v83-Im-getting-crazy
+ * Version: v85-zerado
  * Changelog:
- * - Fix: Alpine Null Access (Safe navigation '?.' added in HTML)
- * - Fix: Robust Logout Sequence
+ * - Fix: Reading: Null
  */
 
 const CONSTANTS = {
