@@ -231,6 +231,7 @@ function zeniteSystem() {
                 sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
                 this.updateVisualState();
                 
+                this.checkOnboarding()
                 this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
                 this.loadingProgress = 100; this.loadingText = 'READY';
@@ -280,9 +281,45 @@ function zeniteSystem() {
             }
         },
 
+        // ... (outros métodos) ...
+
+        handleEsc() {
+            // Ordem de prioridade para fechar coisas (Ponto 11)
+            if (this.systemFailure) return; // Não sai do BSOD com ESC
+            if (this.confirmOpen) { this.confirmOpen = false; return; }
+            if (this.configModal) { this.configModal = false; return; }
+            if (this.wizardOpen) { this.wizardOpen = false; return; }
+            if (this.cropperOpen) { this.cropperOpen = false; return; }
+            if (this.diceTrayOpen) { this.toggleDiceTray(); return; }
+            if (this.userMenuOpen) { this.userMenuOpen = false; return; }
+            // Se estiver na ficha, tenta voltar (salva automático se configurado ou avisa)
+            if (this.currentView === 'sheet') { this.attemptGoBack(); }
+        },
+
+        checkOnboarding() {
+            // Verifica se é a primeira vez (Ponto 14)
+            if (!localStorage.getItem('zenite_setup_done') && !this.isGuest) {
+                setTimeout(() => {
+                    this.notify("Bem-vindo à Academia. Configure seu terminal.", "info");
+                    this.configModal = true;
+                    localStorage.setItem('zenite_setup_done', 'true');
+                }, 1500);
+            }
+        },
+
 // ... (Código anterior mantido) ...
 
         handleLogoClick() {
+            // Tempo reduzido de 2000ms para 800ms para exigir rapidez (Ponto 10)
+            const TIME_WINDOW = 800; 
+            
+            // Se o tempo passou, reseta o contador
+            const now = Date.now();
+            if (now - (this.lastClickTime || 0) > TIME_WINDOW) {
+                this.logoClickCount = 0;
+            }
+            this.lastClickTime = now;
+            
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
@@ -292,16 +329,10 @@ function zeniteSystem() {
                 return;
             }
             
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            // Feedback sutil a cada clique rápido
+            if(this.logoClickCount > 2) this.triggerFX('glitch');
             
-            // Toggle Fullscreen normal (clicks 1-4)
-            if (!this.systemFailure) { // Só alterna se não estiver em erro
-                 if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(()=>{});
-                } else if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, TIME_WINDOW);
         },
 
         triggerSystemFailure() {
@@ -329,6 +360,8 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
+
+
         // --- VISUAL STATE MANAGER ---
         updateVisualState() {
     const isAuthenticated = this.user || this.isGuest;
@@ -351,7 +384,7 @@ function zeniteSystem() {
     
     // SFX State
     sfxEnabledGlobal = this.settings.sfxEnabled;
-},
+        },
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
