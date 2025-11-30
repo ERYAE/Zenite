@@ -1,6 +1,8 @@
 /**
  * ZENITE OS - Core Application
- * Version: v80.0-Final-Polish
+ * Version: v85-zerado
+ * Changelog:
+ * - Fix: Reading: Null
  */
 
 const CONSTANTS = {
@@ -8,34 +10,47 @@ const CONSTANTS = {
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
-    SUPABASE_KEY: 'sb_publishable_ULe02tKpa38keGvz8bEDIw_mJJaBK6j' // Lembre-se: Use a chave 'anon public' correta do seu painel!
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
 
-// --- AUDIO ENGINE ---
+let cursorX = -100, cursorY = -100;
+let isCursorHover = false;
+let renderRafId = null;
+
+/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO FINAL) ---
 let audioCtx = null;
 let noiseBuffer = null;
 let sfxEnabledGlobal = true;
-let userHasInteracted = false;
+let userHasInteracted = false; // A trava de segurança
 
+// Inicia o áudio SOMENTE no clique
 const initAudio = () => {
-    if (audioCtx) return;
+    if (audioCtx) return; 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContext();
+    
     const bufferSize = audioCtx.sampleRate * 2;
     noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
 };
 
+// Listener global para destravar o áudio
 document.addEventListener('click', () => {
-    userHasInteracted = true;
+    userHasInteracted = true; // Agora pode tocar som
     initAudio();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
 }, { once: true });
 
 const playSFX = (type) => {
+    // SE O USUÁRIO AINDA NÃO CLICOU, NÃO FAZ NADA (Evita o erro do console)
     if (!userHasInteracted || !audioCtx) return;
-    if (!sfxEnabledGlobal && type !== 'error') return; // Erro toca mesmo sem SFX se for crítico
+    
+    if (!sfxEnabledGlobal) return;
 
     const now = audioCtx.currentTime;
     const gain = audioCtx.createGain();
@@ -45,25 +60,59 @@ const playSFX = (type) => {
         const src = audioCtx.createBufferSource();
         src.buffer = noiseBuffer;
         const filter = audioCtx.createBiquadFilter();
-        filter.type = 'bandpass'; filter.frequency.value = 800; filter.Q.value = 10;
-        src.connect(filter); filter.connect(gain);
-        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        filter.type = 'bandpass';
+        filter.frequency.value = 800;
+        filter.Q.value = 10;
+        src.connect(filter);
+        filter.connect(gain);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
         src.start(now); src.stop(now + 0.05);
+
     } else if (type === 'click') {
-        const osc = audioCtx.createOscillator(); osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.connect(gain); osc.start(now); osc.stop(now + 0.05);
-    } else if (type === 'success') {
-        const osc = audioCtx.createOscillator(); osc.type = 'sine';
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        osc.start(now); osc.stop(now + 0.05);
+
+    } else if (type === 'save') { 
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(880, now);
-        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-        osc.connect(gain); osc.start(now); osc.stop(now + 0.6);
-    } else if (type === 'error') { // Som de erro novo
-        const osc = audioCtx.createOscillator(); osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.2);
-        gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-        osc.connect(gain); osc.start(now); osc.stop(now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain);
+        osc.start(now); osc.stop(now + 0.6);
+
+    } else if (type === 'discard') { 
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.linearRampToValueAtTime(10, now + 0.3);
+        filter.frequency.setValueAtTime(500, now);
+        filter.frequency.linearRampToValueAtTime(50, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(filter); filter.connect(gain);
+        osc.start(now); osc.stop(now + 0.3);
+
+    } else if (type === 'glitch') {
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        src.connect(filter);
+        filter.connect(gain);
+        gain.gain.setValueAtTime(0.8, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
+        src.start(now); src.stop(now + 2.0);
     }
 };
 
@@ -81,12 +130,10 @@ function zeniteSystem() {
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
+        wizardNameError: false, // Controle da tremedeira
         
-        // SECRETS & ANIMATIONS
-        konamiBuffer: [], rebootBuffer: '', 
-        logoClickCount: 0, logoClickTimer: null, systemFailure: false,
-        wizardNameError: false, damageFlash: false,
-        loginTypeText: '', // Para o efeito de datilografia
+        // SECRETS
+        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
 
         // DATA
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -112,7 +159,8 @@ function zeniteSystem() {
         // CONFIGS
         settings: {
             mouseTrail: true, compactMode: false, performanceMode: false, 
-            crtMode: true, sfxEnabled: true, themeColor: 'cyan'
+            crtMode: true, sfxEnabled: true, // NOVO
+            themeColor: 'cyan'
         },
         
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
@@ -140,10 +188,8 @@ function zeniteSystem() {
 
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000); // Safety timeout
-            
-            // Typewriter Effect no Login
-            this.typewriteText("Acesso Restrito // Nível 5");
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
+            window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
@@ -155,6 +201,7 @@ function zeniteSystem() {
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 
+                // SETUP LISTENERS ESPECIAS
                 this.setupListeners(); 
                 this.setupCursorEngine(); 
                 this.setupWatchers();
@@ -169,12 +216,8 @@ function zeniteSystem() {
                             const { data: { session } } = await this.supabase.auth.getSession();
                             if (session) { this.user = session.user; this.loadingText = 'SYNCING CLOUD'; this.loadingProgress = 70; await this.fetchCloud(); }
                         } catch(e) { this.notify("Modo Offline", "warn"); }
-                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
-                            if (event === 'SIGNED_IN' && session) { 
-                                if (this.user?.id === session.user.id) return; 
-                                this.user = session.user; this.isGuest = false; localStorage.removeItem('zenite_is_guest'); await this.fetchCloud(); 
-                            } 
+                            if (event === 'SIGNED_IN' && session) { if (this.user?.id === session.user.id) return; this.user = session.user; this.isGuest = false; localStorage.removeItem('zenite_is_guest'); await this.fetchCloud(); } 
                             else if (event === 'SIGNED_OUT') { this.user = null; this.chars = {}; this.currentView = 'dashboard'; }
                         });
                     }
@@ -183,31 +226,17 @@ function zeniteSystem() {
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
+                if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                sfxEnabledGlobal = this.settings.sfxEnabled;
+                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
                 this.updateVisualState();
+                
                 this.updateAgentCount();
-                
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
-                
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
             } catch (err) { console.error("Boot Error:", err); this.notify("Erro na inicialização.", "error"); this.systemLoading = false; }
-        },
-
-        typewriteText(text) {
-            this.loginTypeText = "";
-            let i = 0;
-            const speed = 50;
-            const type = () => {
-                if (i < text.length) {
-                    this.loginTypeText += text.charAt(i);
-                    i++;
-                    setTimeout(type, speed);
-                }
-            };
-            type();
         },
 
         setupListeners() {
@@ -218,42 +247,28 @@ function zeniteSystem() {
                 if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
             });
             
-            // SFX Listeners
-            let lastHovered = null;
+            // --- SFX LISTENER INTELIGENTE (SEM SPAM) ---
+            let lastHovered = null; // Rastreador de elemento
+            
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); 
             });
+            
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest('button, a, .cursor-pointer');
-                if (target && target !== lastHovered) { playSFX('hover'); lastHovered = target; } 
-                else if (!target) { lastHovered = null; }
+                
+                // Só toca se MUDOU de elemento (Entrou num novo)
+                if (target && target !== lastHovered) {
+                    playSFX('hover');
+                    lastHovered = target;
+                } else if (!target) {
+                    lastHovered = null;
+                }
             });
         },
 
         handleKeys(e) {
             const key = e.key.toLowerCase();
-            
-            // --- MINIGAME REBOOT ---
-            if (this.systemFailure) {
-                const secretWord = "reboot";
-                this.rebootBuffer = this.rebootBuffer || "";
-                if (key.length === 1 && key.match(/[a-z]/i)) {
-                    this.rebootBuffer += key;
-                    playSFX('click');
-                }
-                if (!secretWord.startsWith(this.rebootBuffer)) {
-                    this.rebootBuffer = key === "r" ? "r" : "";
-                }
-                if (this.rebootBuffer === secretWord) {
-                    playSFX('success');
-                    this.rebootBuffer = "";
-                    this.systemFailure = false;
-                    this.notify("SYSTEM REBOOT SUCCESSFUL", "success");
-                }
-                return;
-            }
-
-            // --- KONAMI CODE ---
             const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
@@ -265,20 +280,12 @@ function zeniteSystem() {
             }
         },
 
+// ... (Código anterior mantido) ...
+
         handleLogoClick() {
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
-            // Lógica do Clique Simples (Fullscreen)
-            if (this.logoClickCount === 1) {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(()=>{});
-                } else if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
-            
-            // Lógica do Segredo (5 Cliques)
             if (this.logoClickCount >= 5) {
                 this.logoClickCount = 0;
                 this.triggerSystemFailure();
@@ -286,21 +293,70 @@ function zeniteSystem() {
             }
             
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            
+            // Toggle Fullscreen normal (clicks 1-4)
+            if (!this.systemFailure) { // Só alterna se não estiver em erro
+                 if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
         },
 
         triggerSystemFailure() {
-            playSFX('error'); 
-            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); }
+            // 1. Toca o som do terror
+            playSFX('glitch'); 
+            
+            // 2. FORÇA TELA CHEIA (O "engano" acontece aqui)
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                    console.log("Fullscreen blocked:", err);
+                });
+            }
+
+            // 3. Mostra a tela de erro
             this.systemFailure = true; 
-            this.rebootBuffer = "";
+            
+            // 4. Remove o erro depois de 5s (susto temporário)
         },
 
-        // --- CURSOR E MOVIMENTO ---
+// ... (Restante do código) ...
+
+        ensureTrayOnScreen() {
+            if(this.isMobile || this.trayDockMode !== 'float') return;
+            this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
+            this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
+        },
+
+        // --- VISUAL STATE MANAGER ---
+        updateVisualState() {
+    const isAuthenticated = this.user || this.isGuest;
+    // Verifica se deve mostrar o rastro
+    const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
+
+    // SÓ esconde o cursor padrão se o rastro estiver ativado E visível
+    if (showTrail) {
+        document.body.classList.add('custom-cursor-active');
+    } else {
+        document.body.classList.remove('custom-cursor-active');
+    }
+
+    // CRT (Pixel Effect)
+    if (isAuthenticated && this.settings.crtMode) {
+        document.body.classList.add('crt-mode');
+    } else {
+        document.body.classList.remove('crt-mode');
+    }
+    
+    // SFX State
+    sfxEnabledGlobal = this.settings.sfxEnabled;
+},
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
             
-            let trailX = 0, trailY = 0, cursorX = 0, cursorY = 0, isCursorHover = false;
+            let trailX = 0, trailY = 0;
 
             document.addEventListener('mousemove', (e) => { 
                 cursorX = e.clientX; cursorY = e.clientY;
@@ -312,20 +368,25 @@ function zeniteSystem() {
             const renderLoop = () => {
                 if (!trail) return;
                 const isAuthenticated = this.user || this.isGuest;
+                
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                    // AQUI ESTAVA 0.15, MUDEI PARA 0.45 (Mais rápido/snappy)
                     trailX += (cursorX - trailX) * 0.45;
                     trailY += (cursorY - trailY) * 0.45;
+
                     trail.style.display = 'block'; 
                     trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
+                    
                     if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
                     if(trail.style.opacity === '0') trail.style.opacity = '1';
-                } else { trail.style.display = 'none'; }
-                requestAnimationFrame(renderLoop);
+                } else { 
+                    trail.style.display = 'none'; 
+                }
+                renderRafId = requestAnimationFrame(renderLoop);
             };
             renderLoop();
         },
 
-        // --- BANDEJA DE DADOS OTIMIZADA ---
         toggleDiceTray() {
             if (this.isReverting) return;
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -338,31 +399,34 @@ function zeniteSystem() {
             this.trayDockMode = mode;
             if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
         },
-        ensureTrayOnScreen() {
-            if(this.isMobile || this.trayDockMode !== 'float') return;
-            this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
-            this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
-        },
-        
         startDragTray(e) {
             if(this.isMobile || this.trayDockMode !== 'float') return;
+            // Ignora se clicar em botões dentro da barra
             if(e.target.closest('button') || e.target.closest('input')) return;
             
+            // Pega o elemento direto pelo ID para performance máxima
             const trayEl = document.getElementById('dice-tray-window');
             if(!trayEl) return;
 
             this.isDraggingTray = true;
+            
+            // Calcula a distância inicial
             const startX = e.clientX;
             const startY = e.clientY;
             const startLeft = this.trayPosition.x;
             const startTop = this.trayPosition.y;
             
-            trayEl.style.transition = 'none'; // Remove lag
+            // Remove a transição suave durante o arrasto para não dar sensação de "elástico"
+            trayEl.style.transition = 'none';
 
             const moveHandler = (ev) => {
                 if(!this.isDraggingTray) return;
+                
+                // Matemática simples e direta
                 const dx = ev.clientX - startX;
                 const dy = ev.clientY - startY;
+                
+                // Aplica direto no CSS (Zero Lag)
                 trayEl.style.left = `${startLeft + dx}px`;
                 trayEl.style.top = `${startTop + dy}px`;
             };
@@ -372,28 +436,20 @@ function zeniteSystem() {
                 document.removeEventListener('mousemove', moveHandler);
                 document.removeEventListener('mouseup', upHandler);
                 
+                // Salva a posição final na memória do Alpine
                 const dx = ev.clientX - startX;
                 const dy = ev.clientY - startY;
                 this.trayPosition.x = startLeft + dx;
                 this.trayPosition.y = startTop + dy;
                 
+                // Devolve a transição suave para quando abrir/fechar
                 if(trayEl) trayEl.style.transition = '';
-                this.saveLocal();
+                
+                this.saveLocal(); // Salva a posição preferida
             };
 
             document.addEventListener('mousemove', moveHandler);
             document.addEventListener('mouseup', upHandler);
-        },
-
-        // --- SISTEMA ---
-        updateVisualState() {
-            const isAuthenticated = this.user || this.isGuest;
-            const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
-            if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
-            else { document.body.classList.remove('custom-cursor-active'); }
-            if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
-            else { document.body.classList.remove('crt-mode'); }
-            sfxEnabledGlobal = this.settings.sfxEnabled;
         },
 
         setupWatchers() {
@@ -407,8 +463,10 @@ function zeniteSystem() {
                 }
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
-            this.$watch('user', () => { this.updateVisualState(); });
-            this.$watch('isGuest', () => { this.updateVisualState(); });
+            
+            // Watch centralizado
+            this.$watch('user', (val) => { this.updateVisualState(); });
+            this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },
 
         loadLocal(key) {
@@ -437,17 +495,31 @@ function zeniteSystem() {
         attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
 
         saveAndExit(fromHistory = false) {
-            if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) { 
+                this.triggerShake(); 
+                return; 
+            }
+            
+            // Salva o estado atual antes de sair
             if(this.char && this.activeCharId) { 
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
                 this.updateAgentCount(); 
             } 
+            
             this.saveLocal(); 
             if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
             
-            this.diceTrayOpen = false; this.showDiceTip = false;
-            this.currentView = 'dashboard'; this.activeCharId = null; 
-            // char não é anulado aqui para evitar erros do Alpine na animação
+            // Fecha as janelas flutuantes
+            this.diceTrayOpen = false; 
+            this.showDiceTip = false;
+            
+            // Muda a tela
+            this.currentView = 'dashboard'; 
+            this.activeCharId = null;
+            
+            // IMPORTANTE: NÃO FAZEMOS MAIS "this.char = null" AQUI.
+            // Deixamos o char na memória para evitar o erro do Alpine durante a animação de saída.
+            // Ele será substituído quando carregarmos o próximo personagem.
             
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
@@ -456,7 +528,7 @@ function zeniteSystem() {
         async performRevert() {
             this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
             document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
-            playSFX('error'); 
+            playSFX('discard'); // SOM DE RECUSA
             setTimeout(async () => {
                 try {
                     if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
@@ -498,7 +570,7 @@ function zeniteSystem() {
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
                 this.unsavedChanges = false; this.saveStatus = 'success'; 
-                if(!silent) { this.notify('Salvo!', 'success'); playSFX('success'); } 
+                if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); } // SOM DE SALVAR
             } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
         
@@ -515,30 +587,41 @@ function zeniteSystem() {
             c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
         },
         modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
-        modStat(stat, val) { 
-            if(!this.char || !this.char.stats[stat]) return; 
-            const s = this.char.stats[stat]; 
-            s.current = Math.max(0, Math.min(s.max, s.current + val));
-            // Efeito visual de dano
-            if (val < 0) {
-                this.damageFlash = true;
-                setTimeout(() => this.damageFlash = false, 300);
-            }
-        },
+        modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
 
         openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardStep = 1; this.wizardPoints = 8; this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardFocusAttr = ''; history.pushState({ modal: 'wizard' }, "Wizard", "#new"); this.wizardOpen = true; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
-        
         finishWizard() {
             if(!this.wizardData.name) { 
-                this.wizardNameError = true; this.notify("Codinome obrigatório!", "warn"); playSFX('error');
-                setTimeout(() => { this.wizardNameError = false; }, 500); return; 
+                // Ativa a animação de erro
+                this.wizardNameError = true;
+                this.notify("Codinome obrigatório!", "warn");
+                playSFX('error'); // Se tiver som de erro, toca aqui
+                
+                // Desativa depois de 500ms para poder tremer de novo se clicar
+                setTimeout(() => { this.wizardNameError = false; }, 500);
+                return; 
             }
-            const id = 'z_'+Date.now(); const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
+            
+            // ... (Resto do código igual) ...
+            const id = 'z_'+Date.now(); 
+            const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
             const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
-            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal(); if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
+            
+            this.chars[id] = newChar; 
+            this.updateAgentCount(); 
+            this.saveLocal(); 
+            
+            if(!this.isGuest) { 
+                this.unsavedChanges = true; 
+                this.syncCloud(true); 
+            }
+            
+            this.wizardOpen = false; 
+            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); 
+            this.loadCharacter(id, true); 
+            this.notify('Agente Inicializado.', 'success');
         },
         
         toggleSetting(key, val=null) {
@@ -560,11 +643,29 @@ function zeniteSystem() {
         
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         
+        // FIX DO KODA: Logout mais robusto
         async logout() { 
             this.systemLoading = true; 
-            if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } 
-            localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); 
-            if(this.supabase) { try { await this.supabase.auth.signOut(); } catch(e) {} }
+            
+            // 1. Tenta sincronizar (se falhar, segue o baile)
+            if(this.unsavedChanges && !this.isGuest) { 
+                try { await this.syncCloud(true); } catch(e) { console.warn("Erro ao salvar no logout", e); } 
+            } 
+            
+            // 2. Limpa localmente PRIMEIRO (garante que o usuário "saiu" pra UI)
+            localStorage.removeItem('zenite_cached_db'); 
+            localStorage.removeItem('zenite_is_guest'); 
+            
+            // 3. Tenta chamar Supabase (com try/catch pra não travar)
+            if(this.supabase) {
+                try {
+                    await this.supabase.auth.signOut(); 
+                } catch(e) {
+                    console.error("Erro no Supabase SignOut", e);
+                }
+            }
+            
+            // 4. Reload final
             window.location.reload(); 
         },
 
