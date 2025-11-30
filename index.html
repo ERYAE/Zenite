@@ -80,7 +80,7 @@
             <div class="mb-8">
                 <img src="images/zenite_logo.svg" class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_10px_var(--neon-core)]">
                 <h1 class="text-4xl font-brand text-white mb-2 tracking-widest">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em]">NetLink Access v2.0</p>
+                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em]">NetLink Access v2.3</p>
             </div>
             <div class="space-y-4">
                 <button @click="doSocialAuth('google')" class="w-full py-3 bg-white text-black font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
@@ -241,8 +241,7 @@
             </div>
         </template>
         
-        <div x-show="currentView === 'campaign_panel' && netLink?.activeCampaign" x-transition.opacity>
-             
+        <div x-show="currentView === 'campaign_panel' && netLink && netLink.activeCampaign" x-transition.opacity>
              <div class="glass p-4 rounded-xl mb-6 border border-white/10 flex flex-wrap justify-between items-center gap-4 bg-black/80 backdrop-blur-xl sticky top-2 z-40">
                 <div class="flex items-center gap-4">
                     <button @click="currentView='dashboard'" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-arrow-left"></i></button>
@@ -272,9 +271,7 @@
              </div>
 
              <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
                 <div class="space-y-6">
-                    
                     <div x-show="netLink.isGM" class="glass p-4 rounded-xl border-l-2 border-[var(--neon-core)]">
                         <h3 class="text-xs font-bold text-[var(--neon-core)] uppercase mb-3"><i class="fa-solid fa-sliders mr-2"></i>Controle Ambiental</h3>
                         <div class="grid grid-cols-2 gap-2">
@@ -328,14 +325,12 @@
                             <template x-if="netLink.isGM">
                                 <textarea x-model="netLink.activeCampaign.data.notes" class="w-full h-full bg-transparent p-6 text-sm text-gray-300 font-mono resize-none outline-none leading-relaxed" placeholder="Escreva os logs da missão aqui..."></textarea>
                             </template>
-                            
                             <template x-if="!netLink.isGM">
                                 <div class="w-full h-full p-6 text-sm text-gray-300 font-mono whitespace-pre-wrap leading-relaxed overflow-y-auto" x-text="netLink.activeCampaign.data.notes || 'Aguardando transmissão de dados do Mestre...'"></div>
                             </template>
                         </div>
                     </div>
                 </div>
-
              </div>
         </div>
 
@@ -400,6 +395,59 @@
             </div>
         </div>
     </template>
+
+    <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-[7000]">
+        <button @click="toggleDiceTray()" class="w-14 h-14 rounded-full bg-black border border-[var(--neon-core)] text-[var(--neon-core)] shadow-[0_0_20px_var(--neon-core)] flex items-center justify-center text-2xl hover:scale-110 transition-transform">
+            <i class="fa-solid fa-dice-d20"></i>
+        </button>
+    </div>
+
+    <div x-show="configModal" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+        <div class="glass p-6 rounded-2xl w-full max-w-md relative border border-white/10">
+            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
+            <div class="space-y-3">
+                <div class="flex gap-2">
+                    <button @click="toggleSetting('themeColor','cyan')" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold text-cyan-500 hover:bg-cyan-500/20">CYAN</button>
+                    <button @click="toggleSetting('themeColor','purple')" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold text-purple-500 hover:bg-purple-500/20">ROXO</button>
+                    <button @click="toggleSetting('themeColor','gold')" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold text-yellow-500 hover:bg-yellow-500/20">GOLD</button>
+                </div>
+                <button @click="toggleSetting('sfxEnabled')" class="w-full py-3 border border-white/10 rounded text-xs font-bold" :class="settings.sfxEnabled ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500'">SFX (SOM)</button>
+                <button @click="toggleSetting('crtMode')" class="w-full py-3 border border-white/10 rounded text-xs font-bold" :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500'">EFEITO CRT</button>
+                <button @click="exportData()" class="w-full py-3 border border-blue-500/50 text-blue-400 rounded text-xs font-bold hover:bg-blue-500/10">BACKUP DADOS</button>
+                <button @click="askHardReset()" class="w-full py-3 border border-red-500/50 text-red-500 rounded text-xs font-bold hover:bg-red-500/10">RESETAR CACHE</button>
+                
+                <input type="file" id="import-file" class="hidden" accept=".json" @change="processImport($event)">
+                <button @click="triggerFileImport()" class="w-full py-3 border border-emerald-500/50 text-emerald-500 rounded text-xs font-bold hover:bg-emerald-500/10">IMPORTAR BACKUP</button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="cropperOpen" class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4">
+        <div class="w-full max-w-lg h-[70vh] flex flex-col">
+            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
+                <img id="crop-target" class="block max-w-full">
+            </div>
+            <div class="flex gap-3">
+                <input type="file" id="file-input" class="hidden" accept="image/*" @change="initCropper($event)">
+                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-white">CARREGAR</button>
+                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
+                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="confirmOpen" class="fixed inset-0 z-[11000] bg-black/95 flex items-center justify-center p-4" x-transition>
+        <div class="glass p-6 rounded-xl max-w-sm w-full text-center border border-red-500/50">
+            <i class="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
+            <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title">CONFIRMAR</h3>
+            <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc">Tem certeza?</p>
+            <div class="flex gap-3">
+                <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5 text-white">CANCELAR</button>
+                <button @click="confirmYes()" class="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold">CONFIRMAR</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

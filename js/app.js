@@ -1,9 +1,9 @@
 /**
- * ZENITE OS - Core Application v2.3 (Full Fixed)
- * Integrado com NetLink, SheetModule e GMPanel.
- * Contém todas as funções de sistema, nuvem e UI.
+ * ZENITE OS - Core Application (Unified & Fixed)
+ * Restaura funcionalidades da v75 e integra NetLink/SheetModule.
  */
 
+// Função Debounce (Essencial para performance de save)
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -14,13 +14,14 @@ function debounce(func, wait) {
 
 function zeniteSystem() {
     return {
-        // --- ESTADOS DO SISTEMA ---
+        // ============================
+        // 1. ESTADOS GERAIS (Restaurados)
+        // ============================
         systemLoading: true, 
         loadingProgress: 0, 
         loadingText: 'BOOT',
         loadingChar: false,
         
-        // --- DADOS DO USUÁRIO ---
         user: null, 
         isGuest: false,
         chars: {}, 
@@ -28,29 +29,35 @@ function zeniteSystem() {
         char: null, 
         agentCount: 0,
         
-        // --- NAVEGAÇÃO & UI ---
+        // Navegação
         currentView: 'dashboard', 
         activeTab: 'profile',
         logisticsTab: 'inventory',
         searchQuery: '',
+        
+        // UI States
         userMenuOpen: false, 
         configModal: false, 
-        wizardOpen: false,
         notifications: [],
         
-        // --- NETLINK & GM ---
+        // ============================
+        // 2. MÓDULOS NOVOS (NetLink & Sheet)
+        // ============================
+        netLink: null,
         campaigns: [],
         sheetLogic: null,
-        netLink: null,
         gmPanel: null,
         supabase: null,
         
-        // --- VARIÁVEIS GM PANEL ---
+        // Variáveis do Painel do Mestre
         gmNoteBuffer: '',
         newInitName: '', 
         newInitRoll: '',
-        
-        // --- WIDGETS (Dice, Images, Etc) ---
+
+        // ============================
+        // 3. WIDGETS ANTIGOS (Restaurados)
+        // ============================
+        // Dice Tray
         diceTrayOpen: false,
         trayDockMode: 'float',
         trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
@@ -58,62 +65,69 @@ function zeniteSystem() {
         showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
+        // Image Cropper
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        
+        // Modais de Confirmação
         confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // --- WIZARD ---
-        wizardStep: 1, wizardPoints: 8, 
+        // WIZARD (Criação de Personagem) - ESSENCIAL
+        wizardOpen: false,
+        wizardStep: 1, 
+        wizardPoints: 8, 
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, 
         wizardFocusAttr: '',
         
-        // --- SETTINGS & UX ---
+        // Configurações e Visuais
         settings: { mouseTrail: true, compactMode: false, performanceMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
         cursorX: -100, cursorY: -100, isCursorHover: false, isMobile: window.innerWidth < 768,
         
+        // Save & System
         unsavedChanges: false, isSyncing: false, saveStatus: 'idle', debouncedSaveFunc: null,
         systemFailure: false, logoClickCount: 0, logoClickTimer: null, konamiBuffer: [],
 
-        // --- GETTERS ---
+        // Getters para a UI
         get archetypes() { return window.RPG ? window.RPG.archetypes : []; },
         get filteredChars() { 
             if (!this.searchQuery) return this.chars; 
             const q = this.searchQuery.toLowerCase(); 
-            const r = {}; 
+            const result = {}; 
             Object.keys(this.chars).forEach(id => { 
                 const c = this.chars[id]; 
-                if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) r[id] = c; 
+                if ((c.name && c.name.toLowerCase().includes(q)) || (c.class && c.class.toLowerCase().includes(q))) result[id] = c; 
             }); 
-            return r; 
+            return result; 
         },
 
         // ============================
-        // INICIALIZAÇÃO
+        // INICIALIZAÇÃO DO SISTEMA
         // ============================
         async initSystem() {
-            this.loadingProgress = 20;
-            this.loadingText = 'LOADING MODULES';
+            this.loadingProgress = 10;
+            this.loadingText = 'MODULES LINK';
             
-            // 1. Inicia Módulos Lógicos
+            // 1. Instancia Módulos
             if(window.SheetModule) this.sheetLogic = window.SheetModule();
             
-            // 2. Inicia Supabase & NetLink
-            await new Promise(r => setTimeout(r, 300)); // Pequeno delay visual
+            // 2. Conecta Supabase
             if (typeof window.supabase !== 'undefined' && window.CONFIG) {
                 this.supabase = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY);
                 
+                // Instancia NetLink se existir
                 if(window.netLinkSystem) {
                     this.netLink = window.netLinkSystem(this.supabase, null);
                     this.gmPanel = window.GMPanel(this.netLink);
                 }
             }
 
+            // 3. Configurações Iniciais
             this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
             this.setupListeners();
             this.setupCursorEngine();
             this.setupWatchers();
 
-            // 3. Carrega Cache Local
-            this.loadingProgress = 60;
+            // 4. Carrega Dados Locais
+            this.loadingProgress = 50;
             this.loadingText = 'READING MEMORY';
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             
@@ -122,10 +136,8 @@ function zeniteSystem() {
                 this.loadLocal('zenite_guest_db'); 
             } else {
                 this.loadLocal('zenite_cached_db');
-                
-                // 4. Auth Check
                 if(this.supabase) {
-                    this.loadingText = 'CONNECTING...';
+                    this.loadingText = 'CLOUD SYNC';
                     const { data: { session } } = await this.supabase.auth.getSession();
                     if(session) {
                         await this.setupUser(session.user);
@@ -146,7 +158,7 @@ function zeniteSystem() {
                 }
             }
 
-            // Aplicar Temas
+            // 5. Aplica Visual
             this.applyTheme(this.settings.themeColor);
             if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
             if(this.settings.performanceMode) document.body.classList.add('performance-mode');
@@ -157,7 +169,7 @@ function zeniteSystem() {
             this.loadingText = 'SYSTEM READY';
             setTimeout(() => { this.systemLoading = false; }, 500);
             
-            // Auto-Save Loop
+            // Loop de Save
             setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, window.CONFIG ? window.CONFIG.SAVE_INTERVAL : 180000);
         },
 
@@ -174,6 +186,9 @@ function zeniteSystem() {
             await this.fetchCloud();
         },
 
+        // ============================
+        // LISTENERS E UX (Visuais)
+        // ============================
         setupListeners() {
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
             window.addEventListener('popstate', (event) => {
@@ -187,7 +202,6 @@ function zeniteSystem() {
                 this.wizardOpen = false; this.configModal = false; this.cropperOpen = false;
             });
             
-            // SFX Listeners
             let lastHovered = null;
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, .cursor-pointer') && window.SFX) window.SFX.play('click'); 
@@ -197,16 +211,13 @@ function zeniteSystem() {
                 if (target && target !== lastHovered && window.SFX) {
                     window.SFX.play('hover');
                     lastHovered = target;
-                } else if (!target) {
-                    lastHovered = null;
-                }
+                } else if (!target) lastHovered = null;
             });
         },
 
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!trail) return;
-            
             document.addEventListener('mousemove', (e) => { 
                 this.cursorX = e.clientX; 
                 this.cursorY = e.clientY;
@@ -226,87 +237,48 @@ function zeniteSystem() {
                     if (this.activeTab === 'profile') this.updateRadarChart();
                 }
             }, {deep: true});
-            
-            this.$watch('currentView', (val) => { 
-                if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } 
-            });
-            
+            this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; } });
             this.$watch('user', () => this.updateVisualState());
             this.$watch('isGuest', () => this.updateVisualState());
         },
 
         // ============================
-        // CLOUD SYNC & DATA (Restaurado!)
+        // NUVEKM E DADOS
         // ============================
         async fetchCloud() {
             if (!this.user || !this.supabase) return;
             try {
                 let { data, error } = await this.supabase.from('profiles').select('data').eq('id', this.user.id).single();
-                
-                // Se não existir perfil, cria um
                 if (error && (error.code === 'PGRST116' || error.message.includes('row'))) { 
                     await this.supabase.from('profiles').insert([{ id: this.user.id, data: { config: this.settings } }]); 
                     data = { data: { config: this.settings } }; 
                 }
-                
                 if (data && data.data) {
                     const cloudData = data.data;
-                    
-                    // Configs
-                    if(cloudData.config) { 
-                        this.settings = { ...this.settings, ...cloudData.config }; 
-                        this.applyTheme(this.settings.themeColor); 
-                    }
+                    if(cloudData.config) { this.settings = { ...this.settings, ...cloudData.config }; this.applyTheme(this.settings.themeColor); }
                     if(cloudData.hasSeenTip !== undefined) this.hasSeenDiceTip = cloudData.hasSeenTip;
                     
-                    // Merge de Personagens (Local + Cloud)
-                    let merged = { ...this.chars }; 
-                    let hasLocalOnly = false;
+                    let merged = { ...this.chars }; let hasLocalOnly = false;
+                    Object.keys(cloudData).forEach(k => { if(!['config','hasSeenTip'].includes(k)) merged[k] = cloudData[k]; });
+                    Object.keys(this.chars).forEach(localId => { if (!cloudData[localId] && localId !== 'config') { merged[localId] = this.chars[localId]; hasLocalOnly = true; } });
                     
-                    Object.keys(cloudData).forEach(k => { 
-                        if(!['config','hasSeenTip'].includes(k)) merged[k] = cloudData[k]; 
-                    });
-                    
-                    // Preserva chars locais que não estão na nuvem e marca para sync
-                    Object.keys(this.chars).forEach(localId => { 
-                        if (!cloudData[localId] && localId !== 'config') { 
-                            merged[localId] = this.chars[localId]; 
-                            hasLocalOnly = true; 
-                        } 
-                    });
-                    
-                    this.chars = merged; 
-                    this.updateAgentCount(); 
-                    this.saveLocal();
-                    
-                    if (hasLocalOnly) { 
-                        this.unsavedChanges = true; 
-                        this.syncCloud(true); 
-                    }
+                    this.chars = merged; this.updateAgentCount(); this.saveLocal();
+                    if (hasLocalOnly) { this.unsavedChanges = true; this.syncCloud(true); }
                 }
-            } catch(e) { console.error("Cloud Fetch Error:", e); }
+            } catch(e) { console.error("Cloud Error", e); }
         },
 
         async syncCloud(silent = false) {
              if (!this.user || this.isGuest || !this.unsavedChanges || this.isSyncing || !this.supabase) return;
             this.isSyncing = true; 
             if(!silent) this.notify('Sincronizando...', 'info');
-            
             try {
                 const payload = { ...this.chars, config: this.settings, hasSeenTip: this.hasSeenDiceTip };
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
-                
                 if (error) throw error;
-                
-                this.unsavedChanges = false; 
-                this.saveStatus = 'success'; 
+                this.unsavedChanges = false; this.saveStatus = 'success'; 
                 if(!silent && window.SFX) { this.notify('Salvo!', 'success'); window.SFX.play('save'); }
-            } catch (e) { 
-                this.saveStatus = 'error'; 
-                if(!silent) this.notify('Erro ao salvar.', 'error'); 
-            } finally { 
-                this.isSyncing = false; 
-            }
+            } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
 
         loadLocal(key) {
@@ -317,12 +289,11 @@ function zeniteSystem() {
                     if(parsed.config) this.settings = {...this.settings, ...parsed.config};
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                     if(parsed.hasSeenTip !== undefined) this.hasSeenDiceTip = parsed.hasSeenTip;
-                    
                     const valid = {};
                     Object.keys(parsed).forEach(k => { if(parsed[k]?.id) valid[k] = parsed[k]; });
                     this.chars = valid;
                     this.updateAgentCount();
-                } catch(e) { console.error("Local Load Error", e); }
+                } catch(e) {}
             }
         },
 
@@ -332,80 +303,14 @@ function zeniteSystem() {
         },
 
         // ============================
-        // FUNÇÕES GM PANEL (Ponte)
-        // ============================
-        gmSetAtmosphere(type) { if(this.gmPanel) this.gmPanel.setAtmosphere(type); },
-        
-        gmAddInit() { 
-            if(this.gmPanel && this.newInitName) {
-                this.gmPanel.addToInitiative(this.newInitName, this.newInitRoll);
-                this.newInitName = ''; this.newInitRoll = '';
-            }
-        },
-        gmNextTurn() { if(this.gmPanel) this.gmPanel.nextTurn(); },
-        gmRemoveInit(idx) { if(this.gmPanel) this.gmPanel.removeFromInitiative(idx); },
-        gmSaveNotes() { 
-            if(this.gmPanel && this.netLink?.activeCampaign) {
-                this.gmPanel.saveNotes(this.netLink.activeCampaign.data.notes);
-                this.notify("Notas salvas.", "success");
-            }
-        },
-
-        // ============================
-        // LÓGICA DE FICHA (Via SheetModule)
-        // ============================
-        modAttr(key, val) {
-            if(this.sheetLogic && this.char) {
-                this.char = this.sheetLogic.modAttr(this.char, key, val);
-                this.unsavedChanges = true;
-            }
-        },
-        
-        recalcDerivedStats() {
-            if(this.sheetLogic && this.char) {
-                this.char = this.sheetLogic.recalcStats(this.char);
-                if(window.UTILS) this.updateRadarChart();
-            }
-        },
-        
-        loadCharacter(id, skipPush = false) {
-            if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
-            if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-            
-            this.loadingChar = true; 
-            this.activeCharId = id; 
-            this.diceTrayOpen = false; 
-            
-            requestAnimationFrame(() => {
-                this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                if(this.sheetLogic) this.char = this.sheetLogic.recalcStats(this.char);
-                
-                // Garante integridade do objeto
-                if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
-                
-                this.currentView = 'sheet'; 
-                this.activeTab = 'profile'; 
-                
-                if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
-                
-                this.$nextTick(() => { 
-                    this.updateRadarChart(); 
-                    setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); 
-                });
-            });
-        },
-
-        // ============================
-        // WIZARD
+        // WIZARD (Criação de Char)
         // ============================
         openWizard() { 
-            if(this.agentCount >= (window.CONFIG ? window.CONFIG.MAX_AGENTS_LOCAL : 30)) return this.notify("Capacidade Máxima!", "error");
-            this.wizardStep = 1; 
-            this.wizardPoints = 8; 
+            if(this.agentCount >= 30) return this.notify("Limite atingido!", "error");
+            this.wizardStep = 1; this.wizardPoints = 8; 
             this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1,agi:-1,int:-1,von:-1,pod:-1} };
             this.wizardOpen = true; 
         },
-        
         selectArchetype(a) { 
             this.wizardData.class = a.class; 
             this.wizardData.attrs = {for:-1,agi:-1,int:-1,von:-1,pod:-1}; 
@@ -414,7 +319,6 @@ function zeniteSystem() {
             this.wizardStep = 2; 
             setTimeout(() => this.updateWizardChart(), 50); 
         },
-        
         modWizardAttr(k,v) { 
             const c = this.wizardData.attrs[k];
             const f = k === this.wizardFocusAttr; 
@@ -422,154 +326,85 @@ function zeniteSystem() {
             if(v < 0 && c > (f ? 0 : -1)) { this.wizardData.attrs[k]--; this.wizardPoints++; } 
             this.updateWizardChart(); 
         },
-        
         finishWizard() { 
             if(!this.wizardData.name) return this.notify("Nome Obrigatório!", "warn"); 
-            
             const id = 'z_'+Date.now(); 
             let nc = window.RPG.createBlankChar(id, this.wizardData);
             if(this.sheetLogic) nc = this.sheetLogic.recalcStats(nc);
-            
             this.chars[id] = nc; 
             this.updateAgentCount(); 
             this.saveLocal(); 
             if(this.user) this.syncCloud(true); 
-            
             this.wizardOpen = false; 
             this.loadCharacter(id); 
-            this.notify("Agente Inicializado!", "success"); 
+            this.notify("Criado com sucesso!", "success"); 
         },
 
         // ============================
-        // UI HELPERS
+        // FICHA (Sheet Logic)
         // ============================
-        notify(msg, type='info') { 
-            const id = Date.now(); 
-            this.notifications.push({id, message: msg, type}); 
-            setTimeout(() => this.notifications = this.notifications.filter(n => n.id !== id), 3000); 
+        loadCharacter(id, skipPush = false) {
+            if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
+            if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            
+            this.loadingChar = true; this.activeCharId = id; this.diceTrayOpen = false; 
+            requestAnimationFrame(() => {
+                this.char = JSON.parse(JSON.stringify(this.chars[id]));
+                if(this.sheetLogic) this.char = this.sheetLogic.recalcStats(this.char);
+                if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
+                
+                this.currentView = 'sheet'; this.activeTab = 'profile'; 
+                if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
+                this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
+            });
         },
-        
-        updateRadarChart() { 
-            if(!this.char || !window.UTILS) return; 
-            const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; 
-            window.UTILS.renderChart('radarChart', d); 
-        },
-        
-        updateWizardChart() {
-            if(!window.UTILS) return;
-            const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; 
-            window.UTILS.renderChart('wizChart', d, true);
-        },
-
-        // NetLink UI
-        async createCampaignUI() { 
-            const n = prompt("Nome da Campanha:"); 
-            if(n && this.netLink) { 
-                await this.netLink.createCampaign(n); 
-                this.campaigns = this.netLink.campaigns; 
-                this.notify("Campanha Criada!", "success"); 
-            } 
-        },
-        async joinCampaignUI() { 
-            const c = prompt("Código de Acesso:"); 
-            if(c && this.netLink) { 
-                await this.netLink.joinCampaign(c); 
-                this.campaigns = this.netLink.campaigns; 
-                this.notify("Acesso Concedido!", "success"); 
-            } 
-        },
-        async openCampaign(id) { 
-            if(this.netLink) { 
-                await this.netLink.enterCampaign(id); 
-                this.currentView = 'campaign_panel'; 
-            } 
-        },
-        
-        // Auth UI
-        doSocialAuth(p) { this.supabase.auth.signInWithOAuth({provider:p, options:{redirectTo:window.location.origin}}); },
-        askLogout() { this.askConfirm('SAIR?', 'Dados locais serão limpos.', 'warn', () => { localStorage.removeItem('zenite_cached_db'); this.supabase.auth.signOut(); window.location.reload(); }); },
-        enterGuest() { this.isGuest=true; this.loadLocal('zenite_guest_db'); },
-        
-        // Navigation / Save
-        attemptGoBack() { 
-            if (this.unsavedChanges && !this.isGuest) { 
-                this.triggerShake(); 
-                this.notify("Salve antes de sair!", "warn"); 
-                return; 
+        modAttr(key, val) {
+            if(this.sheetLogic && this.char) {
+                this.char = this.sheetLogic.modAttr(this.char, key, val);
+                this.unsavedChanges = true;
             }
-            this.saveAndExit(); 
         },
-        saveAndExit(fromHistory = false) {
-            if(this.char && this.activeCharId) { 
-                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
-                this.updateAgentCount(); 
-            } 
-            this.saveLocal(); 
-            if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-            
-            this.diceTrayOpen = false; 
-            this.currentView = 'dashboard'; 
-            this.activeCharId = null; 
-            this.char = null; 
-            
-            if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
-        },
-        
-        // Sheet Item Management
         modStat(s,v) { if(this.char) { const st=this.char.stats[s]; st.current=Math.max(0,Math.min(st.max,st.current+v)); } },
         addItem(cat) { if(this.sheetLogic) this.char=this.sheetLogic.addItem(this.char,cat); },
         deleteItem(cat,i,sub) { if(this.sheetLogic) this.char=this.sheetLogic.removeItem(this.char,cat,i,sub); },
-        
-        // Skills
         addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, 
         deleteSkill(idx) { this.char.skills.splice(idx,1); }, 
         setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
         addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
         deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
 
-        // Images
+        // ============================
+        // NETLINK & GM PANEL
+        // ============================
+        async createCampaignUI() { const n = prompt("Nome da Campanha:"); if(n && this.netLink) { await this.netLink.createCampaign(n); this.campaigns = this.netLink.campaigns; this.notify("Campanha Criada!", "success"); } },
+        async joinCampaignUI() { const c = prompt("Código:"); if(c && this.netLink) { await this.netLink.joinCampaign(c); this.campaigns = this.netLink.campaigns; this.notify("Acesso Concedido!", "success"); } },
+        async openCampaign(id) { if(this.netLink) { await this.netLink.enterCampaign(id); this.currentView = 'campaign_panel'; } },
+        
+        gmSetAtmosphere(type) { if(this.gmPanel) this.gmPanel.setAtmosphere(type); },
+        gmAddInit() { if(this.gmPanel && this.newInitName) { this.gmPanel.addToInitiative(this.newInitName, this.newInitRoll); this.newInitName = ''; this.newInitRoll = ''; } },
+        gmNextTurn() { if(this.gmPanel) this.gmPanel.nextTurn(); },
+        gmRemoveInit(idx) { if(this.gmPanel) this.gmPanel.removeFromInitiative(idx); },
+        gmSaveNotes() { if(this.gmPanel && this.netLink?.activeCampaign) { this.gmPanel.saveNotes(this.netLink.activeCampaign.data.notes); this.notify("Notas salvas.", "success"); } },
+
+        // ============================
+        // FERRAMENTAS & VISUAIS
+        // ============================
+        notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => this.notifications = this.notifications.filter(n => n.id !== id), 3000); },
+        updateRadarChart() { if(!this.char || !window.UTILS) return; window.UTILS.renderChart('radarChart', [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]); },
+        updateWizardChart() { if(!window.UTILS) return; window.UTILS.renderChart('wizChart', [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod], true); },
+        
         openImageEditor(ctx) { document.getElementById('file-input').click(); this.uploadContext=ctx; },
         initCropper(e) { window.UTILS.initCropper(e.target.files[0], 'crop-target', ()=>{this.cropperOpen=true; setTimeout(()=>{if(this.cropperInstance)this.cropperInstance.destroy(); this.cropperInstance=new Cropper(document.getElementById('crop-target'),{aspectRatio:1,viewMode:1});},50);}); document.getElementById('file-input').value=''; },
-        applyCrop() { 
-            const r=window.UTILS.getCroppedImage(this.cropperInstance); 
-            if(r){ if(this.uploadContext==='wizard')this.wizardData.photo=r; else this.char.photo=r; } 
-            this.cropperOpen=false; 
-            this.notify("Foto atualizada!", "success");
-        },
+        applyCrop() { const r=window.UTILS.getCroppedImage(this.cropperInstance); if(r){ if(this.uploadContext==='wizard')this.wizardData.photo=r; else this.char.photo=r; } this.cropperOpen=false; this.notify("Foto atualizada!", "success"); },
         
-        // Settings
-        toggleSetting(k,v) { 
-            if(v) { this.settings[k]=v; if(k==='themeColor') this.applyTheme(v); } 
-            else { 
-                this.settings[k]=!this.settings[k]; 
-                if(k==='sfxEnabled' && window.SFX) window.SFX.toggle(this.settings[k]); 
-                if(k==='crtMode') this.updateVisualState(); 
-            } 
-            this.saveLocal(); 
-            if(this.user) this.syncCloud(true);
-        },
+        toggleSetting(k,v) { if(v) { this.settings[k]=v; if(k==='themeColor') this.applyTheme(v); } else { this.settings[k]=!this.settings[k]; if(k==='sfxEnabled') window.SFX.toggle(this.settings[k]); if(k==='crtMode') this.updateVisualState(); } this.saveLocal(); if(this.user) this.syncCloud(true); },
         applyTheme(c) { const m={'cyan':'#0ea5e9','purple':'#d946ef','gold':'#eab308', 'red':'#ef4444'}; const h=m[c]||m['cyan']; document.documentElement.style.setProperty('--neon-core',h); },
         updateVisualState() { 
             if((this.user||this.isGuest)&&this.settings.crtMode) document.body.classList.add('crt-mode'); else document.body.classList.remove('crt-mode'); 
             if((this.user||this.isGuest)&&this.settings.mouseTrail) document.body.classList.add('custom-cursor-active'); else document.body.classList.remove('custom-cursor-active');
         },
         
-        // Misc & Export
-        exportData() { window.UTILS.exportJSON(this.chars); this.notify('Backup baixado.', 'success'); },
-        triggerFileImport() { document.getElementById('import-file').click(); },
-        processImport(e) { 
-            window.UTILS.readJSON(e.target.files[0], (d, err) => { 
-                if(err) return this.notify('Erro arquivo.', 'error'); 
-                this.chars = {...this.chars, ...d}; 
-                this.updateAgentCount(); this.saveLocal(); 
-                this.unsavedChanges = true; 
-                this.notify('Importado!', 'success'); 
-                this.configModal = false; 
-            }); 
-        },
-        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
-        
-        // Dice & Tray
+        // Dados e Bandeja
         toggleDiceTray() { this.diceTrayOpen = !this.diceTrayOpen; if(this.diceTrayOpen) { if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); } this.showDiceTip = false; this.ensureTrayOnScreen(); } },
         roll(s) { 
             if(window.SFX) window.SFX.play('click'); 
@@ -598,34 +433,27 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // Helpers
-        triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
-        askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
-        confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
+        // Export/Import
+        exportData() { window.UTILS.exportJSON(this.chars); this.notify('Backup baixado.', 'success'); },
+        triggerFileImport() { document.getElementById('import-file').click(); },
+        processImport(e) { window.UTILS.readJSON(e.target.files[0], (d, err) => { if(err) return this.notify('Erro arquivo.', 'error'); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; }); },
+        updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+
+        // Auth & Helpers
+        doSocialAuth(p) { this.supabase.auth.signInWithOAuth({provider:p, options:{redirectTo:window.location.origin}}); },
+        askLogout() { this.askConfirm('SAIR?', 'Cache local será limpo.', 'warn', () => { localStorage.removeItem('zenite_cached_db'); this.supabase.auth.signOut(); window.location.reload(); }); },
+        enterGuest() { this.isGuest=true; this.loadLocal('zenite_guest_db'); },
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
+        askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
+        confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
+        attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; } this.saveAndExit(); },
+        saveAndExit(fromHistory = false) { if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); this.diceTrayOpen = false; this.currentView = 'dashboard'; this.activeCharId = null; this.char = null; if (!fromHistory && window.location.hash === '#sheet') { history.back(); } },
         toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; },
-        performRevert() { 
-            this.loadLocal(this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'); 
-            this.loadCharacter(this.activeCharId, true); 
-            this.notify("Revertido!", "success"); 
-            this.revertConfirmMode = false;
-        },
-
-        // Common
-        handleLogoClick() { 
-            this.logoClickCount++; 
-            if(this.logoClickCount >= 5){ this.triggerSystemFailure(); } 
-            clearTimeout(this.logoClickTimer);
-            this.logoClickTimer = setTimeout(()=>this.logoClickCount=0, 2000); 
-        },
-        triggerSystemFailure() {
-            this.systemFailure=true; 
-            if(window.SFX) window.SFX.play('error');
-            setTimeout(() => { this.systemFailure = false; }, 5000);
-        },
-        handleKeys(e) { 
-            /* Konami Code Logic se necessário */ 
-        }
+        performRevert() { this.loadLocal(this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db'); this.loadCharacter(this.activeCharId, true); this.notify("Revertido!", "success"); this.revertConfirmMode = false; },
+        triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
+        
+        handleLogoClick() { this.logoClickCount++; if(this.logoClickCount >= 5){ this.systemFailure=true; if(window.SFX) window.SFX.play('error'); } clearTimeout(this.logoClickTimer); this.logoClickTimer = setTimeout(()=>this.logoClickCount=0, 2000); },
+        handleKeys(e) { if(e.key.toLowerCase()==='escape') this.diceTrayOpen = false; }
     };
 }
