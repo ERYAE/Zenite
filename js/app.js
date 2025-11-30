@@ -130,6 +130,7 @@ function zeniteSystem() {
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
+        wizardNameError: false, // Controle da tremedeira
         
         // SECRETS
         konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
@@ -400,13 +401,55 @@ function zeniteSystem() {
         },
         startDragTray(e) {
             if(this.isMobile || this.trayDockMode !== 'float') return;
+            // Ignora se clicar em botões dentro da barra
             if(e.target.closest('button') || e.target.closest('input')) return;
+            
+            // Pega o elemento direto pelo ID para performance máxima
+            const trayEl = document.getElementById('dice-tray-window');
+            if(!trayEl) return;
+
             this.isDraggingTray = true;
-            this.dragOffset.x = e.clientX - this.trayPosition.x;
-            this.dragOffset.y = e.clientY - this.trayPosition.y;
-            const moveHandler = (ev) => { if(!this.isDraggingTray) return; this.trayPosition.x = ev.clientX - this.dragOffset.x; this.trayPosition.y = ev.clientY - this.dragOffset.y; };
-            const upHandler = () => { this.isDraggingTray = false; document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler); };
-            document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
+            
+            // Calcula a distância inicial
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startLeft = this.trayPosition.x;
+            const startTop = this.trayPosition.y;
+            
+            // Remove a transição suave durante o arrasto para não dar sensação de "elástico"
+            trayEl.style.transition = 'none';
+
+            const moveHandler = (ev) => {
+                if(!this.isDraggingTray) return;
+                
+                // Matemática simples e direta
+                const dx = ev.clientX - startX;
+                const dy = ev.clientY - startY;
+                
+                // Aplica direto no CSS (Zero Lag)
+                trayEl.style.left = `${startLeft + dx}px`;
+                trayEl.style.top = `${startTop + dy}px`;
+            };
+
+            const upHandler = (ev) => {
+                this.isDraggingTray = false;
+                document.removeEventListener('mousemove', moveHandler);
+                document.removeEventListener('mouseup', upHandler);
+                
+                // Salva a posição final na memória do Alpine
+                const dx = ev.clientX - startX;
+                const dy = ev.clientY - startY;
+                this.trayPosition.x = startLeft + dx;
+                this.trayPosition.y = startTop + dy;
+                
+                // Devolve a transição suave para quando abrir/fechar
+                if(trayEl) trayEl.style.transition = '';
+                
+                this.saveLocal(); // Salva a posição preferida
+            };
+
+            document.addEventListener('mousemove', moveHandler);
+            document.addEventListener('mouseup', upHandler);
         },
 
         setupWatchers() {
@@ -550,11 +593,35 @@ function zeniteSystem() {
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
         finishWizard() {
-            if(!this.wizardData.name) { this.notify("Codinome obrigatório!", "warn"); return; }
-            const id = 'z_'+Date.now(); const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
+            if(!this.wizardData.name) { 
+                // Ativa a animação de erro
+                this.wizardNameError = true;
+                this.notify("Codinome obrigatório!", "warn");
+                playSFX('error'); // Se tiver som de erro, toca aqui
+                
+                // Desativa depois de 500ms para poder tremer de novo se clicar
+                setTimeout(() => { this.wizardNameError = false; }, 500);
+                return; 
+            }
+            
+            // ... (Resto do código igual) ...
+            const id = 'z_'+Date.now(); 
+            const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
             const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
-            this.chars[id] = newChar; this.updateAgentCount(); this.saveLocal(); if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
-            this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
+            
+            this.chars[id] = newChar; 
+            this.updateAgentCount(); 
+            this.saveLocal(); 
+            
+            if(!this.isGuest) { 
+                this.unsavedChanges = true; 
+                this.syncCloud(true); 
+            }
+            
+            this.wizardOpen = false; 
+            history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); 
+            this.loadCharacter(id, true); 
+            this.notify('Agente Inicializado.', 'success');
         },
         
         toggleSetting(key, val=null) {
