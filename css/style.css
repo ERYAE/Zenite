@@ -162,5 +162,4 @@ body.interaction-lock, body.interaction-lock * { pointer-events: none !important
 .dice-tray-opt {
     will-change: transform; /* Prepara a GPU */
     backdrop-filter: blur(10px) !important; /* Reduz um pouco o blur padrão para pesar menos */
-    -webkit-backdrop-filter: blur(10px) !important;
-}
+    -webkit-backdrop-filter: blur(10px) !important; }
