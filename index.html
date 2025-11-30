@@ -34,9 +34,23 @@
         <div class="bsod-container">
             <span class="bsod-header">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
             <div class="text-4xl font-bold mb-6 text-red-600 mt-4">FATAL_EXCEPTION_0xDEADDEAD</div>
-            <p class="text-sm mb-4">A critical error has occurred in the neural interface bridge.</p>
-            <div class="error-code-block font-code text-[10px] text-red-900">
-                *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)<br>> PRESS F5 TO REBOOT
+            <p class="text-sm mb-4">
+                A critical error has occurred in the neural interface bridge.<br>
+                The system has been halted to prevent permanent user dissociation.
+            </p>
+            <ul class="list-disc pl-5 text-xs text-red-400 mb-8 space-y-1">
+                <li>Attempting to recover shadow memory... [FAILED]</li>
+                <li>Flushing auth tokens... [DONE]</li>
+                <li>Severing connection to host... [PENDING]</li>
+            </ul>
+            <div class="mt-4 text-center font-mono text-xl animate-pulse">
+                DIGITE "REBOOT" PARA REINICIAR...
+                <br>
+                <span class="text-white bg-red-900 px-2" x-text="rebootBuffer || '_'"></span>
+            </div>
+            <div class="error-code-block font-code text-[10px] text-red-900 mt-8">
+                0x00000000 0xFFFFFFFF 0x00000000 0x00000000<br>
+                *** STOP: 0x0000007B (INACCESSIBLE_BOOT_DEVICE)
             </div>
         </div>
     </div>
@@ -68,7 +82,7 @@
             <div class="mb-8">
                 <img src="images/zenite_logo.svg" class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_10px_var(--neon-core)]">
                 <h1 class="text-4xl font-brand text-white mb-2 tracking-widest">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em]">Acesso Restrito // Nível 5</p>
+                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.2em] min-h-[1.5em]" x-text="loginTypeText"></p>
             </div>
             <div class="space-y-4">
                 <button @click="doSocialAuth('google')" :disabled="authLoading" class="w-full py-3 bg-white text-black font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors relative overflow-hidden disabled:opacity-50 cursor-pointer">
@@ -179,7 +193,7 @@
 
             <div x-show="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 <div class="lg:col-span-4 space-y-6">
-                    <div class="glass p-6 rounded-2xl text-center relative group">
+                    <div class="glass p-6 rounded-2xl text-center relative group" :class="{'flash-damage': damageFlash}">
                         <div @click="openImageEditor('sheet')" class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors">
                             <img :src="char.photo" class="w-full h-full object-cover" x-show="char.photo">
                             <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-camera text-white"></i></div>
@@ -276,14 +290,23 @@
                      <div class="glass p-6 rounded-2xl border border-white/5 flex flex-col md:flex-row items-center gap-8">
                         <div class="w-full md:w-1/2 space-y-2">
                             <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
-                                    <span class="text-xs font-bold uppercase w-24" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
-                                        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
-                                        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
-                                    </div>
+                                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5 relative group/tooltip">
+                                    <span class="text-xs font-bold uppercase w-24 cursor-help border-b border-dashed border-white/20" :class="{'text-rose-500':key=='for','text-emerald-500':key=='agi','text-cyan-500':key=='int','text-amber-500':key=='von','text-violet-500':key=='pod'}" x-text="key"></span>
+    
+                                    <div class="absolute bottom-full left-10 mb-2 w-48 p-2 bg-black border border-white/20 rounded text-[10px] text-gray-300 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 text-center shadow-xl backdrop-blur-md">
+                                    <span x-show="key=='for'">Força física e capacidade de carga.</span>
+                                    <span x-show="key=='agi'">Reflexos, destreza e velocidade.</span>
+                                    <span x-show="key=='int'">Raciocínio, memória e lógica.</span>
+                                    <span x-show="key=='von'">Resistência mental e força de vontade.</span>
+                                    <span x-show="key=='pod'">Poder sobrenatural e energia.</span>
                                 </div>
+
+    <div class="flex items-center gap-3">
+        <button @click="modAttr(key, -1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">-</button>
+        <span class="font-mono font-bold text-lg w-6 text-center" x-text="char?.attrs?.[key]"></span>
+        <button @click="modAttr(key, 1)" class="w-6 h-6 bg-black hover:bg-white/20 rounded flex items-center justify-center text-[10px]">+</button>
+    </div>
+</div>
                             </template>
                         </div>
                         <div class="w-full md:w-1/2 h-64 relative"><canvas id="radarChart"></canvas></div>
