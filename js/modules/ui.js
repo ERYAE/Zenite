@@ -13,7 +13,6 @@ export const uiLogic = {
             if(key === 'compactMode' && this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode);
             if(key === 'crtMode') this.updateVisualState();
         }
-        // Força salvamento local imediato
         this.saveLocal(); 
         if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
     },
@@ -31,7 +30,6 @@ export const uiLogic = {
     openWizard() { 
         if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); 
         this.wizardStep = 1; this.wizardPoints = 8; 
-        // Reset completo dos dados do wizard
         this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; 
         this.wizardOpen = true; 
     },
@@ -152,6 +150,7 @@ export const uiLogic = {
         const startX = e.clientX; const startY = e.clientY;
         const startLeft = this.trayPosition.x; const startTop = this.trayPosition.y;
         trayEl.style.transition = 'none';
+        
         const moveHandler = (ev) => {
             if(!this.isDraggingTray) return;
             const dx = ev.clientX - startX; const dy = ev.clientY - startY;
@@ -161,7 +160,8 @@ export const uiLogic = {
             this.isDraggingTray = false;
             document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler);
             const dx = ev.clientX - startX; const dy = ev.clientY - startY;
-            this.trayPosition.x = startLeft + dx; this.trayPosition.y = startTop + dy;
+            this.trayPosition.x = startLeft + dx; 
+            this.trayPosition.y = startTop + dy;
             if(trayEl) trayEl.style.transition = '';
             this.saveLocal(); 
         };
@@ -173,12 +173,48 @@ export const uiLogic = {
     updateRadarChart() { if(!this.char || !this.char.attrs) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
     updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
     triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
-    notify(msg, type='info') { const id = Date.now(); this.notifications.push({id, message: msg, type}); setTimeout(() => { this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); },
+    
+    // CORREÇÃO: Garante que 'notify' existe antes de usar 'push'
+    notify(msg, type='info') { 
+        const id = Date.now(); 
+        if(!this.notifications) this.notifications = []; // Segurança extra
+        this.notifications.push({id, message: msg, type}); 
+        setTimeout(() => { 
+            if(this.notifications) this.notifications = this.notifications.filter(n => n.id !== id); 
+        }, 3000); 
+    },
 
     // --- FILES & IMAGES ---
     openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
-    initCropper(e) { const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target'), { aspectRatio: 1, viewMode: 1 }); }); }; reader.readAsDataURL(file); e.target.value = ''; }, 
-    applyCrop() { if(!this.cropperInstance) return; const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } else if (this.char) { this.char.photo = result; } this.cropperOpen = false; this.notify('Foto processada.', 'success'); },
+    
+    // CORREÇÃO: Cropper.js inicialização robusta
+    initCropper(e) { 
+        const file = e.target.files[0]; 
+        if(!file) return; 
+        const reader = new FileReader(); 
+        reader.onload = (evt) => { 
+            const img = document.getElementById('crop-target');
+            if(!img) return;
+            img.src = evt.target.result; 
+            this.cropperOpen = true; 
+            
+            // Pequeno delay para garantir que o modal abriu e o elemento tem tamanho
+            setTimeout(() => { 
+                if(this.cropperInstance) this.cropperInstance.destroy(); 
+                this.cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1 }); 
+            }, 100);
+        }; 
+        reader.readAsDataURL(file); 
+        e.target.value = ''; 
+    }, 
+    applyCrop() { 
+        if(!this.cropperInstance) return; 
+        const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); 
+        if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } 
+        else if (this.char) { this.char.photo = result; } 
+        this.cropperOpen = false; 
+        this.notify('Foto processada.', 'success'); 
+    },
     exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
     triggerFileImport() { document.getElementById('import-file').click(); },
     processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); },

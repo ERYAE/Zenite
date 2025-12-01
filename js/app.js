@@ -41,53 +41,104 @@ function setupCursorEngine(systemContext) {
 // --- FUNÇÃO PRINCIPAL ---
 function zeniteSystem() {
     return {
-        // --- ESTADO INICIAL ---
-        systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
-        user: null, isGuest: false,
+        // --- ESTADO INICIAL DO SISTEMA (CORREÇÃO DOS ERROS "NOT DEFINED") ---
         
-        // UI States
-        currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
-        userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
-        wizardOpen: false, configModal: false, diceTrayOpen: false,
+        // Sistema & Loading
+        systemLoading: true, 
+        loadingProgress: 0, 
+        loadingText: 'BOOT',
+        loadingChar: false,
+        rebooting: false,
         
-        // Game Data
-        chars: {}, activeCharId: null, char: null, agentCount: 0,
-        settings: { mouseTrail: true, compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
+        // Usuário & Auth
+        user: null, 
+        isGuest: false,
+        userMenuOpen: false, 
+        authLoading: false, 
+        authMsg: '', 
+        authMsgType: '',
         
-        // --- A CORREÇÃO CRÍTICA DO WIZARD AQUI ---
+        // Navegação
+        currentView: 'dashboard', 
+        activeTab: 'profile', 
+        logisticsTab: 'inventory',
+        searchQuery: '',
+        
+        // Dados Principais
+        chars: {}, 
+        activeCharId: null, 
+        char: null, 
+        agentCount: 0,
+        
+        // Configurações
+        settings: { 
+            mouseTrail: true, 
+            compactMode: false, 
+            crtMode: true, 
+            sfxEnabled: true, 
+            themeColor: 'cyan' 
+        },
+        
+        // Wizard (Criação de Personagem)
+        wizardOpen: false,
         wizardStep: 1, 
         wizardPoints: 8, 
         wizardNameError: false,
         wizardFocusAttr: '',
         wizardData: { 
             class: '', name: '', identity: '', age: '', history: '', photo: null, 
-            attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} // A FALTA DISSO QUEBRAVA O SITE
+            attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
         },
         
-        searchQuery: '',
+        // Notificações & Modais
+        notifications: [], 
+        configModal: false,
+        confirmOpen: false,
+        confirmData: { title:'', desc:'', action:null, type:'danger' },
+        unsavedChanges: false,
+        revertConfirmMode: false,
+        isReverting: false,
+        shakeAlert: false,
+        isSyncing: false,
+        saveStatus: 'idle',
         
-        // Helpers
+        // Cropper (Imagem)
+        cropperOpen: false,
+        cropperInstance: null, 
+        uploadContext: 'char',
+        
+        // Dados & Bandeja
+        diceTrayOpen: false,
+        trayDockMode: 'float', 
+        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 }, 
+        isDraggingTray: false,
+        showDiceTip: false, 
+        hasSeenDiceTip: false,
+        diceLog: [], 
+        lastRoll: '--', 
+        lastNatural: 0, 
+        lastFaces: 20, 
+        diceMod: 0, 
+        diceReason: '',
+        
+        // Segredos & Minigame
+        konamiBuffer: [], 
+        logoClickCount: 0, 
+        logoClickTimer: null, 
+        systemFailure: false, 
+        minigameActive: false, 
+        minigameClicks: 5, 
+        minigamePos: { x: 50, y: 50 },
+        isHackerMode: false, 
+        hackerModeUnlocked: false,
+        
+        // Variável Auxiliar
+        isMobile: window.innerWidth < 768,
         supabase: null,
         debouncedSaveFunc: null,
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
-        archetypes: ARCHETYPES,
-        diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
-        notifications: [], // GARANTINDO QUE EXISTE
-        
-        // Secrets
-        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, 
-        systemFailure: false, minigameActive: false, minigameClicks: 5, minigamePos: { x: 50, y: 50 },
-        isHackerMode: false, hackerModeUnlocked: false,
-        
-        // UX
-        revertConfirmMode: false, isReverting: false, shakeAlert: false,
-        isMobile: window.innerWidth < 768,
-        cropperOpen: false, cropperInstance: null, uploadContext: 'char',
-        confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
-        showDiceTip: false, hasSeenDiceTip: false,
-        trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 }, isDraggingTray: false,
+        archetypes: ARCHETYPES, // Constante importada
 
-        // --- MERGE DOS MÓDULOS ---
+        // --- MERGE DOS MÓDULOS (Traz as funções de volta) ---
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
@@ -106,10 +157,11 @@ function zeniteSystem() {
             return result;
         },
 
-        // --- BOOT ---
+        // --- INICIALIZAÇÃO ---
         async initSystem() {
             this.loadingProgress = 10;
             
+            // Setup Supabase
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
@@ -153,14 +205,14 @@ function zeniteSystem() {
                 }
             }
 
-            // Aplicar Configs
+            // Aplicar Configs e SFX
             if(this.settings) {
                 this.applyTheme(this.settings.themeColor);
-                setSfxEnabled(this.settings.sfxEnabled);
+                setSfxEnabled(this.settings.sfxEnabled); // <--- AQUI CORRIGE O SOM
                 this.updateVisualState();
             }
 
-            // Watchers
+            // Watchers Manuais
             this.$watch('char', () => { 
                 if(!this.isGuest && this.char) { 
                     this.unsavedChanges = true; 
@@ -168,7 +220,7 @@ function zeniteSystem() {
                 } 
             });
             
-            // Watcher do SFX
+            // Watcher CRÍTICO para o SOM
             this.$watch('settings.sfxEnabled', (val) => {
                 setSfxEnabled(val);
             });
@@ -211,25 +263,26 @@ function zeniteSystem() {
         
         handleKeys(e) {
             if (e.key === 'Escape') this.handleEscKey();
-            // Lógica Konami simplificada
             const key = e.key.toLowerCase();
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > code.length) this.konamiBuffer.shift();
+            
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(code)) {
                 this.hackerModeUnlocked = true;
                 localStorage.setItem('zenite_hacker_unlocked', 'true');
-                this.notify("HACKER MODE UNLOCKED", "success");
+                if (!this.isHackerMode) this.toggleHackerMode();
+                else { playSFX('success'); this.notify("ACESSO RECONHECIDO", "success"); }
                 this.konamiBuffer = [];
             }
         }
     };
 }
 
-// --- REGISTRO GLOBAL (Para funcionar com o HTML) ---
+// --- REGISTRO GLOBAL ---
 window.zeniteSystem = zeniteSystem;
 
-// --- REGISTRO NO ALPINE (Para garantir compatibilidade de módulos) ---
+// --- GARANTIA DE CARREGAMENTO ---
 document.addEventListener('alpine:init', () => {
     Alpine.data('zeniteSystem', zeniteSystem);
 });
