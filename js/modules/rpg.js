@@ -1,55 +1,33 @@
-// Regras de Negócio do RPG (Classes, Status, Dados)
+import { playSFX } from './audio.js';
+import { calculateBaseStats } from './utils.js';
 
-export const ARCHETYPES = [
-    { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
-    { class: 'Estrategista', icon: 'fa-solid fa-chess', focus: 'int', color: 'text-cyan-500', desc: 'Análise tática e liderança.' },
-    { class: 'Infiltrador', icon: 'fa-solid fa-user-ninja', focus: 'agi', color: 'text-emerald-500', desc: 'Furtividade e precisão.' },
-    { class: 'Controlador', icon: 'fa-solid fa-hand-spock', focus: 'pod', color: 'text-violet-500', desc: 'Manipulação de energia.' },
-    { class: 'Psíquico', icon: 'fa-solid fa-brain', focus: 'von', color: 'text-amber-500', desc: 'Domínio mental.' }
-];
-
-export function calculateStats(className, levelStr, attrs) {
-    const lvl = Math.max(1, parseInt(levelStr) || 1); 
-    const get = (v) => parseInt(attrs[v] || 0);
-    const config = { 
-        'Titã':{pv:[15,4],pf:[12,2],pdf:[12,2]}, 'Estrategista':{pv:[12,2],pf:[15,4],pdf:[12,2]}, 
-        'Infiltrador':{pv:[12,2],pf:[15,4],pdf:[12,3]}, 'Controlador':{pv:[12,2],pf:[12,2],pdf:[15,4]}, 
-        'Psíquico':{pv:[12,2],pf:[13,3],pdf:[14,3]} 
-    };
-    const cfg = config[className] || config['Titã'];
-    return { 
-        pv: (cfg.pv[0]+get('for')) + ((cfg.pv[1]+get('for'))*(lvl-1)), 
-        pf: (cfg.pf[0]+get('pod')) + ((cfg.pf[1]+get('pod'))*(lvl-1)), 
-        pdf: (cfg.pdf[0]+get('von')) + ((cfg.pdf[1]+get('von'))*(lvl-1)) 
-    };
-}
-
-export function createEmptyChar() {
-    return {
-        attrs: {for:0, agi:0, int:0, von:0, pod:0},
-        stats: { pv:{current:10, max:10}, pf:{current:10, max:10}, pdf:{current:10, max:10} },
-        inventory: { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} },
-        skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' }
-    };
-}
-
-// Garante que o objeto tenha todas as propriedades necessárias (evita erros ao carregar fichas antigas)
-export function sanitizeChar(data) {
-    if (!data) return null;
-    const safe = JSON.parse(JSON.stringify(data));
-    const def = createEmptyChar();
+export const rpgLogic = {
+    recalcDerivedStats() { 
+        if(!this.char) return; 
+        if(!this.char.stats) this.char.stats = {pv:{current:0,max:0}, pf:{current:0,max:0}, pdf:{current:0,max:0}};
+        const newStats = calculateBaseStats(this.char.class, this.char.level, this.char.attrs); 
+        const c = this.char;
+        const safeStat = (stat, key) => (stat && stat[key] !== undefined) ? stat[key] : 0;
+        const diffPv = (safeStat(c.stats.pv, 'max')||newStats.pv) - safeStat(c.stats.pv, 'current'); 
+        const diffPf = (safeStat(c.stats.pf, 'max')||newStats.pf) - safeStat(c.stats.pf, 'current'); 
+        const diffPdf = (safeStat(c.stats.pdf, 'max')||newStats.pdf) - safeStat(c.stats.pdf, 'current');
+        c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); 
+        c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); 
+        c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
+    },
+    modAttr(key, val) { 
+        const c = this.char; 
+        if(!c.attrs) c.attrs = {for:0, agi:0, int:0, von:0, pod:0};
+        if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } 
+    },
+    modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
     
-    safe.attrs = { ...def.attrs, ...safe.attrs };
-    safe.stats = { ...def.stats, ...safe.stats };
-    ['pv','pf','pdf'].forEach(k => { if(!safe.stats[k]) safe.stats[k] = {current:10, max:10}; });
-    
-    if (!safe.inventory) safe.inventory = def.inventory;
-    ['weapons', 'armor', 'gear'].forEach(k => { if (!safe.inventory[k]) safe.inventory[k] = []; });
-    if(!safe.inventory.social) safe.inventory.social = { people:[], objects:[] };
-    
-    if (!safe.skills) safe.skills = [];
-    if (!safe.powers) safe.powers = def.powers;
-    if (!safe.powers.techniques) safe.powers.techniques = [];
-    
-    return safe;
-}
+    addItem(cat) { const defs = { weapons: { name: 'Arma', dmg: '1d6', range: 'C' }, armor: { name: 'Traje', def: '1', pen: '0' }, gear: { name: 'Item', desc: '', qty: 1 }, social_people: { name: 'Nome', role: 'Relação' }, social_objects: { name: 'Objeto', desc: 'Detalhes' } }; if(cat.startsWith('social_')) this.char.inventory.social[cat.split('_')[1]].push({...defs[cat]}); else this.char.inventory[cat].push({...defs[cat]}); },
+    deleteItem(cat, i, sub=null) { if(sub) this.char.inventory.social[sub].splice(i,1); else this.char.inventory[cat].splice(i,1); },
+    addSkill() { this.char.skills.push({name:'Nova Perícia', level:1}); }, 
+    deleteSkill(idx) { this.char.skills.splice(idx,1); }, 
+    setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
+    addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
+    deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
+    roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); }
+};
