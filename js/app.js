@@ -1,23 +1,19 @@
 /**
  * ZENITE OS - Core Application
- * Version: v86-stable-fixed
- * Fixes: Boot Error, Minigame, Hacker Mode, Animations
+ * Version: v87-modular-prep
+ * Structure: Monolithic file prepared for splitting
  */
 
+// --- MODULE: CONFIG & CONSTANTS ---
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    // Em produção, use variáveis de ambiente
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
 
-let cursorX = -100, cursorY = -100;
-let isCursorHover = false;
-let renderRafId = null;
-
-/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS ---
+// --- MODULE: AUDIO ENGINE ---
 let audioCtx = null;
 let noiseBuffer = null;
 let sfxEnabledGlobal = true;
@@ -136,6 +132,11 @@ const playSFX = (type) => {
     }
 };
 
+// --- MODULE: UTILS ---
+let cursorX = -100, cursorY = -100;
+let isCursorHover = false;
+let renderRafId = null;
+
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -144,16 +145,17 @@ function debounce(func, wait) {
     };
 }
 
+// --- MODULE: CORE SYSTEM (Alpine Component) ---
 function zeniteSystem() {
     return {
-        // STATES
+        // --- STATE: SYSTEM ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
         wizardNameError: false,
         rebooting: false,
         
-        // MINIGAME & SECRETS
+        // --- STATE: SECRETS & MINIGAME ---
         konamiBuffer: [], 
         logoClickCount: 0, 
         logoClickTimer: null, 
@@ -164,35 +166,32 @@ function zeniteSystem() {
         isHackerMode: false,
         hackerModeUnlocked: false,
 
-        // DATA
+        // --- STATE: DATA ---
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory', searchQuery: '',
+        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
         
-        // WIDGETS
+        // --- STATE: WIDGETS ---
         diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
-        isDraggingTray: false, dragOffset: { x: 0, y: 0 },
+        isDraggingTray: false,
         showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
-        // UX
+        // --- STATE: UX & MODALS ---
         revertConfirmMode: false, isReverting: false, shakeAlert: false,
         isMobile: window.innerWidth < 768,
-
-        // MODALS
         configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
         
-        // WIZARD
+        // --- STATE: WIZARD ---
         wizardStep: 1, wizardPoints: 8, wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }, wizardFocusAttr: '',
         
-        // CONFIGS
+        // --- STATE: CONFIGS ---
         settings: {
-            mouseTrail: true, compactMode: false, performanceMode: false, 
+            mouseTrail: true, compactMode: false, 
             crtMode: true, sfxEnabled: true,
             themeColor: 'cyan'
         },
-        
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle', supabase: null, debouncedSaveFunc: null,
 
         archetypes: [
             { class: 'Titã', icon: 'fa-solid fa-shield-halved', focus: 'for', color: 'text-rose-500', desc: 'Resiliência e força bruta.' },
@@ -215,11 +214,11 @@ function zeniteSystem() {
             return result;
         },
 
+        // --- MODULE: INIT ---
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 5000);
             
-            // ESC Key Listener
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') this.handleEscKey();
             });
@@ -284,16 +283,14 @@ function zeniteSystem() {
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
-                if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
+                // Carrega estado do Hacker Mode
                 if (localStorage.getItem('zenite_hacker_unlocked') === 'true') {
                     this.hackerModeUnlocked = true;
                 }
-                
-                // Verifica se está ativo
                 if (localStorage.getItem('zenite_hacker_mode') === 'true') {
                     this.isHackerMode = true;
-                    this.hackerModeUnlocked = true; // Garante que o botão apareça se já estiver ativo
+                    this.hackerModeUnlocked = true;
                     document.body.classList.add('theme-hacker');
                 }
 
@@ -312,8 +309,6 @@ function zeniteSystem() {
                 this.systemLoading = false; 
             }
         },
-
-        // --- FUNÇÕES DE LÓGICA E UX ---
 
         checkOnboarding() {
             if (!localStorage.getItem('zenite_setup_done')) {
@@ -378,6 +373,7 @@ function zeniteSystem() {
             return safe;
         },
 
+        // --- MODULE: INPUT & EVENTS ---
         handleEscKey() {
             if (this.systemFailure) return; 
             if (this.confirmOpen) { this.confirmOpen = false; return; }
@@ -411,15 +407,13 @@ function zeniteSystem() {
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
             
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
-                // Desbloqueia o botão permanentemente
                 this.hackerModeUnlocked = true;
                 localStorage.setItem('zenite_hacker_unlocked', 'true');
                 
-                // Ativa o modo
                 if (!this.isHackerMode) {
                     this.toggleHackerMode();
                 } else {
-                    playSFX('success'); // Apenas som se já estiver ativo
+                    playSFX('success');
                     this.notify("ACESSO RECONHECIDO", "success");
                 }
                 this.konamiBuffer = [];
@@ -430,24 +424,18 @@ function zeniteSystem() {
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
+            // 5 Cliques = Erro Fatal (Minigame)
             if (this.logoClickCount >= 5) {
                 this.logoClickCount = 0;
                 this.triggerSystemFailure();
                 return;
             }
             
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400); // 400ms para resetar, exige cliques rápidos
-            
-            if (!this.systemFailure && this.logoClickCount === 2) { 
-                 if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(()=>{});
-                } else if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
+            // Reset rápido (400ms) para exigir cliques rápidos
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400);
         },
 
-        // --- MINIGAME ---
+        // --- MODULE: MINIGAME ---
         triggerSystemFailure() {
             playSFX('glitch'); 
             this.systemFailure = true; 
@@ -478,21 +466,26 @@ function zeniteSystem() {
             }
         },
 
-        // --- RESTANTE DO SISTEMA (Manter exatamente como estava) ---
+        // --- MODULE: VISUALS ---
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
             this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
+
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
-            const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
+            const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
+            
             if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
             else { document.body.classList.remove('custom-cursor-active'); }
+            
             if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
             else { document.body.classList.remove('crt-mode'); }
+            
             sfxEnabledGlobal = this.settings.sfxEnabled;
         },
+
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
@@ -506,7 +499,7 @@ function zeniteSystem() {
             const renderLoop = () => {
                 if (!trail) return;
                 const isAuthenticated = this.user || this.isGuest;
-                if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
+                if (isAuthenticated && this.settings.mouseTrail && !this.isMobile) {
                     trailX += (cursorX - trailX) * 0.45;
                     trailY += (cursorY - trailY) * 0.45;
                     trail.style.display = 'block'; 
@@ -518,6 +511,8 @@ function zeniteSystem() {
             };
             renderLoop();
         },
+
+        // --- MODULE: DICE TRAY ---
         toggleDiceTray() {
             if (this.isReverting) return;
             this.diceTrayOpen = !this.diceTrayOpen;
@@ -554,6 +549,8 @@ function zeniteSystem() {
             };
             document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
         },
+        
+        // --- MODULE: DATA PERSISTENCE ---
         setupWatchers() {
             this.$watch('char', (val) => {
                 if (this.loadingChar || this.systemLoading || this.isReverting) return;
@@ -642,6 +639,8 @@ function zeniteSystem() {
             } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+        
+        // --- MODULE: GAME LOGIC (Stats) ---
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã'; const lvl = Math.max(1, parseInt(levelStr) || 1); const get = (v) => parseInt(attrs[v] || 0);
             const config = { 'Titã':{pv:[15,4],pf:[12,2],pdf:[12,2]}, 'Estrategista':{pv:[12,2],pf:[15,4],pdf:[12,2]}, 'Infiltrador':{pv:[12,2],pf:[15,4],pdf:[12,3]}, 'Controlador':{pv:[12,2],pf:[12,2],pdf:[15,4]}, 'Psíquico':{pv:[12,2],pf:[13,3],pdf:[14,3]} };
@@ -667,6 +666,8 @@ function zeniteSystem() {
             if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } 
         },
         modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
+        
+        // --- MODULE: WIZARD ---
         openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardStep = 1; this.wizardPoints = 8; this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardFocusAttr = ''; history.pushState({ modal: 'wizard' }, "Wizard", "#new"); this.wizardOpen = true; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
@@ -679,12 +680,13 @@ function zeniteSystem() {
             if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
             this.wizardOpen = false; history.replaceState({ view: 'sheet', id: id }, "Ficha", "#sheet"); this.loadCharacter(id, true); this.notify('Agente Inicializado.', 'success');
         },
+        
+        // --- MODULE: AUTH & USER ---
         toggleSetting(key, val=null) {
             if(val !== null) { this.settings[key] = val; if(key === 'themeColor') this.applyTheme(val); } 
             else { 
                 this.settings[key] = !this.settings[key]; 
                 if(key === 'compactMode') { if(this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode); }
-                if(key === 'performanceMode') document.body.classList.toggle('performance-mode', this.settings.performanceMode); 
                 if(key === 'crtMode') this.updateVisualState();
             }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
@@ -721,6 +723,8 @@ function zeniteSystem() {
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
+
+        // --- MODULE: ACTIONS ---
         _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
         updateRadarChart() { if(!this.char || !this.char.attrs) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
