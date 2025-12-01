@@ -1,6 +1,6 @@
 /**
  * ZENITE OS - Core Application
- * Version: vFinal-Stable-Phoenix
+ * Version: vFinal-Procedural-Engine
  */
 
 const CONSTANTS = {
@@ -14,10 +14,12 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-// --- VELVET AUDIO ENGINE (Sons de Interface Suaves) ---
+// --- PROCEDURAL AUDIO ENGINE (Sintetizador Tático) ---
 let audioCtx = null;
 let sfxEnabledGlobal = true;
 let userHasInteracted = false;
+let musicInterval = null;
+let musicPlaying = false;
 let sequenceBuffer = ''; 
 
 const initAudio = () => {
@@ -32,20 +34,23 @@ document.addEventListener('click', () => {
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); 
 }, { once: true });
 
+// Sintetizador de SFX (Mais "Tech", menos "Veludo")
 const playTone = (freq, type, duration, vol = 0.1) => {
     if (!userHasInteracted || !audioCtx || !sfxEnabledGlobal) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     const filter = audioCtx.createBiquadFilter();
 
-    osc.type = 'sine'; 
+    osc.type = type; 
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
     
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+    // Filtro Bandpass para som mais "digital" e focado
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    filter.Q.value = 1.0; 
 
     gain.gain.setValueAtTime(0, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.02); 
+    gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01); 
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration); 
 
     osc.connect(filter);
@@ -53,47 +58,106 @@ const playTone = (freq, type, duration, vol = 0.1) => {
     gain.connect(audioCtx.destination);
 
     osc.start();
-    osc.stop(audioCtx.currentTime + duration + 0.1);
+    osc.stop(audioCtx.currentTime + duration + 0.05);
+};
+
+// Gerador de Música Procedural (Dark Synth / Ambient)
+const synthEngine = {
+    step: 0,
+    baseFreq: 110, // Lá (A2)
+    scale: [0, 3, 5, 7, 10, 12], // Escala Menor Pentatônica
+    playNote: function() {
+        if (!audioCtx || !musicPlaying) return;
+        const now = audioCtx.currentTime;
+        
+        // Bass (Toca a cada 4 passos)
+        if (this.step % 4 === 0) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            // Muda a nota base aleatoriamente na escala
+            const note = this.scale[Math.floor(Math.random() * 3)]; 
+            const freq = this.baseFreq * Math.pow(2, (note - 12) / 12);
+            osc.frequency.setValueAtTime(freq, now);
+            
+            // Filtro Lowpass abrindo e fechando
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(200, now);
+            filter.frequency.linearRampToValueAtTime(600, now + 0.1);
+            filter.frequency.linearRampToValueAtTime(200, now + 0.4);
+
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 1);
+        }
+
+        // Arpejo (Toca sempre, agudo)
+        if (Math.random() > 0.3) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            const note = this.scale[Math.floor(Math.random() * this.scale.length)];
+            const freq = this.baseFreq * 2 * Math.pow(2, note / 12); // Oitava acima
+            osc.frequency.setValueAtTime(freq, now);
+            
+            gain.gain.setValueAtTime(0.03, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+
+        this.step++;
+    },
+    start: function() {
+        if (musicInterval) clearInterval(musicInterval);
+        musicInterval = setInterval(() => this.playNote(), 250); // 240 BPM (fast tick)
+    },
+    stop: function() {
+        if (musicInterval) clearInterval(musicInterval);
+    }
 };
 
 const playSFX = (type) => {
     if (!userHasInteracted) return;
-    if (type === 'hover') playTone(600, 'sine', 0.05, 0.02); 
-    else if (type === 'click') playTone(400, 'sine', 0.1, 0.05);
-    else if (type === 'save') { playTone(300, 'sine', 0.2, 0.05); setTimeout(() => playTone(450, 'sine', 0.2, 0.05), 100); }
-    else if (type === 'error') playTone(150, 'triangle', 0.3, 0.05);
-    else if (type === 'success') { playTone(500, 'sine', 0.3, 0.05); setTimeout(() => playTone(800, 'sine', 0.4, 0.03), 150); }
-    else if (type === 'glitch') playTone(100, 'sawtooth', 0.1, 0.02);
+    // Ajuste para sons mais "Tech/Militar"
+    if (type === 'hover') playTone(800, 'triangle', 0.02, 0.01); // Curto e agudo
+    else if (type === 'click') playTone(300, 'square', 0.05, 0.05); // "Click" mecânico
+    else if (type === 'save') { playTone(440, 'square', 0.1, 0.05); setTimeout(() => playTone(880, 'square', 0.2, 0.05), 100); } // Confirmação
+    else if (type === 'error') { playTone(100, 'sawtooth', 0.2, 0.1); setTimeout(() => playTone(80, 'sawtooth', 0.2, 0.1), 100); } // Erro grave
+    else if (type === 'success') { playTone(600, 'sine', 0.1, 0.05); setTimeout(() => playTone(1200, 'sine', 0.3, 0.03), 100); }
+    else if (type === 'glitch') playTone(Math.random()*500, 'sawtooth', 0.05, 0.05);
 };
 
 function debounce(func, wait) { let timeout; return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); }; }
 
 function zeniteSystem() {
     return {
-        // --- ESTADOS DO SISTEMA ---
+        // --- ESTADOS ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
         wizardNameError: false,
         
-        // --- MODAIS & UX ---
+        // --- UX ---
         configModal: false, wizardOpen: false, cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         confirmOpen: false, confirmData: { title:'', desc:'', action:null, type:'danger' },
-        isOnboarding: false, 
-        hackerMode: false,   
+        isOnboarding: false, hackerMode: false,   
         
-        // --- PLAYER DE MÚSICA ---
-        musicPlayerOpen: false, isPlaying: false, currentTrackIdx: 0,
-        audioElement: null, 
-        playlist: [
-            { title: "NEON PATROL", artist: "System", url: "https://files.freemusicarchive.org/storage-rec/tracks/d43f07be8c89b8849b28292c3a505b22b10a2f5a?filename=Starfucker%20-%20Mystery.mp3" },
-            { title: "DATA STREAM", artist: "Core", url: "https://files.freemusicarchive.org/storage-rec/tracks/s3r9r6r8r6n2s9s0r6c2x8r8s7r7t2t8r8r8r2r3b8x2r6c3/Podington_Bear_-_Light_and_Motion.mp3" },
-            { title: "SYSTEM SHOCK", artist: "Protocol", url: "https://files.freemusicarchive.org/storage-rec/tracks/l5s0m4j7m4k4o4s9o7t8n5h4n3k6l9h5/Podington_Bear_-_Density.mp3" }
-        ],
+        // --- GERADOR DE MÚSICA ---
+        musicPlayerOpen: false, isPlaying: false,
+        currentTrackName: "PROCEDURAL_CORE_V1", // Nome fixo da engine
         
         // --- SEGREDOS ---
-        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false, rebooting: false,
-        rebootSequence: '----',
+        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false, rebooting: false, rebootSequence: '----',
         
         // --- DADOS ---
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -147,11 +211,8 @@ function zeniteSystem() {
             return presets;
         },
 
-        // --- INICIALIZAÇÃO ---
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            
-            // Carrega configs
             const savedConfig = localStorage.getItem('zenite_cached_db');
             if (savedConfig) {
                 try {
@@ -164,38 +225,24 @@ function zeniteSystem() {
                 } catch(e) {}
             }
 
-            // Configura Player
-            this.audioElement = new Audio();
-            this.audioElement.crossOrigin = "anonymous"; 
-            this.audioElement.volume = 0.5; 
-            this.audioElement.onended = () => { this.nextTrack(true); };
-            if(this.playlist.length > 0) this.audioElement.src = this.playlist[0].url;
-
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
             window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
-                
-                // Supabase Seguro
                 if (typeof window.supabase !== 'undefined') {
                     try {
                         this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                             auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                         });
                     } catch (supaErr) {
-                        console.warn("Supabase offline.");
                         this.supabase = null;
                     }
                 }
                 
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
-                
-                this.setupListeners(); 
-                this.setupCursorEngine(); 
-                this.setupWatchers();
-
+                this.setupListeners(); this.setupCursorEngine(); this.setupWatchers();
                 this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -205,13 +252,10 @@ function zeniteSystem() {
                 } else {
                     this.loadLocal('zenite_cached_db');
                     if(this.supabase) {
-                        const { data: { session } } = await this.supabase.auth.getSession();
-                        if (session) { 
-                            this.user = session.user; 
-                            this.loadingText = 'SYNCING CLOUD'; 
-                            this.loadingProgress = 70; 
-                            await this.fetchCloud(); 
-                        }
+                        try {
+                            const { data: { session } } = await this.supabase.auth.getSession();
+                            if (session) { this.user = session.user; this.loadingText = 'SYNCING CLOUD'; this.loadingProgress = 70; await this.fetchCloud(); }
+                        } catch(e) {}
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) { 
                                 if (this.user?.id === session.user.id) return; 
@@ -240,84 +284,53 @@ function zeniteSystem() {
 
                 this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
-                
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
             } catch (err) { 
-                console.error("Boot Error:", err); 
+                console.error("Critical Boot Error:", err); 
                 this.systemLoading = false; 
-                this.notify("Erro fatal no boot. Reiniciando interface.", "error");
+                this.notify("Erro de sistema. Modo offline.", "error");
             }
         },
 
-        // --- MÉTODOS RESTAURADOS (CRUCIAIS) ---
+        // --- LOGIC CORE (FUNÇÕES RESTAURADAS) ---
         updateVisualState() {
             const isAuthenticated = this.user || this.isGuest;
             const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
-            
-            // Lógica Correta do Cursor
-            if (showTrail && !this.systemFailure) {
-                document.body.classList.add('custom-cursor-active');
-            } else {
-                document.body.classList.remove('custom-cursor-active');
-            }
-
-            if (isAuthenticated && this.settings.crtMode) document.body.classList.add('crt-mode'); 
-            else document.body.classList.remove('crt-mode');
-            
+            if (showTrail && !this.systemFailure) document.body.classList.add('custom-cursor-active');
+            else document.body.classList.remove('custom-cursor-active');
+            if (isAuthenticated && this.settings.crtMode) document.body.classList.add('crt-mode'); else document.body.classList.remove('crt-mode');
             sfxEnabledGlobal = this.settings.sfxEnabled;
         },
 
-        askLogout() { 
-            this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); 
-        },
-
+        askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         async logout() { 
             this.systemLoading = true; 
             if(this.unsavedChanges && !this.isGuest) { try { await this.syncCloud(true); } catch(e) {} } 
-            localStorage.removeItem('zenite_cached_db'); 
-            localStorage.removeItem('zenite_is_guest'); 
+            localStorage.removeItem('zenite_cached_db'); localStorage.removeItem('zenite_is_guest'); 
             if(this.supabase) { try { await this.supabase.auth.signOut(); } catch(e) {} }
             window.location.reload(); 
         },
 
-        // --- PLAYER DE MÚSICA ---
+        // --- ENGINE DE MÚSICA PROCEDURAL ---
         toggleMusic() {
-            if (!this.audioElement) return;
+            this.isPlaying = !this.isPlaying;
+            musicPlaying = this.isPlaying;
             if (this.isPlaying) {
-                this.audioElement.pause();
-                this.isPlaying = false;
+                synthEngine.start();
+                this.notify("Gerando Trilha Sonora...", "info");
             } else {
-                // Tratamento de erro de fonte vazia
-                if (!this.audioElement.src || this.audioElement.src === '' || this.audioElement.src === window.location.href) {
-                   this.loadTrack(this.currentTrackIdx);
-                }
-                const playPromise = this.audioElement.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        this.isPlaying = true;
-                        this.notify(`Tocando: ${this.playlist[this.currentTrackIdx].title}`, 'info');
-                    }).catch(e => {
-                        console.warn("Playback blocked:", e);
-                        this.notify("Clique na página para permitir áudio.", "warn");
-                        this.isPlaying = false;
-                    });
-                }
+                synthEngine.stop();
+                this.notify("Áudio Pausado.", "info");
             }
         },
-        loadTrack(index) {
-            if(index < 0 || index >= this.playlist.length) return;
-            this.currentTrackIdx = index;
-            this.audioElement.src = this.playlist[index].url;
-            this.audioElement.load();
-        },
-        nextTrack(fromEnd = false) {
-            const next = (this.currentTrackIdx + 1) % this.playlist.length;
-            this.loadTrack(next);
-            if(this.isPlaying || fromEnd) {
-                 // Pequeno delay para garantir carregamento
-                 setTimeout(() => this.toggleMusic(), 100); 
+        nextTrack() {
+            // Como é procedural, "next track" apenas muda a semente (reinicia a engine)
+            if (this.isPlaying) {
+                synthEngine.stop();
+                setTimeout(() => synthEngine.start(), 100);
+                this.notify("Recalibrando Frequências...", "info");
             }
         },
 
@@ -327,41 +340,28 @@ function zeniteSystem() {
             const now = Date.now();
             if (now - (this.lastClickTime || 0) > TIME_WINDOW) this.logoClickCount = 0;
             this.lastClickTime = now;
-            
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             playSFX('click');
-
             const logo = document.querySelector('header img');
-            if(logo) {
-                logo.style.filter = `drop-shadow(0 0 ${this.logoClickCount * 5}px var(--neon-core))`;
-                setTimeout(() => logo.style.filter = '', 200);
-            }
-
-            if (this.logoClickCount >= 5) {
-                this.logoClickCount = 0;
-                this.triggerSystemFailure();
-                return;
-            }
+            if(logo) { logo.style.filter = `drop-shadow(0 0 ${this.logoClickCount * 5}px var(--neon-core))`; setTimeout(() => logo.style.filter = '', 200); }
+            if (this.logoClickCount >= 5) { this.logoClickCount = 0; this.triggerSystemFailure(); return; }
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, TIME_WINDOW);
         },
-
         triggerSystemFailure() {
             playSFX('glitch'); 
             if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(() => {}); }
             this.systemFailure = true; 
-            this.updateVisualState(); // Remove cursor
+            this.updateVisualState(); 
             this.generateRebootSequence(); 
             sequenceBuffer = ''; 
         },
-
         generateRebootSequence() {
             const chars = "ABCDEF0123456789";
             let seq = "";
             for(let i=0; i<4; i++) seq += chars.charAt(Math.floor(Math.random() * chars.length));
             this.rebootSequence = seq;
         },
-
         rebootSystem() {
             if (this.rebooting) return;
             this.rebooting = true;
@@ -369,30 +369,23 @@ function zeniteSystem() {
             setTimeout(() => {
                 this.systemFailure = false; this.rebooting = false;
                 if (document.fullscreenElement) document.exitFullscreen().catch(e => {});
-                this.updateVisualState(); // Restaura cursor
+                this.updateVisualState();
                 this.notify("SISTEMA REINICIADO", "success");
             }, 800);
         },
-
         handleKeys(e) {
             const key = e.key.toUpperCase();
-            // Minigame
             if (this.systemFailure) {
                 if (key.length === 1 && /[A-Z0-9]/.test(key)) {
                     sequenceBuffer += key;
                     if (!this.rebootSequence.startsWith(sequenceBuffer)) {
                          sequenceBuffer = key === this.rebootSequence[0] ? key : ''; 
                          if(sequenceBuffer === '') playSFX('error');
-                    } else {
-                        playSFX('click');
-                    }
-                    if (sequenceBuffer === this.rebootSequence) {
-                        this.rebootSystem();
-                    }
+                    } else { playSFX('click'); }
+                    if (sequenceBuffer === this.rebootSequence) { this.rebootSystem(); }
                 }
                 return;
             }
-            // Konami
             const kKey = e.key.toLowerCase();
             this.konamiBuffer.push(kKey);
             if (this.konamiBuffer.length > 10) this.konamiBuffer.shift();
@@ -402,14 +395,82 @@ function zeniteSystem() {
             }
         },
 
-        // --- FUNÇÕES AUXILIARES GERAIS ---
+        // --- FUNÇÕES DE SALVAMENTO E NAVEGAÇÃO (RESTAURADAS!) ---
+        attemptGoBack() {
+             if (this.unsavedChanges && !this.isGuest) { 
+                 this.triggerShake(); 
+                 this.notify("Salve ou descarte antes de sair.", "warn"); 
+                 return; 
+             } 
+             this.saveAndExit(); 
+        },
+        
+        saveAndExit(fromHistory = false) {
+            if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
+            if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
+            this.saveLocal(); 
+            if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+            this.diceTrayOpen = false; 
+            this.showDiceTip = false; 
+            this.currentView = 'dashboard'; 
+            this.activeCharId = null;
+            this.char = null; // Limpa referência para evitar conflitos
+            if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
+        },
+
+        performRevert() {
+            this.isReverting = true; 
+            this.diceTrayOpen = false; 
+            this.revertConfirmMode = false;
+            document.body.classList.add('animating-out'); 
+            document.body.classList.add('interaction-lock'); 
+            playSFX('error'); // Som de descarte
+            
+            setTimeout(async () => {
+                try {
+                    // Recarrega do cache ou nuvem
+                    if(this.isGuest) { 
+                        this.loadLocal('zenite_guest_db'); 
+                    } else { 
+                        this.loadLocal('zenite_cached_db'); 
+                        await this.fetchCloud(); 
+                    }
+                    
+                    // Restaura o char ativo
+                    if(this.activeCharId && this.chars[this.activeCharId]) { 
+                        this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId])); 
+                    } else { 
+                        this.currentView = 'dashboard'; 
+                        this.char = null; 
+                    }
+                    
+                    this.unsavedChanges = false;
+                    document.body.classList.remove('animating-out'); 
+                    document.body.classList.add('animating-in'); 
+                    this.notify('Dados restaurados.', 'success');
+                    
+                    setTimeout(() => { 
+                        document.body.classList.remove('animating-in'); 
+                        document.body.classList.remove('interaction-lock'); 
+                        this.isReverting = false; 
+                    }, 400);
+                } catch (e) { 
+                    this.notify("Erro na restauração.", "error"); 
+                    document.body.classList.remove('animating-out'); 
+                    document.body.classList.remove('interaction-lock'); 
+                    this.isReverting = false; 
+                }
+            }, 300);
+        },
+
+        // --- OUTRAS FUNÇÕES ---
         completeOnboarding() { localStorage.setItem('zenite_setup_done', 'true'); this.isOnboarding = false; this.configModal = false; playSFX('success'); },
         toggleHackerMode() { this.hackerMode = !this.hackerMode; document.body.classList.toggle('theme-hacker', this.hackerMode); playSFX(this.hackerMode ? 'success' : 'click'); },
         
         handleEsc() {
             if (this.systemFailure) return; 
             if (this.confirmOpen) { this.confirmOpen = false; return; }
-            if (this.cropperOpen) { this.cropperOpen = false; return; }
+            if (this.cropperOpen) { this.cropperOpen = false; document.body.classList.remove('custom-cursor-active'); return; }
             if (this.configModal) { if(this.isOnboarding) return; this.configModal = false; return; }
             if (this.wizardOpen) { this.wizardOpen = false; return; }
             if (this.diceTrayOpen) { this.toggleDiceTray(); return; }
@@ -481,8 +542,6 @@ function zeniteSystem() {
             this.wizardOpen = false;
             this.loadCharacter(id);
         },
-        loadCharacter(id) { this.activeCharId = id; this.char = JSON.parse(JSON.stringify(this.chars[id])); this.currentView = 'sheet'; },
-        attemptGoBack() { this.saveAndExit(); },
         askDeleteChar(id) { this.askConfirm("DELETAR?", "Irreversível.", "danger", () => { delete this.chars[id]; this.saveLocal(); this.updateAgentCount(); }); },
         askSwitchToOnline() { window.location.reload(); },
         enterGuest() { this.isGuest = true; this.loadLocal('zenite_guest_db'); },
@@ -511,6 +570,7 @@ function zeniteSystem() {
             if(f) { const r = new FileReader(); r.onload = (evt) => { document.getElementById('crop-target').src = evt.target.result; this.cropperOpen = true; this.$nextTick(() => { if(this.cropperInstance) this.cropperInstance.destroy(); this.cropperInstance = new Cropper(document.getElementById('crop-target')); }); }; r.readAsDataURL(f); } 
         },
         applyCrop() { 
+            if(!this.cropperInstance) return;
             const data = this.cropperInstance.getCroppedCanvas().toDataURL(); 
             if(this.uploadContext==='wizard') this.wizardData.photo = data; else if(this.char) this.char.photo = data; 
             this.cropperOpen = false; 
@@ -537,7 +597,7 @@ function zeniteSystem() {
             if(ctx.chart) ctx.chart.destroy();
             ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data, backgroundColor: 'rgba(14,165,233,0.2)', borderColor: '#0ea5e9', borderWidth: 2 }] }, options: { scales: { r: { min:-1, max: isWiz?4:6, ticks:{display:false} } }, plugins: { legend: { display: false } } } });
         },
-        updateRadarChart() { this._renderChart('radarChart', [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod], false); },
+        updateRadarChart() { if(this.char) this._renderChart('radarChart', [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod], false); },
         updateWizardChart() { this._renderChart('wizChart', [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod], true); },
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
         toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; }
