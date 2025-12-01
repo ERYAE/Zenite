@@ -2058,9 +2058,19 @@
       opacity: 50%;
     }
   }
+  .md\:right-auto {
+    @media (width >= 48rem) {
+      right: auto;
+    }
+  }
   .md\:bottom-12 {
     @media (width >= 48rem) {
       bottom: calc(var(--spacing) * 12);
+    }
+  }
+  .md\:left-0 {
+    @media (width >= 48rem) {
+      left: calc(var(--spacing) * 0);
     }
   }
   .md\:col-span-2 {
@@ -2096,6 +2106,11 @@
   .md\:w-auto {
     @media (width >= 48rem) {
       width: auto;
+    }
+  }
+  .md\:origin-top-left {
+    @media (width >= 48rem) {
+      transform-origin: 0 0;
     }
   }
   .md\:grid-cols-2 {
