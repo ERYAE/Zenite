@@ -1,147 +1,141 @@
 let audioCtx = null;
-let userHasInteracted = false;
 let isSfxEnabled = true;
 
-export const setSfxEnabled = (enabled) => {
-    isSfxEnabled = enabled;
-    if (!enabled && audioCtx && audioCtx.state === 'running') audioCtx.suspend();
-    else if (enabled && audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-};
-
-export const initAudio = () => {
-    if (audioCtx) return; 
+// Inicializa o contexto de áudio com interação do usuário
+const initAudio = () => {
+    if (audioCtx) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContext();
 };
 
-// Inicializa no primeiro clique
-document.addEventListener('click', () => {
-    if (!userHasInteracted) {
-        userHasInteracted = true;
-        initAudio();
-        if (audioCtx && audioCtx.state === 'suspended' && isSfxEnabled) audioCtx.resume();
+export const setSfxEnabled = (enabled) => {
+    isSfxEnabled = enabled;
+    if (audioCtx) {
+        enabled ? audioCtx.resume() : audioCtx.suspend();
     }
-}, { once: true });
+};
 
-/* --- SINTETIZADORES --- */
-
-// Som Mecânico/Aveludado (Modo Normal)
-const playMechanical = (freqStart, duration) => {
+// Sintetizador de Cliques de UI (Estilo macOS/iOS)
+const playUiClick = (isHacker) => {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
+    
+    // Oscilador principal
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     const filter = audioCtx.createBiquadFilter();
 
-    osc.type = 'triangle'; // Menos estridente que sine puro
-    
-    // Filtro Lowpass para tirar o "brilho" digital irritante
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1000, t);
-    filter.frequency.exponentialRampToValueAtTime(100, t + duration);
+    // Configuração "Glassy/Premium" (Modo Normal)
+    if (!isHacker) {
+        osc.type = 'sine'; // Onda senoidal pura (suave)
+        
+        // Envelope de Pitch (Queda rápida de tom imita impacto físico)
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.08);
+        
+        // Filtro LowPass para tirar o "brilho" digital excessivo
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(3000, t);
 
-    // Envelope de volume (Click curto e seco)
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.15, t + 0.005); // Ataque ultra-rápido
-    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+        // Envelope de Volume (Muito curto e percussivo)
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.3, t + 0.001); // Ataque instantâneo
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08); // Decay rápido
+    } 
+    // Configuração "Glitch/Data" (Modo Hacker)
+    else {
+        osc.type = 'sawtooth'; // Onda dente de serra (áspera)
+        
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.linearRampToValueAtTime(50, t + 0.1);
+        
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(1000, t);
+        filter.frequency.linearRampToValueAtTime(100, t + 0.1);
 
-    // Pitch Drop (Simula peso físico)
-    osc.frequency.setValueAtTime(freqStart, t);
-    osc.frequency.exponentialRampToValueAtTime(freqStart * 0.5, t + duration);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    }
 
+    // Conexões: Oscilador -> Filtro -> Ganho -> Saída
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(audioCtx.destination);
 
     osc.start(t);
-    osc.stop(t + duration + 0.05);
+    osc.stop(t + 0.1);
 };
 
-// Som Glitch/Digital (Modo Hacker)
-const playGlitch = (freq, type, duration) => {
+// Sintetizador de Hover (Sutil e "Arejado")
+const playHover = (isHacker) => {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'triangle';
+    // Frequência muito grave para dar apenas "peso"
+    osc.frequency.setValueAtTime(isHacker ? 80 : 50, t);
+    
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.05, t + 0.01);
+    gain.gain.linearRampToValueAtTime(0, t + 0.04); // Muito curto
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.05);
+};
+
+// Sons de Sucesso e Erro (Acordes simples)
+const playTone = (freq, type, duration) => {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    const bitCrush = audioCtx.createScriptProcessor(4096, 1, 1); // Simulação simples de distorção
-
-    osc.type = type; // square ou sawtooth
+    
+    osc.type = type;
     osc.frequency.setValueAtTime(freq, t);
     
-    // Pequena modulação aleatória de frequência
-    if(Math.random() > 0.5) osc.frequency.linearRampToValueAtTime(freq + 100, t + 0.05);
-
     gain.gain.setValueAtTime(0.1, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-
+    
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    
     osc.start(t);
-    osc.stop(t + duration + 0.05);
-};
-
-// Gerador de Ruído (Hover)
-const playNoise = (isHacker) => {
-    if (!audioCtx) return;
-    const t = audioCtx.currentTime;
-    const bufferSize = audioCtx.sampleRate * 0.1; // 0.1s
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-    }
-
-    const noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter();
-    const gain = audioCtx.createGain();
-
-    if(isHacker) {
-        filter.type = 'highpass';
-        filter.frequency.value = 3000; // Chiado agudo
-        gain.gain.setValueAtTime(0.05, t);
-    } else {
-        filter.type = 'lowpass';
-        filter.frequency.value = 400; // Sopro grave suave
-        gain.gain.setValueAtTime(0.02, t);
-    }
-    gain.gain.linearRampToValueAtTime(0, t + 0.05);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    noise.start(t);
+    osc.stop(t + duration);
 };
 
 export const playSFX = (type) => {
-    if (!userHasInteracted || !audioCtx || !isSfxEnabled) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioCtx) initAudio(); // Tenta iniciar se ainda não foi
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+    if (!isSfxEnabled || !audioCtx) return;
 
     const isHacker = document.body.classList.contains('theme-hacker');
 
     try {
-        if (type === 'hover') {
-            playNoise(isHacker);
-        } 
-        else if (type === 'click') {
-            if (isHacker) playGlitch(150, 'square', 0.1);
-            else playMechanical(300, 0.08); // "Thock" satisfatório
-        } 
-        else if (type === 'success' || type === 'save') {
-            if (isHacker) {
-                setTimeout(() => playGlitch(880, 'square', 0.1), 0);
-                setTimeout(() => playGlitch(1760, 'square', 0.1), 100);
-            } else {
-                playMechanical(440, 0.2); // Acorde suave
-                setTimeout(() => playMechanical(554, 0.2), 50);
-                setTimeout(() => playMechanical(659, 0.2), 100);
-            }
-        } 
-        else if (type === 'error' || type === 'glitch') {
-            playGlitch(100, 'sawtooth', 0.3);
-            playGlitch(50, 'square', 0.3);
+        switch (type) {
+            case 'click':
+                playUiClick(isHacker);
+                break;
+            case 'hover':
+                playHover(isHacker);
+                break;
+            case 'success':
+            case 'save':
+                // Acorde Maior Suave
+                playTone(440, 'sine', 0.3); // La
+                setTimeout(() => playTone(554, 'sine', 0.4), 50); // Do#
+                break;
+            case 'error':
+            case 'discard':
+                // Tom dissonante
+                playTone(150, 'sawtooth', 0.2);
+                setTimeout(() => playTone(142, 'sawtooth', 0.2), 20);
+                break;
         }
-    } catch(e) { console.error(e); }
+    } catch (e) {
+        console.warn('Audio Error:', e);
+    }
 };

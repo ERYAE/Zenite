@@ -84,48 +84,62 @@ body.crt-mode::before {
 }
 
 
-//* --- CURSOR --- */
-/* Força cursor none no HTML se o body tiver a classe */
+/* --- CURSOR --- */
+/* Força bruta: Remove cursor de TUDO quando a classe está ativa */
 html:has(body.custom-cursor-active),
 body.custom-cursor-active,
-body.custom-cursor-active * {
+body.custom-cursor-active a,
+body.custom-cursor-active button,
+body.custom-cursor-active input,
+body.custom-cursor-active select,
+body.custom-cursor-active textarea,
+body.custom-cursor-active .cursor-pointer {
     cursor: none !important;
 }
 
 #mouse-trail {
-    pointer-events: none; 
-    position: fixed; 
-    top: 0; left: 0; 
-    z-index: 999999; /* Z-Index máximo */
-    width: 20px; height: 20px; 
-    margin-top: -10px; margin-left: -10px; 
+    pointer-events: none;
+    position: fixed;
+    top: 0; left: 0;
+    z-index: 2147483647; /* Máximo Z-Index possível */
+    width: 18px; height: 18px; /* Levemente menor para mais precisão */
+    margin-top: -9px; margin-left: -9px;
     border-radius: 50%;
-    border: 1px solid var(--neon-core); 
-    background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
-    box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.5); 
+    border: 1.5px solid var(--neon-core); /* Borda um pouco mais grossa */
+    background: radial-gradient(circle, rgba(var(--neon-rgb), 0.1), transparent 80%);
+    box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.6);
     will-change: transform;
-    transform: translate3d(-100px, -100px, 0); 
+    transform: translate3d(-100px, -100px, 0);
     mix-blend-mode: screen;
-    transition: width 0.3s var(--ease-smooth), height 0.3s var(--ease-smooth);
+    transition: width 0.15s ease-out, height 0.15s ease-out; /* Transição mais rápida */
 }
 
-#mouse-trail::after { 
-    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-    width: 4px; height: 4px; background-color: white; border-radius: 50%; box-shadow: 0 0 4px var(--neon-core); 
+/* Ponto central para precisão */
+#mouse-trail::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px; height: 4px;
+    background-color: white;
+    border-radius: 50%;
+    box-shadow: 0 0 4px var(--neon-core);
 }
 
-#mouse-trail.hover-active { 
-    width: 50px; height: 50px; 
-    margin-top: -25px; margin-left: -25px; 
-    background: rgba(var(--neon-rgb), 0.1); 
-    border-color: rgba(255, 255, 255, 0.8); 
-    mix-blend-mode: normal; 
+#mouse-trail.hover-active {
+    width: 40px; height: 40px; /* Expansão mais controlada */
+    margin-top: -20px; margin-left: -20px;
+    background: rgba(var(--neon-rgb), 0.15);
+    border-color: rgba(255, 255, 255, 0.9);
 }
 
-/* Reabilita cursor em touch devices */
-@media (pointer: coarse) { 
-    #mouse-trail { display: none !important; } 
-    html:has(body.custom-cursor-active), body.custom-cursor-active, body.custom-cursor-active * { cursor: auto !important; } 
+/* Reabilita o cursor nativo em dispositivos touch */
+@media (pointer: coarse) {
+    #mouse-trail { display: none !important; }
+    html:has(body.custom-cursor-active) *, 
+    body.custom-cursor-active * { 
+        cursor: auto !important; 
+    }
 }
 
 /* --- COMPACT MODE --- */
