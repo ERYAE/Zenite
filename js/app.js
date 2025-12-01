@@ -162,6 +162,7 @@ function zeniteSystem() {
         minigameClicks: 5,
         minigamePos: { x: 50, y: 50 },
         isHackerMode: false,
+        hackerModeUnlocked: false,
 
         // DATA
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -285,8 +286,14 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
+                if (localStorage.getItem('zenite_hacker_unlocked') === 'true') {
+                    this.hackerModeUnlocked = true;
+                }
+                
+                // Verifica se está ativo
                 if (localStorage.getItem('zenite_hacker_mode') === 'true') {
                     this.isHackerMode = true;
+                    this.hackerModeUnlocked = true; // Garante que o botão apareça se já estiver ativo
                     document.body.classList.add('theme-hacker');
                 }
 
@@ -402,8 +409,19 @@ function zeniteSystem() {
             const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
+            
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
-                this.toggleHackerMode();
+                // Desbloqueia o botão permanentemente
+                this.hackerModeUnlocked = true;
+                localStorage.setItem('zenite_hacker_unlocked', 'true');
+                
+                // Ativa o modo
+                if (!this.isHackerMode) {
+                    this.toggleHackerMode();
+                } else {
+                    playSFX('success'); // Apenas som se já estiver ativo
+                    this.notify("ACESSO RECONHECIDO", "success");
+                }
                 this.konamiBuffer = [];
             }
         },

@@ -589,14 +589,14 @@
                 
                 <div class="border-t border-white/10 my-4"></div>
                 
-                <button @click="toggleHackerMode()" class="w-full py-3 border border-green-500/30 text-green-500 font-bold rounded-lg text-xs hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2 mb-3">
-                    <i class="fa-solid fa-terminal"></i> <span x-text="isHackerMode ? 'DESATIVAR HACKER MODE' : 'ATIVAR HACKER MODE'"></span>
+                <button x-show="hackerModeUnlocked" @click="toggleHackerMode()" class="w-full py-3 border border-green-500/30 text-green-500 font-bold rounded-lg text-xs hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2 mb-3" x-transition>
+                <i class="fa-solid fa-terminal"></i> <span x-text="isHackerMode ? 'DESATIVAR HACKER MODE' : 'ATIVAR HACKER MODE'"></span>
                 </button>
 
                 <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors">LIMPAR CACHE LOCAL</button>
                 
                 <div class="text-[9px] text-gray-600 text-center mt-6 font-code">
-                    <p>ZENITE OS v2.0 // HERO ACADEMY DATABASE</p>
+                    <p>ZENITE OS // HERO DATABASE</p>
                     <p class="mt-1 opacity-50">Desenvolvido com assistência de Inteligência Artificial.</p>
                 </div>
             </div>
