@@ -3,7 +3,7 @@ import { CONSTANTS, ARCHETYPES } from './config.js';
 import { sanitizeChar, calculateBaseStats } from './utils.js';
 
 export const uiLogic = {
-    // --- AUTH & SETTINGS ---
+    // ... (Mantenha toggleSetting e applyTheme iguais) ...
     toggleSetting(key, val=null) {
         if(val !== null) { 
             this.settings[key] = val; 
@@ -26,7 +26,7 @@ export const uiLogic = {
         const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
     },
 
-    // --- WIZARD ---
+    // ... (Mantenha Wizard igual) ...
     openWizard() { 
         if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); 
         this.wizardStep = 1; this.wizardPoints = 8; 
@@ -71,7 +71,6 @@ export const uiLogic = {
         this.notify('Agente Inicializado.', 'success');
     },
 
-    // --- NAVIGATION & UX ---
     loadCharacter(id, skipPush = false) {
         if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
         if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
@@ -90,119 +89,144 @@ export const uiLogic = {
     confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
     
     toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
+    
+    // --- REVERT CORRIGIDO ---
     async performRevert() {
-        this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
-        document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
+        this.isReverting = true; // Bloqueia o watcher
+        this.diceTrayOpen = false; 
+        this.revertConfirmMode = false;
+        
+        document.body.classList.add('animating-out'); 
+        document.body.classList.add('interaction-lock');
         playSFX('discard'); 
+        
         setTimeout(async () => {
             try {
-                if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
-                if(this.activeCharId && this.chars[this.activeCharId]) { this.char = sanitizeChar(this.chars[this.activeCharId]); } else { this.currentView = 'dashboard'; this.char = null; }
+                if(this.isGuest) { 
+                    this.loadLocal('zenite_guest_db'); 
+                } else { 
+                    this.loadLocal('zenite_cached_db'); 
+                    await this.fetchCloud(); 
+                }
+                
+                if(this.activeCharId && this.chars[this.activeCharId]) { 
+                    this.char = sanitizeChar(this.chars[this.activeCharId]); 
+                } else { 
+                    this.currentView = 'dashboard'; 
+                    this.char = null; 
+                }
+                
+                // Reset crucial
                 this.unsavedChanges = false;
-                document.body.classList.remove('animating-out'); document.body.classList.add('animating-in');
+                
+                document.body.classList.remove('animating-out'); 
+                document.body.classList.add('animating-in');
                 this.notify('Dados restaurados.', 'success');
-                setTimeout(() => { document.body.classList.remove('animating-in'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }, 400);
-            } catch (e) { console.error("Revert Error:", e); this.notify("Erro na restauração.", "error"); document.body.classList.remove('animating-out'); document.body.classList.remove('interaction-lock'); this.isReverting = false; }
+                
+                setTimeout(() => { 
+                    document.body.classList.remove('animating-in'); 
+                    document.body.classList.remove('interaction-lock'); 
+                    
+                    // Libera o watcher e sai se necessário
+                    this.isReverting = false; 
+                    this.unsavedChanges = false;
+                    
+                }, 400);
+                
+            } catch (e) { 
+                console.error("Revert Error:", e); 
+                this.notify("Erro na restauração.", "error"); 
+                document.body.classList.remove('animating-out'); 
+                document.body.classList.remove('interaction-lock'); 
+                this.isReverting = false; 
+            }
         }, 300);
     },
+    
     triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
     attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
+    
     saveAndExit(fromHistory = false) {
         if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
         if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
-        this.saveLocal(); if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
-        this.diceTrayOpen = false; this.showDiceTip = false; this.currentView = 'dashboard'; this.activeCharId = null;
+        this.saveLocal(); 
+        if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+        
+        this.diceTrayOpen = false; 
+        this.showDiceTip = false; 
+        this.currentView = 'dashboard'; 
+        this.activeCharId = null;
+        
         if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
     },
 
-    // --- VISUAL WIDGETS & UI ---
+    // --- VISUAL WIDGETS ---
     ensureTrayOnScreen() {
         if(this.isMobile || this.trayDockMode !== 'float') return;
         this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
         this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
     },
-    updateVisualState() {
-        const isAuthenticated = this.user || this.isGuest;
-        const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
-        if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
-        else { document.body.classList.remove('custom-cursor-active'); }
-        if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
-        else { document.body.classList.remove('crt-mode'); }
-    },
-    toggleDiceTray() {
-        if (this.isReverting) return;
-        this.diceTrayOpen = !this.diceTrayOpen;
-        if(this.diceTrayOpen) {
-            if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); }
-            this.showDiceTip = false; this.ensureTrayOnScreen();
-        }
-    },
-    setDockMode(mode) {
-        this.trayDockMode = mode;
-        if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
-    },
-    startDragTray(e) {
-        if(this.isMobile || this.trayDockMode !== 'float') return;
-        if(e.target.closest('button') || e.target.closest('input')) return;
-        const trayEl = document.getElementById('dice-tray-window');
-        if(!trayEl) return;
-        this.isDraggingTray = true;
-        const startX = e.clientX; const startY = e.clientY;
-        const startLeft = this.trayPosition.x; const startTop = this.trayPosition.y;
-        trayEl.style.transition = 'none';
-        
-        const moveHandler = (ev) => {
-            if(!this.isDraggingTray) return;
-            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
-            trayEl.style.left = `${startLeft + dx}px`; trayEl.style.top = `${startTop + dy}px`;
-        };
-        const upHandler = (ev) => {
-            this.isDraggingTray = false;
-            document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler);
-            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
-            this.trayPosition.x = startLeft + dx; 
-            this.trayPosition.y = startTop + dy;
-            if(trayEl) trayEl.style.transition = '';
-            this.saveLocal(); 
-        };
-        document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
+    
+    // AQUI ESTÁ A CORREÇÃO DO FULLSCREEN NA TELA DE ERRO
+    triggerSystemFailure() { 
+        playSFX('glitch'); 
+        this.systemFailure = true; 
+        this.minigameActive = false;
+        // Forçar Fullscreen
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) { elem.requestFullscreen().catch(() => {}); }
     },
     
-    // --- CHARTS & NOTIFICATIONS ---
+    startMinigame() { this.minigameActive = true; this.minigameClicks = 5; this.moveMinigameTarget(); },
+    moveMinigameTarget() { this.minigamePos.x = Math.floor(Math.random() * 80) + 10; this.minigamePos.y = Math.floor(Math.random() * 80) + 10; },
+    
+    // CORREÇÃO: Minigame levando de volta para dashboard
+    hitMinigame() {
+        playSFX('click');
+        this.minigameClicks--;
+        if (this.minigameClicks <= 0) {
+            playSFX('success');
+            this.notify("SISTEMA RESTAURADO", "success");
+            this.systemFailure = false;
+            this.minigameActive = false;
+            
+            // Sai do fullscreen ao terminar
+            if (document.exitFullscreen) { document.exitFullscreen().catch(() => {}); }
+            
+            // Garante que voltamos ao normal
+            this.rebooting = true;
+            setTimeout(() => { this.rebooting = false; }, 1000);
+        } else {
+            this.moveMinigameTarget();
+        }
+    },
+
+    // Resto das funções mantidas (Chart, Cropper, etc)
     _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
     updateRadarChart() { if(!this.char || !this.char.attrs) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
     updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
     triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
-    
-    // CORREÇÃO: Garante que 'notify' existe antes de usar 'push'
     notify(msg, type='info') { 
         const id = Date.now(); 
-        if(!this.notifications) this.notifications = []; // Segurança extra
+        if(!this.notifications) this.notifications = [];
         this.notifications.push({id, message: msg, type}); 
-        setTimeout(() => { 
-            if(this.notifications) this.notifications = this.notifications.filter(n => n.id !== id); 
-        }, 3000); 
+        setTimeout(() => { if(this.notifications) this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); 
     },
 
-    // --- FILES & IMAGES ---
     openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
-    
-    // CORREÇÃO: Cropper.js inicialização robusta
     initCropper(e) { 
         const file = e.target.files[0]; 
         if(!file) return; 
         const reader = new FileReader(); 
         reader.onload = (evt) => { 
             const img = document.getElementById('crop-target');
-            if(!img) return;
+            if(!img) return; 
             img.src = evt.target.result; 
             this.cropperOpen = true; 
-            
-            // Pequeno delay para garantir que o modal abriu e o elemento tem tamanho
             setTimeout(() => { 
                 if(this.cropperInstance) this.cropperInstance.destroy(); 
                 this.cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1 }); 
-            }, 100);
+            }, 150);
         }; 
         reader.readAsDataURL(file); 
         e.target.value = ''; 
@@ -219,7 +243,6 @@ export const uiLogic = {
     triggerFileImport() { document.getElementById('import-file').click(); },
     processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); },
 
-    // --- INPUTS & SECRETS ---
     handleEscKey() {
         if (this.systemFailure) return; 
         if (this.confirmOpen) { this.confirmOpen = false; return; }
@@ -254,19 +277,49 @@ export const uiLogic = {
         }
         this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400);
     },
-    triggerSystemFailure() { playSFX('glitch'); this.systemFailure = true; this.minigameActive = false; },
-    startMinigame() { this.minigameActive = true; this.minigameClicks = 5; this.moveMinigameTarget(); },
-    moveMinigameTarget() { this.minigamePos.x = Math.floor(Math.random() * 80) + 10; this.minigamePos.y = Math.floor(Math.random() * 80) + 10; },
-    hitMinigame() {
-        playSFX('click');
-        this.minigameClicks--;
-        if (this.minigameClicks <= 0) {
-            playSFX('success');
-            this.notify("SISTEMA RESTAURADO", "success");
-            this.systemFailure = false;
-            this.minigameActive = false;
-        } else {
-            this.moveMinigameTarget();
+    // ... (As outras funções de UI permanecem aqui se você já as tinha, ou copie do bloco anterior se preferir manter tudo junto)
+    updateVisualState() {
+        const isAuthenticated = this.user || this.isGuest;
+        const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
+        if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
+        else { document.body.classList.remove('custom-cursor-active'); }
+        if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
+        else { document.body.classList.remove('crt-mode'); }
+    },
+    toggleDiceTray() {
+        if (this.isReverting) return;
+        this.diceTrayOpen = !this.diceTrayOpen;
+        if(this.diceTrayOpen) {
+            if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); }
+            this.showDiceTip = false; this.ensureTrayOnScreen();
         }
+    },
+    setDockMode(mode) {
+        this.trayDockMode = mode;
+        if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
+    },
+    startDragTray(e) {
+        if(this.isMobile || this.trayDockMode !== 'float') return;
+        if(e.target.closest('button') || e.target.closest('input')) return;
+        const trayEl = document.getElementById('dice-tray-window');
+        if(!trayEl) return;
+        this.isDraggingTray = true;
+        const startX = e.clientX; const startY = e.clientY;
+        const startLeft = this.trayPosition.x; const startTop = this.trayPosition.y;
+        trayEl.style.transition = 'none';
+        const moveHandler = (ev) => {
+            if(!this.isDraggingTray) return;
+            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+            trayEl.style.left = `${startLeft + dx}px`; trayEl.style.top = `${startTop + dy}px`;
+        };
+        const upHandler = (ev) => {
+            this.isDraggingTray = false;
+            document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler);
+            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
+            this.trayPosition.x = startLeft + dx; this.trayPosition.y = startTop + dy;
+            if(trayEl) trayEl.style.transition = '';
+            this.saveLocal(); 
+        };
+        document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
     }
 };
