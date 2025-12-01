@@ -84,31 +84,21 @@ body.crt-mode::before {
 }
 
 
-/* --- CURSOR --- */
-body.custom-cursor-active {
-    cursor: none !important;
-}
-
-/* Força o desaparecimento em TODOS os elementos quando a classe está ativa */
-body.custom-cursor-active *,
-body.custom-cursor-active a,
-body.custom-cursor-active button,
-body.custom-cursor-active input,
-body.custom-cursor-active textarea,
-body.custom-cursor-active .cursor-pointer {
+//* --- CURSOR --- */
+/* Força cursor none no HTML se o body tiver a classe */
+html:has(body.custom-cursor-active),
+body.custom-cursor-active,
+body.custom-cursor-active * {
     cursor: none !important;
 }
 
 #mouse-trail {
     pointer-events: none; 
     position: fixed; 
-    top: 0; 
-    left: 0; 
-    z-index: 100000;
-    width: 20px; 
-    height: 20px; 
-    margin-top: -10px; 
-    margin-left: -10px; 
+    top: 0; left: 0; 
+    z-index: 999999; /* Z-Index máximo */
+    width: 20px; height: 20px; 
+    margin-top: -10px; margin-left: -10px; 
     border-radius: 50%;
     border: 1px solid var(--neon-core); 
     background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
@@ -116,37 +106,26 @@ body.custom-cursor-active .cursor-pointer {
     will-change: transform;
     transform: translate3d(-100px, -100px, 0); 
     mix-blend-mode: screen;
-    transition: width 0.3s var(--ease-smooth), height 0.3s var(--ease-smooth), margin 0.3s var(--ease-smooth);
+    transition: width 0.3s var(--ease-smooth), height 0.3s var(--ease-smooth);
 }
 
 #mouse-trail::after { 
-    content: ''; 
-    position: absolute; 
-    top: 50%; 
-    left: 50%; 
-    transform: translate(-50%, -50%); 
-    width: 2px; 
-    height: 2px; 
-    background-color: white; 
-    border-radius: 50%; 
-    box-shadow: 0 0 4px var(--neon-core); 
+    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+    width: 4px; height: 4px; background-color: white; border-radius: 50%; box-shadow: 0 0 4px var(--neon-core); 
 }
 
 #mouse-trail.hover-active { 
-    width: 50px; 
-    height: 50px; 
-    margin-top: -25px; 
-    margin-left: -25px; 
-    background: rgba(var(--neon-rgb), 0.05); 
+    width: 50px; height: 50px; 
+    margin-top: -25px; margin-left: -25px; 
+    background: rgba(var(--neon-rgb), 0.1); 
     border-color: rgba(255, 255, 255, 0.8); 
-    box-shadow: 0 0 30px rgba(var(--neon-rgb), 0.4); 
     mix-blend-mode: normal; 
 }
 
-/* Importante: Reabilitar o cursor padrão em dispositivos de toque/mobile */
+/* Reabilita cursor em touch devices */
 @media (pointer: coarse) { 
     #mouse-trail { display: none !important; } 
-    body.custom-cursor-active, body.custom-cursor-active * { cursor: auto !important; } 
+    html:has(body.custom-cursor-active), body.custom-cursor-active, body.custom-cursor-active * { cursor: auto !important; } 
 }
 
 /* --- COMPACT MODE --- */
