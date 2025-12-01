@@ -1,11 +1,15 @@
+// 1. IMPORTAMOS O ALPINE AQUI (Versão Módulo)
+import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js';
+
+// Importações dos seus módulos
 import { CONSTANTS, ARCHETYPES } from './modules/config.js';
 import { playSFX, setSfxEnabled } from './modules/audio.js';
-import { debounce, sanitizeChar } from './modules/utils.js';
+import { debounce } from './modules/utils.js';
 import { rpgLogic } from './modules/rpg.js';
 import { cloudLogic } from './modules/cloud.js';
 import { uiLogic } from './modules/ui.js';
 
-// --- CURSOR ENGINE ---
+// --- ENGINE DO CURSOR ---
 function setupCursorEngine(systemContext) {
     const trail = document.getElementById('mouse-trail');
     if (!trail || !window.matchMedia("(pointer: fine)").matches) return;
@@ -16,14 +20,15 @@ function setupCursorEngine(systemContext) {
 
     document.addEventListener('mousemove', (e) => { 
         cursorX = e.clientX; cursorY = e.clientY;
-        if(systemContext.settings.mouseTrail && !systemContext.isMobile) { 
+        // Usa o contexto do sistema para checar configs
+        if(systemContext.settings?.mouseTrail && !systemContext.isMobile) { 
             isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; 
         }
     });
 
     const renderLoop = () => {
         const isAuthenticated = systemContext.user || systemContext.isGuest;
-        if (isAuthenticated && systemContext.settings.mouseTrail && !systemContext.isMobile) {
+        if (isAuthenticated && systemContext.settings?.mouseTrail && !systemContext.isMobile) {
             trailX += (cursorX - trailX) * 0.45;
             trailY += (cursorY - trailY) * 0.45;
             trail.style.display = 'block'; 
@@ -38,112 +43,76 @@ function setupCursorEngine(systemContext) {
     renderLoop();
 }
 
-// --- FUNÇÃO PRINCIPAL ---
+// --- FUNÇÃO PRINCIPAL DO SISTEMA ---
 function zeniteSystem() {
     return {
-        // --- ESTADO INICIAL DO SISTEMA (CORREÇÃO DOS ERROS "NOT DEFINED") ---
+        // =================================================================
+        // 1. VARIÁVEIS DE ESTADO (Essenciais para o Alpine não travar)
+        // =================================================================
         
         // Sistema & Loading
-        systemLoading: true, 
-        loadingProgress: 0, 
-        loadingText: 'BOOT',
-        loadingChar: false,
-        rebooting: false,
+        systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
+        loadingChar: false, rebooting: false,
         
-        // Usuário & Auth
-        user: null, 
-        isGuest: false,
-        userMenuOpen: false, 
-        authLoading: false, 
-        authMsg: '', 
-        authMsgType: '',
+        // Autenticação
+        user: null, isGuest: false, userMenuOpen: false, 
+        authLoading: false, authMsg: '', authMsgType: '',
         
         // Navegação
-        currentView: 'dashboard', 
-        activeTab: 'profile', 
-        logisticsTab: 'inventory',
+        currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
         searchQuery: '',
         
-        // Dados Principais
-        chars: {}, 
-        activeCharId: null, 
-        char: null, 
-        agentCount: 0,
+        // Dados do Jogo
+        chars: {}, activeCharId: null, char: null, agentCount: 0,
         
         // Configurações
-        settings: { 
-            mouseTrail: true, 
-            compactMode: false, 
-            crtMode: true, 
-            sfxEnabled: true, 
-            themeColor: 'cyan' 
-        },
+        settings: { mouseTrail: true, compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
         
-        // Wizard (Criação de Personagem)
-        wizardOpen: false,
-        wizardStep: 1, 
-        wizardPoints: 8, 
-        wizardNameError: false,
-        wizardFocusAttr: '',
+        // Wizard (Criação)
+        wizardOpen: false, wizardStep: 1, wizardPoints: 8, 
+        wizardNameError: false, wizardFocusAttr: '',
+        // Estrutura inicial completa para não dar erro de 'undefined'
         wizardData: { 
             class: '', name: '', identity: '', age: '', history: '', photo: null, 
             attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
         },
         
         // Notificações & Modais
-        notifications: [], 
-        configModal: false,
-        confirmOpen: false,
+        notifications: [],  // <--- ISSO FALTAVA E QUEBRAVA TUDO
+        configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
-        unsavedChanges: false,
-        revertConfirmMode: false,
-        isReverting: false,
-        shakeAlert: false,
-        isSyncing: false,
-        saveStatus: 'idle',
+        unsavedChanges: false, revertConfirmMode: false, isReverting: false, shakeAlert: false,
+        isSyncing: false, saveStatus: 'idle',
         
-        // Cropper (Imagem)
-        cropperOpen: false,
-        cropperInstance: null, 
-        uploadContext: 'char',
+        // Ferramentas (Cropper, Dados)
+        cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        diceTrayOpen: false, trayDockMode: 'float', 
+        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
+        isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
+        diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
-        // Dados & Bandeja
-        diceTrayOpen: false,
-        trayDockMode: 'float', 
-        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 }, 
-        isDraggingTray: false,
-        showDiceTip: false, 
-        hasSeenDiceTip: false,
-        diceLog: [], 
-        lastRoll: '--', 
-        lastNatural: 0, 
-        lastFaces: 20, 
-        diceMod: 0, 
-        diceReason: '',
-        
-        // Segredos & Minigame
-        konamiBuffer: [], 
-        logoClickCount: 0, 
-        logoClickTimer: null, 
-        systemFailure: false, 
-        minigameActive: false, 
-        minigameClicks: 5, 
+        // Minigame & Segredos
+        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, 
+        systemFailure: false, minigameActive: false, minigameClicks: 5, 
         minigamePos: { x: 50, y: 50 },
-        isHackerMode: false, 
-        hackerModeUnlocked: false,
+        isHackerMode: false, hackerModeUnlocked: false,
         
-        // Variável Auxiliar
+        // Auxiliares
         isMobile: window.innerWidth < 768,
-        supabase: null,
-        debouncedSaveFunc: null,
-        archetypes: ARCHETYPES, // Constante importada
+        supabase: null, debouncedSaveFunc: null,
+        archetypes: ARCHETYPES,
 
-        // --- MERGE DOS MÓDULOS (Traz as funções de volta) ---
+        // =================================================================
+        // 2. MERGE DOS MÓDULOS (Trazendo a lógica de volta)
+        // =================================================================
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
 
-        // --- COMPUTEDS ---
+        // =================================================================
+        // 3. LÓGICA CENTRAL (Inicialização)
+        // =================================================================
+        
         get filteredChars() {
             if (!this.searchQuery) return this.chars;
             const q = this.searchQuery.toLowerCase();
@@ -157,11 +126,10 @@ function zeniteSystem() {
             return result;
         },
 
-        // --- INICIALIZAÇÃO ---
         async initSystem() {
             this.loadingProgress = 10;
             
-            // Setup Supabase
+            // Supabase
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
@@ -169,13 +137,14 @@ function zeniteSystem() {
             this.setupListeners();
             this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
 
-            // Carregar Dados
+            // Carregar Dados Locais
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             if (isGuest) {
                 this.isGuest = true;
                 this.loadLocal('zenite_guest_db');
             } else {
                 this.loadLocal('zenite_cached_db');
+                // Tentar conectar Cloud
                 if(this.supabase) {
                     try {
                         const { data: { session } } = await this.supabase.auth.getSession();
@@ -205,14 +174,14 @@ function zeniteSystem() {
                 }
             }
 
-            // Aplicar Configs e SFX
+            // Aplicar Configurações Visuais
             if(this.settings) {
                 this.applyTheme(this.settings.themeColor);
-                setSfxEnabled(this.settings.sfxEnabled); // <--- AQUI CORRIGE O SOM
+                setSfxEnabled(this.settings.sfxEnabled); // Garante que o som comece certo
                 this.updateVisualState();
             }
 
-            // Watchers Manuais
+            // Watchers (Monitoram mudanças)
             this.$watch('char', () => { 
                 if(!this.isGuest && this.char) { 
                     this.unsavedChanges = true; 
@@ -220,16 +189,16 @@ function zeniteSystem() {
                 } 
             });
             
-            // Watcher CRÍTICO para o SOM
             this.$watch('settings.sfxEnabled', (val) => {
-                setSfxEnabled(val);
+                setSfxEnabled(val); // Atualiza o módulo de áudio se a config mudar
             });
 
-            setupCursorEngine(this);
+            setupCursorEngine(this); // Inicia o rastro do mouse
 
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             
+            // Auto-save loop
             setInterval(() => { if (this.user && this.unsavedChanges) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
@@ -267,7 +236,6 @@ function zeniteSystem() {
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > code.length) this.konamiBuffer.shift();
-            
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(code)) {
                 this.hackerModeUnlocked = true;
                 localStorage.setItem('zenite_hacker_unlocked', 'true');
@@ -279,10 +247,12 @@ function zeniteSystem() {
     };
 }
 
-// --- REGISTRO GLOBAL ---
+// --- REGISTRO E INICIALIZAÇÃO ---
+// Expor para debug se necessário
 window.zeniteSystem = zeniteSystem;
 
-// --- GARANTIA DE CARREGAMENTO ---
-document.addEventListener('alpine:init', () => {
+// Inicializar o Alpine manualmente
+document.addEventListener('DOMContentLoaded', () => {
     Alpine.data('zeniteSystem', zeniteSystem);
+    Alpine.start();
 });
