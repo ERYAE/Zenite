@@ -211,7 +211,7 @@ body.interaction-lock, body.interaction-lock * { pointer-events: none !important
 /* Efeito Genie para a Bandeja de Dados (Simulado) */
 .genie-enter {
     animation: genieIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    transform-origin: bottom right; /* Sai do botão de dados */
+    transform-origin: bottom right;
 }
 .genie-leave {
     animation: genieOut 0.3s cubic-bezier(0.7, 0, 0.84, 0) forwards;

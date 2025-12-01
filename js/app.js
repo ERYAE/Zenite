@@ -1,14 +1,14 @@
 /**
  * ZENITE OS - Core Application
- * Version: v86-stable
- * Fixes: Data Sanitization, Reboot State, Audio Handling
+ * Version: v86-stable-fixed
+ * Fixes: Boot Error, Minigame, Hacker Mode, Animations
  */
 
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    // AVISO: Em produção, use variáveis de ambiente para estas chaves
+    // Em produção, use variáveis de ambiente
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
@@ -112,6 +112,24 @@ const playSFX = (type) => {
             gain.gain.setValueAtTime(0.8, now);
             gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
             src.start(now); src.stop(now + 2.0);
+        } else if (type === 'success') {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.linearRampToValueAtTime(880, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.4);
+            osc.connect(gain);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'error') {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
+            osc.connect(gain);
+            osc.start(now); osc.stop(now + 0.3);
         }
     } catch(e) {
         console.error("SFX Error", e);
@@ -125,8 +143,6 @@ function debounce(func, wait) {
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
 }
-
-/* ... (mantenha as constantes e o audio engine iguais) ... */
 
 function zeniteSystem() {
     return {
@@ -199,7 +215,6 @@ function zeniteSystem() {
         },
 
         async initSystem() {
-            // ... (código de init igual ao anterior até carregar o user) ...
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 5000);
             
@@ -244,7 +259,6 @@ function zeniteSystem() {
                                 this.loadingText = 'SYNCING CLOUD'; 
                                 this.loadingProgress = 70; 
                                 await this.fetchCloud();
-                                // ONBOARDING CHECK
                                 this.checkOnboarding();
                             }
                         } catch(e) { this.notify("Modo Offline", "warn"); }
@@ -271,7 +285,6 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                // Hacker mode check logic
                 if (localStorage.getItem('zenite_hacker_mode') === 'true') {
                     this.isHackerMode = true;
                     document.body.classList.add('theme-hacker');
@@ -293,7 +306,7 @@ function zeniteSystem() {
             }
         },
 
-        // --- NOVO: Funções de UX e Lógica ---
+        // --- FUNÇÕES DE LÓGICA E UX ---
 
         checkOnboarding() {
             if (!localStorage.getItem('zenite_setup_done')) {
@@ -305,9 +318,61 @@ function zeniteSystem() {
             }
         },
 
+        setupListeners() {
+            window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+            window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
+            window.addEventListener('popstate', (event) => {
+                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { 
+                    history.pushState(null, null, location.href); 
+                    this.triggerShake(); 
+                    this.notify("Salve antes de sair!", "warn"); 
+                    return; 
+                }
+                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { 
+                    if(this.currentView === 'sheet') this.saveAndExit(true); 
+                    this.wizardOpen = false; 
+                    this.configModal = false; 
+                    this.cropperOpen = false; 
+                }
+            });
+            
+            let lastHovered = null;
+            document.addEventListener('click', (e) => { 
+                if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); 
+            });
+            
+            document.addEventListener('mouseover', (e) => {
+                const target = e.target.closest('button, a, .cursor-pointer');
+                if (target && target !== lastHovered) {
+                    playSFX('hover');
+                    lastHovered = target;
+                } else if (!target) {
+                    lastHovered = null;
+                }
+            });
+        },
+
+        sanitizeChar(data) {
+            if (!data) return null;
+            const safe = JSON.parse(JSON.stringify(data));
+            if (!safe.attrs) safe.attrs = {for:0, agi:0, int:0, von:0, pod:0};
+            if (!safe.stats) safe.stats = {};
+            if (!safe.stats.pv) safe.stats.pv = {current: 10, max: 10};
+            if (!safe.stats.pf) safe.stats.pf = {current: 10, max: 10};
+            if (!safe.stats.pdf) safe.stats.pdf = {current: 10, max: 10};
+            if (!safe.inventory) safe.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
+            if (!safe.inventory.weapons) safe.inventory.weapons = [];
+            if (!safe.inventory.armor) safe.inventory.armor = [];
+            if (!safe.inventory.gear) safe.inventory.gear = [];
+            if (!safe.inventory.social) safe.inventory.social = { people:[], objects:[] };
+            if (!safe.skills) safe.skills = [];
+            if (!safe.powers) safe.powers = { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' };
+            if (!safe.powers.techniques) safe.powers.techniques = [];
+            return safe;
+        },
+
         handleEscKey() {
-            // Ordem de prioridade para fechar coisas
-            if (this.systemFailure) return; // Não sai do erro com ESC
+            if (this.systemFailure) return; 
             if (this.confirmOpen) { this.confirmOpen = false; return; }
             if (this.cropperOpen) { this.cropperOpen = false; return; }
             if (this.configModal) { this.configModal = false; return; }
@@ -332,8 +397,18 @@ function zeniteSystem() {
             }
         },
 
+        handleKeys(e) {
+            const key = e.key.toLowerCase();
+            const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
+            this.konamiBuffer.push(key);
+            if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
+            if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
+                this.toggleHackerMode();
+                this.konamiBuffer = [];
+            }
+        },
+
         handleLogoClick() {
-            // Reset mais rápido para exigir cliques rápidos (800ms em vez de 2s)
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
             
@@ -343,9 +418,8 @@ function zeniteSystem() {
                 return;
             }
             
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400); // Tem que clicar rápido!
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400); // 400ms para resetar, exige cliques rápidos
             
-            // Toggle Fullscreen normal (clicks 1-4)
             if (!this.systemFailure && this.logoClickCount === 2) { 
                  if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(()=>{});
@@ -355,11 +429,11 @@ function zeniteSystem() {
             }
         },
 
-        // --- MINIGAME Lógica ---
+        // --- MINIGAME ---
         triggerSystemFailure() {
             playSFX('glitch'); 
             this.systemFailure = true; 
-            this.minigameActive = false; // Começa na tela azul
+            this.minigameActive = false; 
         },
 
         startMinigame() {
@@ -369,7 +443,6 @@ function zeniteSystem() {
         },
 
         moveMinigameTarget() {
-            // Move para posição aleatória (10% a 90% da tela)
             this.minigamePos.x = Math.floor(Math.random() * 80) + 10;
             this.minigamePos.y = Math.floor(Math.random() * 80) + 10;
         },
@@ -387,53 +460,7 @@ function zeniteSystem() {
             }
         },
 
-        // ... (Mantenha sanitizeChar, setupListeners e o restante das funções antigas, 
-        // apenas substituindo handleKeys para usar toggleHackerMode) ...
-
-        handleKeys(e) {
-            // Mantém Konami Code
-            const key = e.key.toLowerCase();
-            const konamiCode = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
-            this.konamiBuffer.push(key);
-            if (this.konamiBuffer.length > konamiCode.length) this.konamiBuffer.shift();
-            if (JSON.stringify(this.konamiBuffer) === JSON.stringify(konamiCode)) {
-                this.toggleHackerMode(); // Usa a função nova
-                this.konamiBuffer = [];
-            }
-        },
-
-        // ... (Resto do código: ensureTrayOnScreen, updateVisualState, setupCursorEngine, 
-        // toggleDiceTray, setDockMode, startDragTray, setupWatchers, loadLocal, saveLocal, 
-        // triggerShake, attemptGoBack, saveAndExit, toggleRevertMode, performRevert, 
-        // fetchCloud, syncCloud, updateAgentCount, calculateBaseStats, recalcDerivedStats, 
-        // modAttr, modStat, openWizard, selectArchetype, modWizardAttr, finishWizard, 
-        // toggleSetting, applyTheme, askLogout, logout, askSwitchToOnline, enterGuest, 
-        // doSocialAuth, loadCharacter, askDeleteChar, askHardReset, askConfirm, confirmYes, 
-        // _renderChart, updateRadarChart, updateWizardChart, triggerFX, addItem, deleteItem, 
-        // addSkill, deleteSkill, setSkillLevel, addTechnique, deleteTechnique, roll, notify, 
-        // openImageEditor, initCropper, applyCrop, exportData, triggerFileImport, processImport) ...
-        
-        // --- COPIE AQUI TODAS AS FUNÇÕES AUXILIARES QUE NÃO MUDARAM DO CÓDIGO ANTERIOR ---
-        // (sanitizeChar, ensureTrayOnScreen, etc... exatamente como te mandei antes, 
-        // para garantir que não falte nada).
-        sanitizeChar(data) {
-            if (!data) return null;
-            const safe = JSON.parse(JSON.stringify(data));
-            if (!safe.attrs) safe.attrs = {for:0, agi:0, int:0, von:0, pod:0};
-            if (!safe.stats) safe.stats = {};
-            if (!safe.stats.pv) safe.stats.pv = {current: 10, max: 10};
-            if (!safe.stats.pf) safe.stats.pf = {current: 10, max: 10};
-            if (!safe.stats.pdf) safe.stats.pdf = {current: 10, max: 10};
-            if (!safe.inventory) safe.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
-            if (!safe.inventory.weapons) safe.inventory.weapons = [];
-            if (!safe.inventory.armor) safe.inventory.armor = [];
-            if (!safe.inventory.gear) safe.inventory.gear = [];
-            if (!safe.inventory.social) safe.inventory.social = { people:[], objects:[] };
-            if (!safe.skills) safe.skills = [];
-            if (!safe.powers) safe.powers = { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' };
-            if (!safe.powers.techniques) safe.powers.techniques = [];
-            return safe;
-        },
+        // --- RESTANTE DO SISTEMA (Manter exatamente como estava) ---
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
             this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
