@@ -42,6 +42,22 @@ body.theme-hacker::before {
 }
 @keyframes matrix-scroll { 0% { background-position: 0 0; } 100% { background-position: 0 1000px; } }
 
+/* --- MODO HACKER (Correções) --- */
+.theme-hacker {
+    --neon-core: #22c55e !important; /* Verde Matrix */
+    --neon-rgb: 34, 197, 94 !important;
+}
+.theme-hacker .text-gray-500, 
+.theme-hacker .text-gray-400,
+.theme-hacker i {
+    color: #22c55e !important;
+    text-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+}
+.theme-hacker .glass {
+    border-color: #22c55e !important;
+    background: rgba(0, 20, 0, 0.9) !important;
+}
+
 /* --- CRT / PIXEL EFFECT (VISÍVEL MAS ELEGANTE) --- */
 body.crt-mode::after {
     content: " ";
@@ -108,6 +124,27 @@ body.crt-mode::before {
     100% { opacity: 1; }
 }
 
+/* --- MINIGAME DE ERRO --- */
+.glitch-target {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: red;
+    border-radius: 50%;
+    cursor: crosshair;
+    box-shadow: 0 0 20px red;
+    z-index: 50;
+    transition: all 0.1s linear;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: black;
+    font-size: 10px;
+    user-select: none;
+}
+.glitch-target:active { transform: scale(0.9); }
+
 /* ... (Restante do CSS: Grid, Cursor, etc. mantidos) ... */
 
 /* --- CYBER GRID --- */
@@ -130,6 +167,10 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
 #mouse-trail::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 2px; height: 2px; background-color: white; border-radius: 50%; box-shadow: 0 0 4px var(--neon-core); }
 #mouse-trail.hover-active { width: 50px; height: 50px; margin-top: -25px; margin-left: -25px; background: rgba(var(--neon-rgb), 0.05); border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 30px rgba(var(--neon-rgb), 0.4); mix-blend-mode: normal; }
 @media (pointer: coarse) { #mouse-trail { display: none !important; } body.custom-cursor-active { cursor: auto !important; } }
+
+/* --- CURSOR DE CROP --- */
+.cursor-zoom-in { cursor: zoom-in !important; }
+.cursor-zoom-out { cursor: zoom-out !important; }
 
 /* --- COMPACT MODE --- */
 body.compact-mode .glass { padding: 12px !important; border-radius: 12px !important; }
@@ -163,3 +204,32 @@ body.interaction-lock, body.interaction-lock * { pointer-events: none !important
     will-change: transform; /* Prepara a GPU */
     backdrop-filter: blur(10px) !important; /* Reduz um pouco o blur padrão para pesar menos */
     -webkit-backdrop-filter: blur(10px) !important; }
+
+
+/* --- ANIMAÇÕES AVANÇADAS --- */
+
+/* Efeito Genie para a Bandeja de Dados (Simulado) */
+.genie-enter {
+    animation: genieIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: bottom right; /* Sai do botão de dados */
+}
+.genie-leave {
+    animation: genieOut 0.3s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+    transform-origin: bottom right;
+}
+
+@keyframes genieIn {
+    0% { transform: scale(0) translate(100%, 100%); opacity: 0; filter: blur(10px); }
+    100% { transform: scale(1) translate(0, 0); opacity: 1; filter: blur(0); }
+}
+@keyframes genieOut {
+    0% { transform: scale(1) translate(0, 0); opacity: 1; }
+    100% { transform: scale(0) translate(50%, 100%); opacity: 0; }
+}
+
+/* Animação suave para Modais */
+.modal-enter { animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes modalSlideUp {
+    0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
