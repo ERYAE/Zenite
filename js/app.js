@@ -1,46 +1,13 @@
 import { CONSTANTS, ARCHETYPES } from './modules/config.js';
-import { playSFX, setSfxEnabled } from './modules/audio.js';
-import { debounce } from './modules/utils.js';
+import { playSFX, setSfxEnabled, initAudio } from './modules/audio.js';
+import { debounce, sanitizeChar, calculateBaseStats } from './modules/utils.js';
 import { rpgLogic } from './modules/rpg.js';
 import { cloudLogic } from './modules/cloud.js';
 import { uiLogic } from './modules/ui.js';
 
-// --- CURSOR ENGINE ---
-function setupCursorEngine(systemContext) {
-    const trail = document.getElementById('mouse-trail');
-    if (!trail || !window.matchMedia("(pointer: fine)").matches) return;
-    
-    let cursorX = -100, cursorY = -100;
-    let isCursorHover = false;
-    let trailX = 0, trailY = 0;
-
-    document.addEventListener('mousemove', (e) => { 
-        cursorX = e.clientX; cursorY = e.clientY;
-        if(systemContext.settings?.mouseTrail && !systemContext.isMobile) { 
-            isCursorHover = e.target.closest('button, a, input, select, textarea, .cursor-pointer, .draggable-handle') !== null; 
-        }
-    });
-
-    const renderLoop = () => {
-        const isAuthenticated = systemContext.user || systemContext.isGuest;
-        if (isAuthenticated && systemContext.settings?.mouseTrail && !systemContext.isMobile) {
-            trailX += (cursorX - trailX) * 0.45;
-            trailY += (cursorY - trailY) * 0.45;
-            trail.style.display = 'block'; 
-            trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0)`; 
-            if(isCursorHover) trail.classList.add('hover-active'); else trail.classList.remove('hover-active');
-            if(trail.style.opacity === '0') trail.style.opacity = '1';
-        } else { 
-            trail.style.display = 'none'; 
-        }
-        requestAnimationFrame(renderLoop);
-    };
-    renderLoop();
-}
-
 function zeniteSystem() {
     return {
-        // --- ESTADO DO SISTEMA ---
+        // --- ESTADO GERAL ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, rebooting: false,
         
@@ -55,43 +22,40 @@ function zeniteSystem() {
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         
-        // Configs
-        settings: { mouseTrail: true, compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
+        // Configs & Estado
+        settings: { compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
         
         // Wizard
         wizardOpen: false, wizardStep: 1, wizardPoints: 8, 
         wizardNameError: false, wizardFocusAttr: '',
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         
-        // Notificações & Modais
-        notifications: [], 
-        configModal: false, confirmOpen: false,
+        // UI Globais
+        notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
-        unsavedChanges: false, 
-        revertConfirmMode: false, 
-        isReverting: false, // <--- IMPORTANTE PARA CORRIGIR O BUG
-        shakeAlert: false,
-        isSyncing: false, saveStatus: 'idle',
         
-        // Widgets
+        // Salvamento
+        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
+        revertConfirmMode: false, shakeAlert: false, isReverting: false,
+        
+        // Ferramentas
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
-        diceTrayOpen: false, trayDockMode: 'float', 
-        trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 }, 
+        diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
-        // Segredos
-        konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, 
-        systemFailure: false, minigameActive: false, minigameClicks: 5, 
-        minigamePos: { x: 50, y: 50 },
-        isHackerMode: false, hackerModeUnlocked: false,
+        // Minigame & Falhas
+        systemFailure: false, minigameActive: false, minigameClicks: 5, minigamePos: {x:50, y:50},
+        
+        // Hacks
+        isHackerMode: false, hackerModeUnlocked: false, konamiBuffer: [], logoClickCount: 0, logoClickTimer: null,
         
         // Auxiliares
         isMobile: window.innerWidth < 768,
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
 
-        // --- MERGE DOS MÓDULOS ---
+        // Módulos Externos
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
@@ -110,17 +74,32 @@ function zeniteSystem() {
             return result;
         },
 
-        // --- BOOT ---
+        // --- INICIALIZAÇÃO ---
         async initSystem() {
-            this.loadingProgress = 10;
+            this.loadingProgress = 20;
             
+            // Tenta inicializar áudio no primeiro clique do user
+            document.body.addEventListener('click', () => initAudio(), { once: true });
+
+            this.setupListeners();
+
+            // Carrega dependências
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
 
-            this.setupListeners();
-            this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
+            // Define função de salvamento com debounce
+            this.debouncedSaveFunc = debounce(async () => { 
+                await this.saveLocal(); 
+                if (!this.isGuest && this.user) {
+                    await this.syncCloud(true);
+                    playSFX('save'); // Som de confirmação
+                }
+                this.unsavedChanges = false;
+                this.isSyncing = false;
+            }, 1500);
 
+            // Carrega estado inicial
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             if (isGuest) {
                 this.isGuest = true;
@@ -132,8 +111,7 @@ function zeniteSystem() {
                         const { data: { session } } = await this.supabase.auth.getSession();
                         if (session) {
                             this.user = session.user;
-                            this.loadingText = 'SYNCING CLOUD';
-                            this.loadingProgress = 70;
+                            this.loadingText = 'SYNC CLOUD';
                             await this.fetchCloud();
                             this.checkOnboarding();
                         }
@@ -152,34 +130,32 @@ function zeniteSystem() {
                                 this.currentView = 'dashboard';
                             }
                         });
-                    } catch(e) { this.notify("Modo Offline", "warn"); }
+                    } catch(e) {}
                 }
             }
 
+            // Aplica configurações visuais
             if(this.settings) {
-                this.applyTheme(this.settings.themeColor);
+                if(this.settings.themeColor) this.applyTheme(this.settings.themeColor);
                 setSfxEnabled(this.settings.sfxEnabled);
-                this.updateVisualState();
+                if(this.settings.crtMode) document.body.classList.add('crt-mode');
             }
 
-            // --- CORREÇÃO DO BUG DE REVERT ---
-            this.$watch('char', () => { 
-                // Só marca como não salvo se NÃO estivermos revertendo alterações agora
-                if(!this.isGuest && this.char && !this.isReverting) { 
-                    this.unsavedChanges = true; 
-                    this.debouncedSaveFunc(); 
-                } 
+            // Watchers para Autosave e UX
+            this.$watch('char', (val) => {
+                if (!val || this.loadingChar || this.isReverting) return;
+                this.unsavedChanges = true; 
+                this.isSyncing = true; // Feedback visual imediato "Salvando..."
+                this.debouncedSaveFunc(); 
             });
             
-            this.$watch('settings.sfxEnabled', (val) => {
-                setSfxEnabled(val);
-            });
+            this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
 
-            setupCursorEngine(this);
-
+            this.updateAgentCount();
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             
+            // Intervalo de segurança para salvamento
             setInterval(() => { if (this.user && this.unsavedChanges) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
@@ -213,7 +189,6 @@ function zeniteSystem() {
             // Listener Global de Cliques para SFX
             let lastHovered = null;
             document.addEventListener('click', (e) => { 
-                // Aumentei a abrangência dos elementos clicáveis
                 if(e.target.closest('button, a, input, select, .cursor-pointer, .dice-tray-opt')) {
                     playSFX('click'); 
                 }
@@ -229,27 +204,66 @@ function zeniteSystem() {
                 }
             });
         },
-        
+
+        // --- MINIGAME DE ERRO ---
+        triggerSystemFailure() {
+            playSFX('error');
+            this.systemFailure = true;
+            this.minigameActive = false;
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) { elem.requestFullscreen().catch(() => {}); }
+        },
+        startMinigame() {
+            this.minigameActive = true;
+            this.minigameClicks = 5;
+            this.moveMinigameTarget();
+        },
+        moveMinigameTarget() {
+            // Garante que não sai da tela (margem 10% a 90%)
+            this.minigamePos.x = Math.floor(Math.random() * 80) + 10;
+            this.minigamePos.y = Math.floor(Math.random() * 80) + 10;
+        },
+        hitMinigame() {
+            playSFX('click');
+            this.minigameClicks--;
+            if (this.minigameClicks <= 0) {
+                playSFX('success');
+                this.notify("SISTEMA RESTAURADO", "success");
+                this.systemFailure = false;
+                this.minigameActive = false;
+                if (document.exitFullscreen) { document.exitFullscreen().catch(() => {}); }
+                this.rebooting = true;
+                setTimeout(() => { this.rebooting = false; }, 1000);
+            } else {
+                this.moveMinigameTarget();
+            }
+        },
+
+        // --- UTILITÁRIOS ---
+        notify(msg, type='info') {
+            const id = Date.now();
+            let icon = 'fa-circle-info';
+            if(type === 'success') icon = 'fa-circle-check';
+            if(type === 'error') icon = 'fa-triangle-exclamation';
+            if(type === 'warn') icon = 'fa-bell';
+            
+            this.notifications.push({ id, message: msg, type, icon });
+            setTimeout(() => {
+                this.notifications = this.notifications.filter(n => n.id !== id);
+            }, 3000);
+        },
+
+        // Atalho Konami
         handleKeys(e) {
-            if (e.key === 'Escape') this.handleEscKey();
             const key = e.key.toLowerCase();
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);
             if (this.konamiBuffer.length > code.length) this.konamiBuffer.shift();
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(code)) {
                 this.hackerModeUnlocked = true;
-                localStorage.setItem('zenite_hacker_unlocked', 'true');
-                if (!this.isHackerMode) this.toggleHackerMode();
-                else { playSFX('success'); this.notify("ACESSO RECONHECIDO", "success"); }
+                this.toggleHackerMode();
                 this.konamiBuffer = [];
             }
-        },
-        
-        updateVisualState() {
-            const auth = this.user || this.isGuest;
-            if (auth && this.settings.crtMode) document.body.classList.add('crt-mode');
-            else document.body.classList.remove('crt-mode');
-            setSfxEnabled(this.settings.sfxEnabled);
         }
     };
 }
