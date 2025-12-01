@@ -1,205 +1,122 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-    --bg-void: #050507;
-    --glass-panel: rgba(20, 20, 25, 0.75);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --neon-core: #0ea5e9;
-    --neon-rgb: 14, 165, 233;
-    
-    --radius-std: 16px;
+    --neon-core: #00ff9d;
+    --neon-glow: 0 0 10px #00ff9d, 0 0 20px #00ff9d;
+    --glass-bg: rgba(10, 10, 10, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
     --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
+    --neon-rgb: 0, 255, 157; /* Para uso em rgba */
+}
+
+/* --- TEMA HACKER (Vermelho) --- */
+body.theme-hacker {
+    --neon-core: #ff003c;
+    --neon-glow: 0 0 10px #ff003c, 0 0 20px #ff003c;
+    --neon-rgb: 255, 0, 60;
+}
+
+body {
+    background-color: #050505;
+    color: #e0e0e0;
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    user-select: none; /* Impede seleção de texto acidental */
+}
+
+/* Fontes */
+.font-brand { font-family: 'Orbitron', sans-serif; }
+.font-code { font-family: 'JetBrains Mono', monospace; }
+
+/* Background Grid Animado */
+.grid-bg {
+    background-size: 40px 40px;
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+/* Glassmorphism */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+}
+
+/* Scrollbar Customizada */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
+
+/* Animações e Utilitários */
+.text-neon {
+    color: var(--neon-core);
+    text-shadow: 0 0 5px rgba(var(--neon-rgb), 0.5);
 }
 
 [x-cloak] { display: none !important; }
 
-body {
-    font-family: 'Rajdhani', sans-serif;
-    background-color: var(--bg-void);
-    color: #e2e8f0;
-    min-height: 100vh;
-    overflow-x: hidden;
-    padding-bottom: 120px;
-    cursor: auto; 
-    -webkit-tap-highlight-color: transparent;
-    transition: background-color 0.5s ease;
-}
+/* --- CURSOR (SOLUÇÃO NUCLEAR) --- */
+/* Só aplica se não for touch e se a classe estiver ativa */
+@media (hover: hover) and (pointer: fine) {
+    html:has(body.custom-cursor-active),
+    body.custom-cursor-active,
+    body.custom-cursor-active *,
+    body.custom-cursor-active a,
+    body.custom-cursor-active button,
+    body.custom-cursor-active input,
+    body.custom-cursor-active .cursor-pointer,
+    body.custom-cursor-active .hover\:cursor-pointer:hover {
+        cursor: none !important;
+    }
 
-/* --- THEME: HACKER MODE --- */
-body.theme-hacker {
-    --bg-void: #000a00;
-    --glass-panel: rgba(0, 20, 0, 0.8);
-    --glass-border: #00ff41;
-    --neon-core: #00ff41;
-    --neon-rgb: 0, 255, 65;
-    font-family: 'JetBrains Mono', monospace !important;
-}
-body.theme-hacker * { font-family: 'JetBrains Mono', monospace !important; letter-spacing: -0.5px; }
+    #mouse-trail {
+        pointer-events: none;
+        position: fixed;
+        top: 0; left: 0;
+        z-index: 2147483647; /* Máximo Z-Index */
+        width: 16px; height: 16px;
+        margin-top: -8px; margin-left: -8px;
+        border-radius: 50%;
+        border: 2px solid var(--neon-core);
+        background: rgba(var(--neon-rgb), 0.1);
+        box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.8);
+        will-change: transform;
+        transform: translate3d(-100px, -100px, 0);
+        mix-blend-mode: exclusion; /* Garante visibilidade em fundo claro */
+        transition: width 0.15s cubic-bezier(0.16, 1, 0.3, 1), 
+                    height 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+                    background 0.2s ease;
+    }
 
-body.theme-hacker .text-gray-500, 
-body.theme-hacker .text-gray-400,
-body.theme-hacker i {
-    color: #22c55e !important;
-    text-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
-}
-body.theme-hacker .glass {
-    border-color: #22c55e !important;
-    background: rgba(0, 20, 0, 0.9) !important;
-}
+    /* Ponto central de precisão */
+    #mouse-trail::after {
+        content: '';
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 4px; height: 4px;
+        background-color: var(--neon-core);
+        border-radius: 50%;
+        box-shadow: 0 0 4px var(--neon-core);
+    }
 
-body.theme-hacker::before {
-    content: ""; position: fixed; inset: 0; z-index: -2;
-    background-image: linear-gradient(0deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 255, 65, .3) 25%, rgba(0, 255, 65, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 65, .3) 75%, rgba(0, 255, 65, .3) 76%, transparent 77%, transparent);
-    background-size: 50px 50px; animation: matrix-scroll 20s linear infinite; opacity: 0.2;
-}
-@keyframes matrix-scroll { 0% { background-position: 0 0; } 100% { background-position: 0 1000px; } }
-
-/* --- CRT / PIXEL EFFECT --- */
-body.crt-mode::after {
-    content: " ";
-    display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.15),
-        rgba(0, 0, 0, 0.15) 1px,
-        transparent 1px,
-        transparent 2px
-    );
-    z-index: 2147483640;
-    pointer-events: none; 
-    opacity: 0.6;
-    mix-blend-mode: multiply;
-}
-body.crt-mode::before {
-    content: " "; display: block; position: fixed; inset: 0; z-index: 2147483641;
-    background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.4) 100%);
-    pointer-events: none;
-}
-
-/* --- CYBER GRID --- */
-.bg-grid {
-    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 50px 50px; mask-image: radial-gradient(circle at center, black 40%, transparent 100%); -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-    position: fixed; inset: 0; z-index: -1; pointer-events: none;
-}
-
-
-/* --- CURSOR --- */
-/* Força bruta: Remove cursor de TUDO quando a classe está ativa */
-html:has(body.custom-cursor-active),
-body.custom-cursor-active,
-body.custom-cursor-active a,
-body.custom-cursor-active button,
-body.custom-cursor-active input,
-body.custom-cursor-active select,
-body.custom-cursor-active textarea,
-body.custom-cursor-active .cursor-pointer {
-    cursor: none !important;
-}
-
-#mouse-trail {
-    pointer-events: none;
-    position: fixed;
-    top: 0; left: 0;
-    z-index: 2147483647; /* Máximo Z-Index possível */
-    width: 18px; height: 18px; /* Levemente menor para mais precisão */
-    margin-top: -9px; margin-left: -9px;
-    border-radius: 50%;
-    border: 1.5px solid var(--neon-core); /* Borda um pouco mais grossa */
-    background: radial-gradient(circle, rgba(var(--neon-rgb), 0.1), transparent 80%);
-    box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.6);
-    will-change: transform;
-    transform: translate3d(-100px, -100px, 0);
-    mix-blend-mode: screen;
-    transition: width 0.15s ease-out, height 0.15s ease-out; /* Transição mais rápida */
-}
-
-/* Ponto central para precisão */
-#mouse-trail::after {
-    content: '';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 4px; height: 4px;
-    background-color: white;
-    border-radius: 50%;
-    box-shadow: 0 0 4px var(--neon-core);
-}
-
-#mouse-trail.hover-active {
-    width: 40px; height: 40px; /* Expansão mais controlada */
-    margin-top: -20px; margin-left: -20px;
-    background: rgba(var(--neon-rgb), 0.15);
-    border-color: rgba(255, 255, 255, 0.9);
-}
-
-/* Reabilita o cursor nativo em dispositivos touch */
-@media (pointer: coarse) {
-    #mouse-trail { display: none !important; }
-    html:has(body.custom-cursor-active) *, 
-    body.custom-cursor-active * { 
-        cursor: auto !important; 
+    #mouse-trail.hover-active {
+        width: 48px; height: 48px;
+        margin-top: -24px; margin-left: -24px;
+        background: rgba(var(--neon-rgb), 0.05);
+        border-width: 1px;
+        mix-blend-mode: normal;
     }
 }
 
-/* --- COMPACT MODE --- */
-body.compact-mode .glass { padding: 12px !important; border-radius: 12px !important; }
-body.compact-mode .input-cyber { padding: 8px !important; font-size: 13px !important; }
-body.compact-mode h1 { font-size: 1.5rem !important; }
-body.compact-mode h3 { font-size: 1rem !important; }
-body.compact-mode .w-16.h-16 { width: 3rem !important; height: 3rem !important; }
-
-/* --- UTILS --- */
-.glass { background: var(--glass-panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); transition: all 0.3s var(--ease-smooth); border-radius: var(--radius-std) !important; }
-.input-cyber { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; transition: all 0.3s ease; font-family: 'Rajdhani', sans-serif; border-radius: 8px !important; }
-.input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2); outline: none; }
-
-.skill-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer; transition: all 0.2s; }
-.skill-dot.active { background: var(--neon-core); box-shadow: 0 0 8px var(--neon-core); border-color: var(--neon-core); }
-
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--neon-core); }
-
-.font-brand { font-family: 'Orbitron', sans-serif; }
-.font-code { font-family: 'JetBrains Mono', monospace; }
-
-/* --- ANIMAÇÕES ESSENCIAIS (Restauradas) --- */
-
-/* Genie Effect (Bandeja) */
-.genie-enter { animation: genieIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-origin: bottom right; }
-.genie-leave { animation: genieOut 0.3s cubic-bezier(0.7, 0, 0.84, 0) forwards; transform-origin: bottom right; }
-@keyframes genieIn { 0% { transform: scale(0) translate(100%, 100%); opacity: 0; filter: blur(10px); } 100% { transform: scale(1) translate(0, 0); opacity: 1; filter: blur(0); } }
-@keyframes genieOut { 0% { transform: scale(1) translate(0, 0); opacity: 1; } 100% { transform: scale(0) translate(50%, 100%); opacity: 0; } }
-
-/* Modal Slide */
-.modal-enter { animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes modalSlideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-
-/* Shake (Alerta) */
-.shake-anim { animation: shake 0.3s ease-in-out; }
-@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-1deg); } 75% { transform: translateX(5px) rotate(1deg); } }
-
-/* Logout/Revert */
-body.animating-out main { animation: dismantle 0.2s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards; }
-body.animating-in main { animation: assemble 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
-@keyframes dismantle { 0% { opacity: 1; transform: scale(1); filter: blur(0); } 100% { opacity: 0; transform: scale(0.9); filter: blur(10px); } }
-@keyframes assemble { 0% { opacity: 0; transform: scale(1.1); filter: blur(10px); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
-body.interaction-lock * { pointer-events: none !important; cursor: wait !important; }
-
-/* Blink (Erro) */
-.blink-anim { animation: blink 1s infinite; }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-/* --- MINIGAME TARGET --- */
-.glitch-target {
-    position: absolute; width: 60px; height: 60px;
-    background: red; border-radius: 50%;
-    cursor: crosshair; box-shadow: 0 0 20px red;
-    z-index: 50; transition: all 0.1s linear;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; color: black; font-size: 10px;
-    user-select: none;
+/* Touch devices: esconde o rastro e restaura cursor */
+@media (pointer: coarse) {
+    #mouse-trail { display: none !important; }
 }
-.glitch-target:active { transform: scale(0.9); }
