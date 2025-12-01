@@ -188,19 +188,6 @@ function zeniteSystem() {
 
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            
-            const savedConfig = localStorage.getItem('zenite_cached_db');
-            if (savedConfig) {
-                try {
-                    const parsed = JSON.parse(savedConfig);
-                    if (parsed.config) {
-                        this.settings = { ...this.settings, ...parsed.config };
-                        this.applyTheme(this.settings.themeColor);
-                        if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
-                    }
-                } catch(e) { console.warn("Cache config error", e); }
-            }
-
             setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
             window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
 
@@ -214,6 +201,7 @@ function zeniteSystem() {
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 
+                // SETUP LISTENERS ESPECIAS
                 this.setupListeners(); 
                 this.setupCursorEngine(); 
                 this.setupWatchers();
@@ -237,16 +225,11 @@ function zeniteSystem() {
 
                 this.loadingProgress = 90; this.loadingText = 'APPLYING THEME';
                 this.applyTheme(this.settings.themeColor);
+                if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                sfxEnabledGlobal = this.settings.sfxEnabled; 
+                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
                 this.updateVisualState();
-                
-                if (!localStorage.getItem('zenite_setup_done') && !this.isGuest) {
-                    this.configModal = true;
-                    this.notify("Bem-vindo, Herói. Configure seu terminal.", "info");
-                    localStorage.setItem('zenite_setup_done', 'true');
-                }
                 
                 this.updateAgentCount();
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
@@ -297,40 +280,11 @@ function zeniteSystem() {
             }
         },
 
-        handleEsc() {
-            if (this.systemFailure) return; 
-            if (this.confirmOpen) { this.confirmOpen = false; return; }
-            if (this.cropperOpen) { this.cropperOpen = false; return; }
-            if (this.configModal) { this.configModal = false; return; }
-            if (this.wizardOpen) { this.wizardOpen = false; return; }
-            
-            if (this.diceTrayOpen) { this.toggleDiceTray(); return; }
-            if (this.userMenuOpen) { this.userMenuOpen = false; return; }
-            
-            if (this.currentView === 'sheet') { 
-                if (this.unsavedChanges && !this.isGuest) {
-                    this.triggerShake();
-                    this.notify("Salve suas alterações (CTRL+S)", "warn");
-                } else {
-                    this.saveAndExit(true); 
-                }
-            }
-        },
-
 // ... (Código anterior mantido) ...
 
         handleLogoClick() {
-            const TIME_WINDOW = 500; 
-            const now = Date.now();
-            if (now - (this.lastClickTime || 0) > TIME_WINDOW) {
-                this.logoClickCount = 0;
-            }
-            this.lastClickTime = now;
-            
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
-            
-            this.triggerFX('glitch');
             
             if (this.logoClickCount >= 5) {
                 this.logoClickCount = 0;
@@ -338,30 +292,35 @@ function zeniteSystem() {
                 return;
             }
             
-            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, TIME_WINDOW);
+            this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
+            
+            // Toggle Fullscreen normal (clicks 1-4)
+            if (!this.systemFailure) { // Só alterna se não estiver em erro
+                 if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
         },
 
         triggerSystemFailure() {
+            // 1. Toca o som do terror
             playSFX('glitch'); 
+            
+            // 2. FORÇA TELA CHEIA (O "engano" acontece aqui)
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch((err) => {
                     console.log("Fullscreen blocked:", err);
                 });
             }
+
+            // 3. Mostra a tela de erro
             this.systemFailure = true; 
+            
+            // 4. Remove o erro depois de 5s (susto temporário)
         },
 
-        rebootSystem() {
-            if (this.rebooting) return;
-            this.rebooting = true;
-            playSFX('save');
-            setTimeout(() => {
-                this.systemFailure = false;
-                this.rebooting = false;
-                if (document.fullscreenElement) document.exitFullscreen().catch(e => {});
-                this.notify("SISTEMA REINICIADO", "success");
-            }, 2000);
-        },
 // ... (Restante do código) ...
 
         ensureTrayOnScreen() {
