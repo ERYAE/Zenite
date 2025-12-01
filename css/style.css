@@ -1,97 +1,113 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+    --bg-void: #050507;
+    --glass-panel: rgba(20, 20, 25, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.08);
     --neon-core: #0ea5e9;
     --neon-rgb: 14, 165, 233;
-    --glass-bg: rgba(10, 10, 15, 0.8);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --radius-std: 16px;
+    --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+[x-cloak] { display: none !important; }
+
 body {
-    background-color: #050507;
-    color: #e2e8f0;
     font-family: 'Rajdhani', sans-serif;
+    background-color: var(--bg-void);
+    color: #e2e8f0;
+    min-height: 100vh;
     overflow-x: hidden;
+    /* Remove highlight azul em mobile */
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* --- TEMA HACKER --- */
 body.theme-hacker {
-    --neon-core: #22c55e;
-    --neon-rgb: 34, 197, 94;
-    font-family: 'JetBrains Mono', monospace;
+    --bg-void: #000a00;
+    --glass-panel: rgba(0, 20, 0, 0.8);
+    --glass-border: #00ff41;
+    --neon-core: #00ff41;
+    --neon-rgb: 0, 255, 65;
+    font-family: 'JetBrains Mono', monospace !important;
 }
-
-/* Utilitários de Fonte */
-.font-brand { font-family: 'Orbitron', sans-serif; }
-.font-code { font-family: 'JetBrains Mono', monospace; }
-
-/* Utilitários Visuais */
-.glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
+body.theme-hacker * { font-family: 'JetBrains Mono', monospace !important; letter-spacing: -0.5px; }
+body.theme-hacker .text-gray-500, body.theme-hacker .text-gray-400, body.theme-hacker i {
+    color: #22c55e !important; text-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
 }
+body.theme-hacker .glass { border-color: #22c55e !important; background: rgba(0, 20, 0, 0.9) !important; }
 
-.input-cyber {
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--glass-border);
-    color: white;
-    transition: all 0.3s ease;
-}
-.input-cyber:focus {
-    border-color: var(--neon-core);
-    box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2);
-    outline: none;
-}
-
-/* --- CURSOR (Correção Limpa) --- */
-/* Só esconde o cursor dentro do BODY quando a classe está ativa */
+/* --- CURSOR (Correção Definitiva) --- */
+/* Só aplica em PC (pointer: fine) */
 @media (pointer: fine) {
-    body.custom-cursor-active {
-        cursor: none;
-    }
-    
-    body.custom-cursor-active a, 
+    /* Esconde o cursor padrão em TUDO quando a classe está ativa */
+    body.custom-cursor-active,
+    body.custom-cursor-active *,
+    body.custom-cursor-active a,
     body.custom-cursor-active button,
     body.custom-cursor-active input,
-    body.custom-cursor-active select, 
+    body.custom-cursor-active select,
     body.custom-cursor-active textarea,
     body.custom-cursor-active .cursor-pointer {
-        cursor: none;
+        cursor: none !important;
     }
 
     #mouse-trail {
         pointer-events: none;
         position: fixed;
         top: 0; left: 0;
-        z-index: 9999;
-        width: 12px; height: 12px;
-        margin-top: -6px; margin-left: -6px;
+        z-index: 100000;
+        /* Tamanho original que você gostava */
+        width: 20px; height: 20px;
+        /* Margin negativa exata metade do tamanho para centralizar a ponta */
+        margin-top: -10px; margin-left: -10px;
         border-radius: 50%;
-        background: var(--neon-core);
-        box-shadow: 0 0 10px var(--neon-core);
+        border: 1px solid var(--neon-core);
+        background: radial-gradient(circle, rgba(var(--neon-rgb), 0.2), transparent 70%);
+        box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.5);
         will-change: transform;
         transform: translate3d(-100px, -100px, 0);
-        transition: width 0.2s, height 0.2s;
         mix-blend-mode: screen;
+        transition: width 0.3s var(--ease-smooth), height 0.3s var(--ease-smooth);
+    }
+
+    /* Ponto central (A "mira") */
+    #mouse-trail::after {
+        content: ''; position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 2px; height: 2px; background-color: white;
+        border-radius: 50%; box-shadow: 0 0 4px var(--neon-core);
     }
 
     #mouse-trail.hover-active {
-        width: 40px; height: 40px;
-        margin-top: -20px; margin-left: -20px;
-        background: transparent;
-        border: 2px solid var(--neon-core);
+        width: 50px; height: 50px;
+        margin-top: -25px; margin-left: -25px;
+        background: rgba(var(--neon-rgb), 0.05);
+        border-color: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 30px rgba(var(--neon-rgb), 0.4);
+        mix-blend-mode: normal;
     }
 }
 
+/* Mobile: Garante que o cursor padrão volte e esconde a bola */
 @media (pointer: coarse) {
     #mouse-trail { display: none !important; }
+    body.custom-cursor-active * { cursor: auto !important; }
 }
+
+/* --- UTILS --- */
+.glass { background: var(--glass-panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); transition: all 0.3s var(--ease-smooth); border-radius: var(--radius-std); }
+.input-cyber { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; transition: all 0.3s ease; font-family: 'Rajdhani', sans-serif; border-radius: 8px; }
+.input-cyber:focus { border-color: var(--neon-core); box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2); outline: none; }
+.font-brand { font-family: 'Orbitron', sans-serif; }
+.font-code { font-family: 'JetBrains Mono', monospace; }
 
 /* Animações */
 .shake-anim { animation: shake 0.3s ease-in-out; }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.modal-enter { animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes modalSlideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
