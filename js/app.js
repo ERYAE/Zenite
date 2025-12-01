@@ -1,14 +1,14 @@
 /**
  * ZENITE OS - Core Application
- * Version: v85-zerado
- * Changelog:
- * - Fix: Reading: Null
+ * Version: v86-stable
+ * Fixes: Data Sanitization, Reboot State, Audio Handling
  */
 
 const CONSTANTS = {
     MAX_AGENTS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
+    // AVISO: Em produção, use variáveis de ambiente para estas chaves
     SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
@@ -17,29 +17,30 @@ let cursorX = -100, cursorY = -100;
 let isCursorHover = false;
 let renderRafId = null;
 
-/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS (CORRIGIDO FINAL) ---
+/// --- AUDIO ENGINE: WHITE NOISE SYNTHESIS ---
 let audioCtx = null;
 let noiseBuffer = null;
 let sfxEnabledGlobal = true;
-let userHasInteracted = false; // A trava de segurança
+let userHasInteracted = false;
 
-// Inicia o áudio SOMENTE no clique
 const initAudio = () => {
     if (audioCtx) return; 
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
-    
-    const bufferSize = audioCtx.sampleRate * 2;
-    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        const bufferSize = audioCtx.sampleRate * 2;
+        noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+    } catch(e) {
+        console.warn("Audio Context not supported or blocked");
     }
 };
 
-// Listener global para destravar o áudio
 document.addEventListener('click', () => {
-    userHasInteracted = true; // Agora pode tocar som
+    userHasInteracted = true;
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -47,72 +48,73 @@ document.addEventListener('click', () => {
 }, { once: true });
 
 const playSFX = (type) => {
-    // SE O USUÁRIO AINDA NÃO CLICOU, NÃO FAZ NADA (Evita o erro do console)
-    if (!userHasInteracted || !audioCtx) return;
-    
-    if (!sfxEnabledGlobal) return;
+    if (!userHasInteracted || !audioCtx || !sfxEnabledGlobal) return;
 
-    const now = audioCtx.currentTime;
-    const gain = audioCtx.createGain();
-    gain.connect(audioCtx.destination);
+    try {
+        const now = audioCtx.currentTime;
+        const gain = audioCtx.createGain();
+        gain.connect(audioCtx.destination);
 
-    if (type === 'hover') {
-        const src = audioCtx.createBufferSource();
-        src.buffer = noiseBuffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 800;
-        filter.Q.value = 10;
-        src.connect(filter);
-        filter.connect(gain);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        src.start(now); src.stop(now + 0.05);
+        if (type === 'hover') {
+            const src = audioCtx.createBufferSource();
+            src.buffer = noiseBuffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 800;
+            filter.Q.value = 10;
+            src.connect(filter);
+            filter.connect(gain);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            src.start(now); src.stop(now + 0.05);
 
-    } else if (type === 'click') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.connect(gain);
-        osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'click') {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.connect(gain);
+            osc.start(now); osc.stop(now + 0.05);
 
-    } else if (type === 'save') { 
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, now);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-        osc.connect(gain);
-        osc.start(now); osc.stop(now + 0.6);
+        } else if (type === 'save') { 
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            osc.connect(gain);
+            osc.start(now); osc.stop(now + 0.6);
 
-    } else if (type === 'discard') { 
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sawtooth';
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        osc.frequency.setValueAtTime(100, now);
-        osc.frequency.linearRampToValueAtTime(10, now + 0.3);
-        filter.frequency.setValueAtTime(500, now);
-        filter.frequency.linearRampToValueAtTime(50, now + 0.3);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc.connect(filter); filter.connect(gain);
-        osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'discard') { 
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(10, now + 0.3);
+            filter.frequency.setValueAtTime(500, now);
+            filter.frequency.linearRampToValueAtTime(50, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.connect(filter); filter.connect(gain);
+            osc.start(now); osc.stop(now + 0.3);
 
-    } else if (type === 'glitch') {
-        const src = audioCtx.createBufferSource();
-        src.buffer = noiseBuffer;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
-        src.connect(filter);
-        filter.connect(gain);
-        gain.gain.setValueAtTime(0.8, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
-        src.start(now); src.stop(now + 2.0);
+        } else if (type === 'glitch') {
+            const src = audioCtx.createBufferSource();
+            src.buffer = noiseBuffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 400;
+            src.connect(filter);
+            filter.connect(gain);
+            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 2.0);
+            src.start(now); src.stop(now + 2.0);
+        }
+    } catch(e) {
+        console.error("SFX Error", e);
     }
 };
 
@@ -130,7 +132,8 @@ function zeniteSystem() {
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, notifications: [], user: null, isGuest: false,
         userMenuOpen: false, authLoading: false, authMsg: '', authMsgType: '',
-        wizardNameError: false, // Controle da tremedeira
+        wizardNameError: false,
+        rebooting: false, // CORREÇÃO: Variável adicionada para evitar ReferenceError
         
         // SECRETS
         konamiBuffer: [], logoClickCount: 0, logoClickTimer: null, systemFailure: false,
@@ -159,7 +162,7 @@ function zeniteSystem() {
         // CONFIGS
         settings: {
             mouseTrail: true, compactMode: false, performanceMode: false, 
-            crtMode: true, sfxEnabled: true, // NOVO
+            crtMode: true, sfxEnabled: true,
             themeColor: 'cyan'
         },
         
@@ -188,37 +191,61 @@ function zeniteSystem() {
 
         async initSystem() {
             this.loadingProgress = 10; this.loadingText = 'CORE SYSTEM';
-            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 8000);
-            window.addEventListener('beforeunload', (e) => { if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } });
+            // Timeout de segurança reduzido
+            setTimeout(() => { if(this.systemLoading) this.systemLoading = false; }, 5000);
+            
+            window.addEventListener('beforeunload', (e) => { 
+                if (this.unsavedChanges && !this.isGuest) { e.preventDefault(); e.returnValue = 'Alterações pendentes.'; } 
+            });
 
             try {
                 await new Promise(r => setTimeout(r, 300));
+                
+                // Inicializa Supabase se disponível
                 if (typeof window.supabase !== 'undefined') {
                     this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY, {
                         auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
                     });
                 }
+                
                 this.loadingProgress = 30; this.loadingText = 'AUTHENTICATING';
                 this.debouncedSaveFunc = debounce(() => { this.saveLocal(); }, 1000);
                 
-                // SETUP LISTENERS ESPECIAS
                 this.setupListeners(); 
                 this.setupCursorEngine(); 
                 this.setupWatchers();
 
                 this.loadingProgress = 50; this.loadingText = 'LOADING CACHE';
                 const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
-                if (isGuest) { this.isGuest = true; this.loadLocal('zenite_guest_db'); } 
-                else {
+                
+                if (isGuest) { 
+                    this.isGuest = true; 
+                    this.loadLocal('zenite_guest_db'); 
+                } else {
                     this.loadLocal('zenite_cached_db');
                     if(this.supabase) {
                         try {
                             const { data: { session } } = await this.supabase.auth.getSession();
-                            if (session) { this.user = session.user; this.loadingText = 'SYNCING CLOUD'; this.loadingProgress = 70; await this.fetchCloud(); }
+                            if (session) { 
+                                this.user = session.user; 
+                                this.loadingText = 'SYNCING CLOUD'; 
+                                this.loadingProgress = 70; 
+                                await this.fetchCloud(); 
+                            }
                         } catch(e) { this.notify("Modo Offline", "warn"); }
+                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
-                            if (event === 'SIGNED_IN' && session) { if (this.user?.id === session.user.id) return; this.user = session.user; this.isGuest = false; localStorage.removeItem('zenite_is_guest'); await this.fetchCloud(); } 
-                            else if (event === 'SIGNED_OUT') { this.user = null; this.chars = {}; this.currentView = 'dashboard'; }
+                            if (event === 'SIGNED_IN' && session) { 
+                                if (this.user?.id === session.user.id) return; 
+                                this.user = session.user; 
+                                this.isGuest = false; 
+                                localStorage.removeItem('zenite_is_guest'); 
+                                await this.fetchCloud(); 
+                            } else if (event === 'SIGNED_OUT') { 
+                                this.user = null; 
+                                this.chars = {}; 
+                                this.currentView = 'dashboard'; 
+                            }
                         });
                     }
                 }
@@ -228,36 +255,75 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) document.body.classList.add('compact-mode');
                 if(this.settings.performanceMode) document.body.classList.add('performance-mode');
                 
-                sfxEnabledGlobal = this.settings.sfxEnabled; // Sync global audio state
+                sfxEnabledGlobal = this.settings.sfxEnabled;
                 this.updateVisualState();
-                
                 this.updateAgentCount();
+                
                 setInterval(() => { if (this.user && this.unsavedChanges && !this.isSyncing) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+                
                 this.loadingProgress = 100; this.loadingText = 'READY';
                 setTimeout(() => { this.systemLoading = false; }, 500);
 
-            } catch (err) { console.error("Boot Error:", err); this.notify("Erro na inicialização.", "error"); this.systemLoading = false; }
+            } catch (err) { 
+                console.error("Boot Error:", err); 
+                this.notify("Erro na inicialização.", "error"); 
+                this.systemLoading = false; 
+            }
+        },
+
+        // --- FUNÇÃO NOVA: Sanitize Data ---
+        // Garante que o objeto char tenha todos os campos necessários para não quebrar o Alpine
+        sanitizeChar(data) {
+            if (!data) return null;
+            const safe = JSON.parse(JSON.stringify(data));
+            
+            // Garante campos básicos
+            if (!safe.attrs) safe.attrs = {for:0, agi:0, int:0, von:0, pod:0};
+            if (!safe.stats) safe.stats = {};
+            if (!safe.stats.pv) safe.stats.pv = {current: 10, max: 10};
+            if (!safe.stats.pf) safe.stats.pf = {current: 10, max: 10};
+            if (!safe.stats.pdf) safe.stats.pdf = {current: 10, max: 10};
+            
+            // Garante Inventário
+            if (!safe.inventory) safe.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} };
+            if (!safe.inventory.weapons) safe.inventory.weapons = [];
+            if (!safe.inventory.armor) safe.inventory.armor = [];
+            if (!safe.inventory.gear) safe.inventory.gear = [];
+            if (!safe.inventory.social) safe.inventory.social = { people:[], objects:[] };
+            
+            // Garante Skills e Poderes
+            if (!safe.skills) safe.skills = [];
+            if (!safe.powers) safe.powers = { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' };
+            if (!safe.powers.techniques) safe.powers.techniques = [];
+            
+            return safe;
         },
 
         setupListeners() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; this.ensureTrayOnScreen(); });
             window.addEventListener('popstate', (event) => {
-                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { history.pushState(null, null, location.href); this.triggerShake(); this.notify("Salve antes de sair!", "warn"); return; }
-                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { if(this.currentView === 'sheet') this.saveAndExit(true); this.wizardOpen = false; this.configModal = false; this.cropperOpen = false; }
+                if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { 
+                    history.pushState(null, null, location.href); 
+                    this.triggerShake(); 
+                    this.notify("Salve antes de sair!", "warn"); 
+                    return; 
+                }
+                if (this.currentView === 'sheet' || this.wizardOpen || this.configModal) { 
+                    if(this.currentView === 'sheet') this.saveAndExit(true); 
+                    this.wizardOpen = false; 
+                    this.configModal = false; 
+                    this.cropperOpen = false; 
+                }
             });
             
-            // --- SFX LISTENER INTELIGENTE (SEM SPAM) ---
-            let lastHovered = null; // Rastreador de elemento
-            
+            let lastHovered = null;
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, .cursor-pointer')) playSFX('click'); 
             });
             
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest('button, a, .cursor-pointer');
-                
-                // Só toca se MUDOU de elemento (Entrou num novo)
                 if (target && target !== lastHovered) {
                     playSFX('hover');
                     lastHovered = target;
@@ -280,8 +346,6 @@ function zeniteSystem() {
             }
         },
 
-// ... (Código anterior mantido) ...
-
         handleLogoClick() {
             clearTimeout(this.logoClickTimer); 
             this.logoClickCount++;
@@ -294,8 +358,7 @@ function zeniteSystem() {
             
             this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 2000);
             
-            // Toggle Fullscreen normal (clicks 1-4)
-            if (!this.systemFailure) { // Só alterna se não estiver em erro
+            if (!this.systemFailure) { 
                  if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen().catch(()=>{});
                 } else if (document.exitFullscreen) {
@@ -305,23 +368,13 @@ function zeniteSystem() {
         },
 
         triggerSystemFailure() {
-            // 1. Toca o som do terror
             playSFX('glitch'); 
-            
-            // 2. FORÇA TELA CHEIA (O "engano" acontece aqui)
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch((err) => {
-                    console.log("Fullscreen blocked:", err);
-                });
+                document.documentElement.requestFullscreen().catch((err) => { console.log("Fullscreen blocked:", err); });
             }
-
-            // 3. Mostra a tela de erro
             this.systemFailure = true; 
-            
-            // 4. Remove o erro depois de 5s (susto temporário)
+            setTimeout(() => { this.systemFailure = false; }, 5000); // Reset automático
         },
-
-// ... (Restante do código) ...
 
         ensureTrayOnScreen() {
             if(this.isMobile || this.trayDockMode !== 'float') return;
@@ -329,29 +382,19 @@ function zeniteSystem() {
             this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
         },
 
-        // --- VISUAL STATE MANAGER ---
         updateVisualState() {
-    const isAuthenticated = this.user || this.isGuest;
-    // Verifica se deve mostrar o rastro
-    const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
+            const isAuthenticated = this.user || this.isGuest;
+            const showTrail = isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile;
 
-    // SÓ esconde o cursor padrão se o rastro estiver ativado E visível
-    if (showTrail) {
-        document.body.classList.add('custom-cursor-active');
-    } else {
-        document.body.classList.remove('custom-cursor-active');
-    }
+            if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
+            else { document.body.classList.remove('custom-cursor-active'); }
 
-    // CRT (Pixel Effect)
-    if (isAuthenticated && this.settings.crtMode) {
-        document.body.classList.add('crt-mode');
-    } else {
-        document.body.classList.remove('crt-mode');
-    }
-    
-    // SFX State
-    sfxEnabledGlobal = this.settings.sfxEnabled;
-},
+            if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
+            else { document.body.classList.remove('crt-mode'); }
+            
+            sfxEnabledGlobal = this.settings.sfxEnabled;
+        },
+
         setupCursorEngine() {
             const trail = document.getElementById('mouse-trail');
             if (!window.matchMedia("(pointer: fine)").matches) { if(trail) trail.style.display = 'none'; return; }
@@ -370,7 +413,6 @@ function zeniteSystem() {
                 const isAuthenticated = this.user || this.isGuest;
                 
                 if (isAuthenticated && this.settings.mouseTrail && !this.settings.performanceMode && !this.isMobile) {
-                    // AQUI ESTAVA 0.15, MUDEI PARA 0.45 (Mais rápido/snappy)
                     trailX += (cursorX - trailX) * 0.45;
                     trailY += (cursorY - trailY) * 0.45;
 
@@ -401,32 +443,23 @@ function zeniteSystem() {
         },
         startDragTray(e) {
             if(this.isMobile || this.trayDockMode !== 'float') return;
-            // Ignora se clicar em botões dentro da barra
             if(e.target.closest('button') || e.target.closest('input')) return;
             
-            // Pega o elemento direto pelo ID para performance máxima
             const trayEl = document.getElementById('dice-tray-window');
             if(!trayEl) return;
 
             this.isDraggingTray = true;
-            
-            // Calcula a distância inicial
             const startX = e.clientX;
             const startY = e.clientY;
             const startLeft = this.trayPosition.x;
             const startTop = this.trayPosition.y;
             
-            // Remove a transição suave durante o arrasto para não dar sensação de "elástico"
             trayEl.style.transition = 'none';
 
             const moveHandler = (ev) => {
                 if(!this.isDraggingTray) return;
-                
-                // Matemática simples e direta
                 const dx = ev.clientX - startX;
                 const dy = ev.clientY - startY;
-                
-                // Aplica direto no CSS (Zero Lag)
                 trayEl.style.left = `${startLeft + dx}px`;
                 trayEl.style.top = `${startTop + dy}px`;
             };
@@ -435,17 +468,12 @@ function zeniteSystem() {
                 this.isDraggingTray = false;
                 document.removeEventListener('mousemove', moveHandler);
                 document.removeEventListener('mouseup', upHandler);
-                
-                // Salva a posição final na memória do Alpine
                 const dx = ev.clientX - startX;
                 const dy = ev.clientY - startY;
                 this.trayPosition.x = startLeft + dx;
                 this.trayPosition.y = startTop + dy;
-                
-                // Devolve a transição suave para quando abrir/fechar
                 if(trayEl) trayEl.style.transition = '';
-                
-                this.saveLocal(); // Salva a posição preferida
+                this.saveLocal(); 
             };
 
             document.addEventListener('mousemove', moveHandler);
@@ -463,8 +491,6 @@ function zeniteSystem() {
                 }
             }, {deep: true});
             this.$watch('currentView', (val) => { if (val !== 'sheet') { this.diceTrayOpen = false; this.revertConfirmMode = false; } });
-            
-            // Watch centralizado
             this.$watch('user', (val) => { this.updateVisualState(); });
             this.$watch('isGuest', (val) => { this.updateVisualState(); });
         },
@@ -478,7 +504,12 @@ function zeniteSystem() {
                     if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                     if(parsed.hasSeenTip !== undefined) this.hasSeenDiceTip = parsed.hasSeenTip;
                     const validChars = {};
-                    Object.keys(parsed).forEach(k => { if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) validChars[k] = parsed[k]; });
+                    Object.keys(parsed).forEach(k => { 
+                        if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) {
+                            // Sanitiza ao carregar do local também
+                            validChars[k] = this.sanitizeChar(parsed[k]); 
+                        }
+                    });
                     this.chars = validChars;
                     this.updateAgentCount();
                 } catch(e) { console.error("Local Load Error", e); }
@@ -500,7 +531,6 @@ function zeniteSystem() {
                 return; 
             }
             
-            // Salva o estado atual antes de sair
             if(this.char && this.activeCharId) { 
                 this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
                 this.updateAgentCount(); 
@@ -509,30 +539,32 @@ function zeniteSystem() {
             this.saveLocal(); 
             if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
             
-            // Fecha as janelas flutuantes
             this.diceTrayOpen = false; 
             this.showDiceTip = false;
-            
-            // Muda a tela
             this.currentView = 'dashboard'; 
             this.activeCharId = null;
-            
-            // IMPORTANTE: NÃO FAZEMOS MAIS "this.char = null" AQUI.
-            // Deixamos o char na memória para evitar o erro do Alpine durante a animação de saída.
-            // Ele será substituído quando carregarmos o próximo personagem.
             
             if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
         },
 
         toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
+        
         async performRevert() {
             this.isReverting = true; this.diceTrayOpen = false; this.revertConfirmMode = false;
             document.body.classList.add('animating-out'); document.body.classList.add('interaction-lock');
-            playSFX('discard'); // SOM DE RECUSA
+            playSFX('discard'); 
             setTimeout(async () => {
                 try {
                     if(this.isGuest) { this.loadLocal('zenite_guest_db'); } else { this.loadLocal('zenite_cached_db'); await this.fetchCloud(); }
-                    if(this.activeCharId && this.chars[this.activeCharId]) { this.char = JSON.parse(JSON.stringify(this.chars[this.activeCharId])); } else { this.currentView = 'dashboard'; this.char = null; }
+                    
+                    if(this.activeCharId && this.chars[this.activeCharId]) { 
+                        // Sanitiza ao reverter
+                        this.char = this.sanitizeChar(this.chars[this.activeCharId]); 
+                    } else { 
+                        this.currentView = 'dashboard'; 
+                        this.char = null; 
+                    }
+                    
                     this.unsavedChanges = false;
                     document.body.classList.remove('animating-out'); document.body.classList.add('animating-in');
                     this.notify('Dados restaurados.', 'success');
@@ -553,10 +585,22 @@ function zeniteSystem() {
                     const cloudData = data.data;
                     if(cloudData.config) { this.settings = { ...this.settings, ...cloudData.config }; this.applyTheme(this.settings.themeColor); }
                     if(cloudData.hasSeenTip !== undefined) this.hasSeenDiceTip = cloudData.hasSeenTip;
-                    let merged = { ...this.chars }; let hasLocalOnly = false;
-                    Object.keys(cloudData).forEach(k => { if(!['config','hasSeenTip'].includes(k)) merged[k] = cloudData[k]; });
+                    
+                    let merged = { ...this.chars }; 
+                    let hasLocalOnly = false;
+                    
+                    Object.keys(cloudData).forEach(k => { 
+                        if(!['config','hasSeenTip'].includes(k)) {
+                            // Sanitiza dados da nuvem
+                            merged[k] = this.sanitizeChar(cloudData[k]); 
+                        }
+                    });
+                    
                     Object.keys(this.chars).forEach(localId => { if (!cloudData[localId] && localId !== 'config') { merged[localId] = this.chars[localId]; hasLocalOnly = true; } });
-                    this.chars = merged; this.updateAgentCount(); this.saveLocal();
+                    
+                    this.chars = merged; 
+                    this.updateAgentCount(); 
+                    this.saveLocal();
                     if (hasLocalOnly) { this.unsavedChanges = true; this.syncCloud(true); }
                 }
             } catch(e) {}
@@ -570,44 +614,83 @@ function zeniteSystem() {
                 const { error } = await this.supabase.from('profiles').upsert({ id: this.user.id, data: payload });
                 if (error) throw error;
                 this.unsavedChanges = false; this.saveStatus = 'success'; 
-                if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); } // SOM DE SALVAR
+                if(!silent) { this.notify('Salvo!', 'success'); playSFX('save'); } 
             } catch (e) { this.saveStatus = 'error'; if(!silent) this.notify('Erro ao salvar.', 'error'); } finally { this.isSyncing = false; }
         },
         
         updateAgentCount() { this.agentCount = Object.keys(this.chars).length; },
+        
         calculateBaseStats(className, levelStr, attrs) {
             const cl = className || 'Titã'; const lvl = Math.max(1, parseInt(levelStr) || 1); const get = (v) => parseInt(attrs[v] || 0);
             const config = { 'Titã':{pv:[15,4],pf:[12,2],pdf:[12,2]}, 'Estrategista':{pv:[12,2],pf:[15,4],pdf:[12,2]}, 'Infiltrador':{pv:[12,2],pf:[15,4],pdf:[12,3]}, 'Controlador':{pv:[12,2],pf:[12,2],pdf:[15,4]}, 'Psíquico':{pv:[12,2],pf:[13,3],pdf:[14,3]} };
             const cfg = config[cl] || config['Titã'];
             return { pv:(cfg.pv[0]+get('for'))+((cfg.pv[1]+get('for'))*(lvl-1)), pf:(cfg.pf[0]+get('pod'))+((cfg.pf[1]+get('pod'))*(lvl-1)), pdf:(cfg.pdf[0]+get('von'))+((cfg.pdf[1]+get('von'))*(lvl-1)) };
         },
+        
         recalcDerivedStats() { 
-            if(!this.char) return; const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs); const c = this.char;
-            const diffPv = (c.stats.pv.max||newStats.pv)-c.stats.pv.current; const diffPf = (c.stats.pf.max||newStats.pf)-c.stats.pf.current; const diffPdf = (c.stats.pdf.max||newStats.pdf)-c.stats.pdf.current;
-            c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
+            if(!this.char) return; 
+            // Proteção contra stats undefined
+            if(!this.char.stats) this.char.stats = {pv:{current:0,max:0}, pf:{current:0,max:0}, pdf:{current:0,max:0}};
+            
+            const newStats = this.calculateBaseStats(this.char.class, this.char.level, this.char.attrs); 
+            const c = this.char;
+            
+            // Funções auxiliares para evitar NaN
+            const safeStat = (stat, key) => (stat && stat[key] !== undefined) ? stat[key] : 0;
+            
+            const diffPv = (safeStat(c.stats.pv, 'max')||newStats.pv) - safeStat(c.stats.pv, 'current'); 
+            const diffPf = (safeStat(c.stats.pf, 'max')||newStats.pf) - safeStat(c.stats.pf, 'current'); 
+            const diffPdf = (safeStat(c.stats.pdf, 'max')||newStats.pdf) - safeStat(c.stats.pdf, 'current');
+            
+            c.stats.pv.max = newStats.pv; c.stats.pv.current = Math.max(0, newStats.pv-diffPv); 
+            c.stats.pf.max = newStats.pf; c.stats.pf.current = Math.max(0, newStats.pf-diffPf); 
+            c.stats.pdf.max = newStats.pdf; c.stats.pdf.current = Math.max(0, newStats.pdf-diffPdf);
         },
-        modAttr(key, val) { const c = this.char; if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } },
-        modStat(stat, val) { if(!this.char || !this.char.stats[stat]) return; const s = this.char.stats[stat]; s.current = Math.max(0, Math.min(s.max, s.current + val)); },
+        
+        modAttr(key, val) { 
+            const c = this.char; 
+            if(!c.attrs) c.attrs = {for:0, agi:0, int:0, von:0, pod:0};
+            if ((val > 0 && c.attrs[key] < 6) || (val < 0 && c.attrs[key] > -1)) { c.attrs[key] += val; this.recalcDerivedStats(); this.updateRadarChart(); } 
+        },
+        
+        modStat(stat, val) { 
+            if(!this.char || !this.char.stats[stat]) return; 
+            const s = this.char.stats[stat]; 
+            s.current = Math.max(0, Math.min(s.max, s.current + val)); 
+        },
 
         openWizard() { if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); this.wizardStep = 1; this.wizardPoints = 8; this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; this.wizardFocusAttr = ''; history.pushState({ modal: 'wizard' }, "Wizard", "#new"); this.wizardOpen = true; },
         selectArchetype(a) { this.wizardData.class = a.class; this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; this.wizardData.attrs[a.focus] = 0; this.wizardFocusAttr = a.focus; this.wizardStep = 2; this.$nextTick(() => { this.updateWizardChart(); }); },
         modWizardAttr(k,v) { const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } },
+        
         finishWizard() {
             if(!this.wizardData.name) { 
-                // Ativa a animação de erro
                 this.wizardNameError = true;
                 this.notify("Codinome obrigatório!", "warn");
-                playSFX('error'); // Se tiver som de erro, toca aqui
-                
-                // Desativa depois de 500ms para poder tremer de novo se clicar
+                playSFX('error'); 
                 setTimeout(() => { this.wizardNameError = false; }, 500);
                 return; 
             }
             
-            // ... (Resto do código igual) ...
             const id = 'z_'+Date.now(); 
             const calculated = this.calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
-            const newChar = { id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, credits: 0, attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, skills: [], powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } };
+            // Sanitização já na criação
+            const newChar = this.sanitizeChar({ 
+                id, 
+                name: this.wizardData.name, 
+                identity: this.wizardData.identity, 
+                class: this.wizardData.class, 
+                level: 1, 
+                age: this.wizardData.age, 
+                photo: this.wizardData.photo || '', 
+                history: this.wizardData.history, 
+                credits: 0, 
+                attrs: {...this.wizardData.attrs}, 
+                stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }, 
+                inventory: { weapons:[], armor:[], gear:[], backpack:"", social:{people:[], objects:[]} }, 
+                skills: [], 
+                powers: { passive:'', active:'', techniques:[], lvl3:'', lvl6:'', lvl9:'', lvl10:'' } 
+            });
             
             this.chars[id] = newChar; 
             this.updateAgentCount(); 
@@ -634,6 +717,7 @@ function zeniteSystem() {
             }
             this.updateVisualState(); this.saveLocal(); if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
         },
+        
         applyTheme(color) {
             const root = document.documentElement; const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
             const hex = map[color] || map['cyan']; const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
@@ -643,29 +727,16 @@ function zeniteSystem() {
         
         askLogout() { this.askConfirm('SAIR?', 'Dados pendentes serão salvos.', 'warn', () => this.logout()); },
         
-        // FIX DO KODA: Logout mais robusto
         async logout() { 
             this.systemLoading = true; 
-            
-            // 1. Tenta sincronizar (se falhar, segue o baile)
             if(this.unsavedChanges && !this.isGuest) { 
                 try { await this.syncCloud(true); } catch(e) { console.warn("Erro ao salvar no logout", e); } 
             } 
-            
-            // 2. Limpa localmente PRIMEIRO (garante que o usuário "saiu" pra UI)
             localStorage.removeItem('zenite_cached_db'); 
             localStorage.removeItem('zenite_is_guest'); 
-            
-            // 3. Tenta chamar Supabase (com try/catch pra não travar)
             if(this.supabase) {
-                try {
-                    await this.supabase.auth.signOut(); 
-                } catch(e) {
-                    console.error("Erro no Supabase SignOut", e);
-                }
+                try { await this.supabase.auth.signOut(); } catch(e) { console.error("Erro no Supabase SignOut", e); }
             }
-            
-            // 4. Reload final
             window.location.reload(); 
         },
 
@@ -674,25 +745,37 @@ function zeniteSystem() {
         doSocialAuth(provider) { if(!this.supabase) return this.notify("Erro de conexão.", "error"); this.authLoading = true; this.authMsg = "Conectando..."; this.supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } }).then(({error}) => { if(error) { this.notify(error.message, 'error'); this.authLoading = false; } }); },
         
         loadCharacter(id, skipPush = false) {
-             if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
+            if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
             if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-            this.loadingChar = true; this.activeCharId = id; this.diceTrayOpen = false; 
+            
+            this.loadingChar = true; 
+            this.activeCharId = id; 
+            this.diceTrayOpen = false; 
+            
             requestAnimationFrame(() => {
-                this.char = JSON.parse(JSON.stringify(this.chars[id]));
-                if(!this.char.inventory) this.char.inventory = { weapons:[], armor:[], gear:[], backpack: "", social: { people:[], objects:[]} }; 
-                if(!this.char.age) this.char.age = ""; 
-                this.currentView = 'sheet'; this.activeTab = 'profile'; this.diceTrayOpen = false; 
+                // CORREÇÃO: Sanitiza os dados ao carregar para evitar erros "undefined"
+                this.char = this.sanitizeChar(this.chars[id]);
+                
+                this.currentView = 'sheet'; 
+                this.activeTab = 'profile'; 
+                this.diceTrayOpen = false; 
+                
                 if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
-                this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
+                
+                this.$nextTick(() => { 
+                    this.updateRadarChart(); 
+                    setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); 
+                });
             });
          },
+         
         askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
         askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
         askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
         confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
 
         _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
-        updateRadarChart() { if(!this.char) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
+        updateRadarChart() { if(!this.char || !this.char.attrs) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
         updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
         
         triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
