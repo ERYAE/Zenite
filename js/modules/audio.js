@@ -1,19 +1,32 @@
 let audioCtx = null;
 let isSfxEnabled = true;
 
-const initAudio = () => {
+// ADICIONEI O "export" AQUI QUE FALTAVA
+export const initAudio = () => {
     if (audioCtx) return;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+    } catch (e) {
+        console.warn("AudioContext não suportado ou bloqueado");
+    }
 };
 
 export const setSfxEnabled = (enabled) => {
     isSfxEnabled = enabled;
-    if (audioCtx) enabled ? audioCtx.resume() : audioCtx.suspend();
+    if (audioCtx) {
+        // Tenta resumir se estiver suspenso
+        if (enabled && audioCtx.state === 'suspended') audioCtx.resume();
+        // Se desabilitado, não precisamos suspender, apenas ignorar os plays
+    }
 };
 
 const playTone = (freq, type, duration, vol = 0.05) => {
     if (!audioCtx || !isSfxEnabled) return;
+    
+    // Garante que o contexto está rodando
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
@@ -31,21 +44,22 @@ const playTone = (freq, type, duration, vol = 0.05) => {
 };
 
 export const playSFX = (type) => {
+    // Tenta iniciar se ainda não foi (fail-safe)
     if (!audioCtx) initAudio();
-    if (audioCtx?.state === 'suspended') audioCtx.resume();
+    if (!audioCtx) return;
 
     try {
         if (type === 'click') {
-            // Clique super curto e seco (0.05s) - Não irrita
             playTone(600, 'sine', 0.05, 0.1); 
         } else if (type === 'hover') {
-            // Hover quase imperceptível
             playTone(200, 'sine', 0.03, 0.02);
-        } else if (type === 'success') {
+        } else if (type === 'success' || type === 'save') {
             playTone(800, 'sine', 0.1, 0.1);
             setTimeout(() => playTone(1200, 'sine', 0.2, 0.1), 100);
         } else if (type === 'error') {
             playTone(150, 'sawtooth', 0.2, 0.1);
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error(e);
+    }
 };
