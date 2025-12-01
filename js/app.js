@@ -270,6 +270,7 @@ function zeniteSystem() {
 
 window.zeniteSystem = zeniteSystem;
 
+// INICIALIZAÇÃO DO ALPINE (IMPORTANTE: NÃO APAGAR)
 document.addEventListener('DOMContentLoaded', () => {
     import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js').then((module) => {
         const Alpine = module.default;

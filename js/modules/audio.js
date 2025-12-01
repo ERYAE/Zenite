@@ -1,7 +1,7 @@
 let audioCtx = null;
 let isSfxEnabled = true;
 
-// ADICIONEI O "export" AQUI QUE FALTAVA
+// CORREÇÃO: Adicionado 'export' para não dar erro no app.js
 export const initAudio = () => {
     if (audioCtx) return;
     try {
@@ -15,16 +15,13 @@ export const initAudio = () => {
 export const setSfxEnabled = (enabled) => {
     isSfxEnabled = enabled;
     if (audioCtx) {
-        // Tenta resumir se estiver suspenso
         if (enabled && audioCtx.state === 'suspended') audioCtx.resume();
-        // Se desabilitado, não precisamos suspender, apenas ignorar os plays
+        if (!enabled && audioCtx.state === 'running') audioCtx.suspend();
     }
 };
 
 const playTone = (freq, type, duration, vol = 0.05) => {
     if (!audioCtx || !isSfxEnabled) return;
-    
-    // Garante que o contexto está rodando
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const osc = audioCtx.createOscillator();
@@ -44,7 +41,6 @@ const playTone = (freq, type, duration, vol = 0.05) => {
 };
 
 export const playSFX = (type) => {
-    // Tenta iniciar se ainda não foi (fail-safe)
     if (!audioCtx) initAudio();
     if (!audioCtx) return;
 
