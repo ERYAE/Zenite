@@ -500,3 +500,36 @@ body.interaction-lock {
         display: none !important;
     }
 }
+
+/* --- CORREÇÃO DEFINITIVA: DESBLOQUEIO DE SCROLL E CLIQUES --- */
+
+/* 1. Força o navegador a permitir rolagem na página inteira */
+html, body {
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100vh;
+}
+
+/* 2. Faz o mouse/dedo "atravessar" os efeitos visuais (CRT, Grid, Rastro) */
+.bg-grid,
+#mouse-trail,
+#custom-cursor,
+.crt-mode::before,
+.crt-mode::after,
+.scanlines {
+    pointer-events: none !important;
+    touch-action: none !important; /* Ignora toques de tela nestes elementos */
+    user-select: none !important;
+}
+
+/* 3. Garante que seus botões e conteúdo estejam clicáveis acima dos efeitos */
+main, header, .glass, .modal-enter, button, input, select, a {
+    pointer-events: auto !important;
+    position: relative; 
+    z-index: 50; /* Traz o conteúdo para frente dos efeitos */
+}
+
+/* 4. Correção específica para o scroll suave em celulares */
+.custom-scrollbar, body {
+    -webkit-overflow-scrolling: touch !important;
+}

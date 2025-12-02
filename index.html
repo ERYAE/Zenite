@@ -487,8 +487,8 @@
     </template>
 
     <template x-if="diceTrayOpen && currentView === 'sheet'">
-        <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt max-h-[60vh] md:max-h-[80vh]" 
-     :class="{'fixed bottom-0 left-0 w-full rounded-t-xl pb-safe': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
+        <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt" 
+     :class="{'fixed bottom-0 left-0 w-full rounded-t-xl pb-safe max-h-[60vh]': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
      :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
      x-transition:enter="genie-enter" 
      x-transition:leave="genie-leave">
@@ -505,7 +505,7 @@
         <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
-    <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col overflow-hidden min-h-0">
+    <div class="p-4 bg-black/40 backdrop-blur-md flex flex-col overflow-hidden">
         <div class="mb-3 space-y-2 flex-shrink-0">
             <input name="dice_reason" type="text" x-model="diceReason" aria-label="Motivo Rolagem" placeholder="Motivo do teste..." class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors">
             <div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
@@ -521,13 +521,13 @@
             <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
         </div>
         
-        <div class="flex-grow flex flex-col border-t border-white/10 pt-2 min-h-0 overflow-hidden">
+        <div class="flex flex-col border-t border-white/10 pt-2 overflow-hidden">
             <div class="flex justify-between items-center mb-2 px-1 flex-shrink-0">
                 <span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span>
                 <button @click="diceLog=[]; saveDiceHistory()" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button>
             </div>
             
-            <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-2 h-full">
+            <div class="overflow-y-auto custom-scrollbar pr-2 space-y-2 max-h-40 md:max-h-60">
                 <template x-for="log in diceLog" :key="log.id">
                     <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-2 rounded transition-colors bg-black/20">
                         <div class="flex justify-between items-start mb-1">
@@ -556,12 +556,6 @@
         </div>
     </div>
 </div>
-    </template>
-                        <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </template>
 
     <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-[8000]">
@@ -620,88 +614,91 @@
 </div>
 
     <div x-show="welcomeModal" style="display: none" 
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4"
-     x-transition.opacity>
-    <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh]">
-    <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white z-10">
-        <i class="fa-solid fa-xmark"></i>
-    </button>
+         class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4 py-6"
+         x-transition.opacity>
         
-    <div class="overflow-y-auto custom-scrollbar pr-2">
-        <div class="text-center mb-8 mt-2">
-            <img src="images/zenite_logo.svg" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_15px_var(--neon-core)]">
-            <h2 class="text-2xl md:text-3xl font-brand text-white mb-2">BEM-VINDO AO ZENITE OS</h2>
-            <p class="text-gray-400 text-sm">Sistema de Gestão Neural // v2.2</p>
-        </div>
-        
-        <div class="space-y-6">
-            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
-                <h3 class="text-sm font-bold text-[var(--neon-core)] mb-2 uppercase">
-                    <i class="fa-solid fa-circle-info mr-2"></i>Sobre
-                </h3>
-                <p class="text-xs text-gray-300 leading-relaxed">
-                    ZENITE OS é um sistema avançado para gerenciamento de fichas RPG. 
-                    Crie personagens, controle atributos, role dados e sincronize seus dados na nuvem.
-                </p>
-            </div>
+        <div class="glass rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh] overflow-hidden">
             
-            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
-                <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3 uppercase">
-                    <i class="fa-solid fa-sliders mr-2"></i>Personalize Sua Interface
-                </h3>
-                <div class="space-y-3">
-                    <div>
-                        <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">Cor de Destaque</p>
-                        <div class="grid grid-cols-4 gap-2">
-                            <button @click="toggleSetting('themeColor', 'cyan')" 
-                                    class="py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all"
-                                    :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
-                            <button @click="toggleSetting('themeColor', 'purple')" 
-                                    class="py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all"
-                                    :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
-                            <button @click="toggleSetting('themeColor', 'gold')" 
-                                    class="py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all"
-                                    :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
-                            <button @click="toggleSetting('themeColor', 'red')" 
-                                    class="py-2 rounded-lg border border-white/10 bg-[#ef4444]/20 text-[#ef4444] font-bold text-xs hover:bg-[#ef4444]/40 transition-all"
-                                    :class="{'ring-2 ring-white': settings.themeColor === 'red'}">VERMELHO</button>
+            <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white z-20 bg-black/50 rounded-full p-1 w-8 h-8 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <div class="overflow-y-auto custom-scrollbar p-6 md:p-8">
+                
+                <div class="text-center mb-8 mt-2">
+                    <img src="images/zenite_logo.svg" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_15px_var(--neon-core)]">
+                    <h2 class="text-2xl md:text-3xl font-brand text-white mb-2">BEM-VINDO AO ZENITE OS</h2>
+                    <p class="text-gray-400 text-sm">Sistema de Gestão Neural // v2.2</p>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                        <h3 class="text-sm font-bold text-[var(--neon-core)] mb-2 uppercase">
+                            <i class="fa-solid fa-circle-info mr-2"></i>Sobre
+                        </h3>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            ZENITE OS é um sistema avançado para gerenciamento de fichas RPG. 
+                            Crie personagens, controle atributos, role dados e sincronize seus dados na nuvem.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                        <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3 uppercase">
+                            <i class="fa-solid fa-sliders mr-2"></i>Personalize Sua Interface
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">Cor de Destaque</p>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <button @click="toggleSetting('themeColor', 'cyan')" 
+                                            class="py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all"
+                                            :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
+                                    <button @click="toggleSetting('themeColor', 'purple')" 
+                                            class="py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all"
+                                            :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
+                                    <button @click="toggleSetting('themeColor', 'gold')" 
+                                            class="py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all"
+                                            :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
+                                    <button @click="toggleSetting('themeColor', 'red')" 
+                                            class="py-2 rounded-lg border border-white/10 bg-[#ef4444]/20 text-[#ef4444] font-bold text-xs hover:bg-[#ef4444]/40 transition-all"
+                                            :class="{'ring-2 ring-white': settings.themeColor === 'red'}">RED</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" 
+                                        class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
+                                        :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
+                                    RASTRO MOUSE
+                                </button>
+                                <button @click="toggleSetting('crtMode')" 
+                                        class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
+                                        :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
+                                    MODO CRT
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" 
-                                class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
-                                :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
-                            RASTRO MOUSE
-                        </button>
-                        <button @click="toggleSetting('crtMode')" 
-                                class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
-                                :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
-                            MODO CRT
-                        </button>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                        <h3 class="text-sm font-bold text-yellow-500 mb-2 uppercase">
+                            <i class="fa-solid fa-lightbulb mr-2"></i>Dicas Rápidas
+                        </h3>
+                        <ul class="text-xs text-gray-400 space-y-1">
+                            <li>• Respeite os players e o mestre</li>
+                            <li>• Use o botão SALVAR para confirmar alterações</li>
+                            <li>• Arraste a bandeja de dados para reposicioná-la</li>
+                            <li>• Seja feliz! </li>
+                        </ul>
                     </div>
+                    
+                    <button @click="welcomeModal = false" 
+                            class="w-full mt-4 py-3 bg-[var(--neon-core)] text-black font-bold rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] mb-2">
+                        COMEÇAR
+                    </button>
                 </div>
             </div>
-            
-            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
-                <h3 class="text-sm font-bold text-yellow-500 mb-2 uppercase">
-                    <i class="fa-solid fa-lightbulb mr-2"></i>Dicas Rápidas
-                </h3>
-                <ul class="text-xs text-gray-400 space-y-1">
-                    <li>• Respeite os players e o mestre</li>
-                    <li>• Use o botão SALVAR para confirmar alterações</li>
-                    <li>• Arraste a bandeja de dados para reposicioná-la</li>
-                    <li>• Seja feliz! </li>
-                </ul>
-            </div>
-        </div>
-        
-        <button @click="welcomeModal = false" 
-                class="w-full mt-6 py-3 bg-[var(--neon-core)] text-black font-bold rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] mb-2">
-            COMEÇAR
-        </button>
         </div>
     </div>
-</div>
 
     <div x-show="configModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">

@@ -244,21 +244,24 @@ function zeniteSystem() {
             this.notify('Salvando...', 'info');
             this.isSyncing = true;
             
-            // Salva no histórico antes
+            // 1. Salva no histórico de versões
             this.saveToHistory();
 
-            // Salva Localmente AGORA (sem esperar 3 segundos)
+            // 2. Salva Localmente (Instantâneo)
             await this.saveLocal();
             
-            // Se tiver logado, sincroniza com a nuvem
+            // 3. Sincroniza com Nuvem (Silencioso para não flodar notificações)
             if (!this.isGuest && this.user) {
-                await this.syncCloud(true);
+                await this.syncCloud(true); 
                 playSFX('save');
             }
             
             this.isSyncing = false;
             this.unsavedChanges = false;
             this.autoSaveEnabled = false;
+            
+            // 4. Feedback final para o usuário
+            this.notify('Salvo com sucesso!', 'success');
         },
 
         // --- HISTÓRICO ---
