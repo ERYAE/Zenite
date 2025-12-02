@@ -181,8 +181,8 @@ body.crt-mode::before {
         transparent 1px,
         transparent 2px
     );
-    pointer-events: none;
-    z-index: 999999;
+    pointer-events: none !important;
+    z-index: 99999;
     animation: scanlines 8s linear infinite;
 }
 

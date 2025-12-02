@@ -241,16 +241,24 @@ function zeniteSystem() {
         async manualSave() {
             if (!this.unsavedChanges) return;
             
-            this.isSyncing = true;
-            this.autoSaveEnabled = true; // Ativa temporariamente para o debounce
-            
-            // Salva no histórico
-            this.saveToHistory();
-            
-            // Trigger o debounce
-            this.debouncedSaveFunc();
-            
             this.notify('Salvando...', 'info');
+            this.isSyncing = true;
+            
+            // Salva no histórico antes
+            this.saveToHistory();
+
+            // Salva Localmente AGORA (sem esperar 3 segundos)
+            await this.saveLocal();
+            
+            // Se tiver logado, sincroniza com a nuvem
+            if (!this.isGuest && this.user) {
+                await this.syncCloud(true);
+                playSFX('save');
+            }
+            
+            this.isSyncing = false;
+            this.unsavedChanges = false;
+            this.autoSaveEnabled = false;
         },
 
         // --- HISTÓRICO ---
@@ -296,11 +304,12 @@ function zeniteSystem() {
                 () => {
                     this.char = sanitizeChar(snapshot.data);
                     this.unsavedChanges = true;
-                    this.notify('Versão restaurada. Clique em SALVAR.', 'success');
+                    this.historyModal = false; // Fecha o modal
+                    this.notify('Versão restaurada! Clique em SALVAR para confirmar.', 'success');
+                    this.triggerShake(); // Efeito visual para indicar mudança
                 }
             );
         },
-
         // --- MINIGAME ---
         triggerSystemFailure() {
             playSFX('error');
