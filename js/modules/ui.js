@@ -1,36 +1,180 @@
 import { playSFX } from './audio.js';
 import { CONSTANTS, ARCHETYPES } from './config.js';
-import { sanitizeChar, calculateBaseStats } from './utils.js';
+import { sanitizeChar, calculateBaseStats, formatDateForFilename } from './utils.js';
 
 export const uiLogic = {
-    // ... (Mantenha toggleSetting e applyTheme iguais) ...
     toggleSetting(key, val=null) {
         if(val !== null) { 
             this.settings[key] = val; 
             if(key === 'themeColor') this.applyTheme(val); 
         } else { 
             this.settings[key] = !this.settings[key]; 
-            if(key === 'compactMode' && this.isMobile) document.body.classList.toggle('compact-mode', this.settings.compactMode);
-            if(key === 'crtMode') this.updateVisualState();
+            if(key === 'compactMode' && this.isMobile) {
+                document.body.classList.toggle('compact-mode', this.settings.compactMode);
+            }
         }
+        
+        // Aplica mudanças visuais imediatamente
+        this.updateVisualState();
+        
         this.saveLocal(); 
-        if(!this.isGuest && this.user) { this.unsavedChanges = true; this.syncCloud(true); }
+        if(!this.isGuest && this.user) { 
+            this.unsavedChanges = true; 
+            this.autoSaveEnabled = true;
+            this.debouncedSaveFunc();
+        }
     },
 
     applyTheme(color) {
         const root = document.documentElement; 
-        const map = { 'cyan': '#0ea5e9', 'purple': '#d946ef', 'gold': '#eab308' };
+        const map = { 
+            'cyan': '#0ea5e9', 
+            'purple': '#d946ef', 
+            'gold': '#eab308',
+            'red': '#ef4444' // NOVO: Tema Vermelho
+        };
         const hex = map[color] || map['cyan'];
-        const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
-        root.style.setProperty('--neon-core', hex); root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
-        const trail = document.getElementById('mouse-trail'); if(trail) trail.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.2), transparent 70%)`;
+        const r = parseInt(hex.slice(1, 3), 16); 
+        const g = parseInt(hex.slice(3, 5), 16); 
+        const b = parseInt(hex.slice(5, 7), 16);
+        
+        root.style.setProperty('--neon-core', hex); 
+        root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
+        
+        // Atualiza cursor e trail
+        this.updateCursorColor();
+    },
+    
+    updateCursorColor() {
+        const trail = document.getElementById('mouse-trail');
+        if(trail) {
+            const rgb = getComputedStyle(document.documentElement)
+                .getPropertyValue('--neon-rgb').trim();
+            trail.style.background = `radial-gradient(circle, rgba(${rgb}, 0.15), transparent 70%)`;
+        }
+        
+        const cursor = document.getElementById('custom-cursor');
+        if(cursor) {
+            // Cursor já usa CSS var, só precisa forçar repaint
+            cursor.style.display = 'none';
+            cursor.offsetHeight; // Force reflow
+            cursor.style.display = '';
+        }
     },
 
-    // ... (Mantenha Wizard igual) ...
+    // CORRIGIDO: Aplica estados visuais
+    updateVisualState() {
+        const isAuthenticated = this.user || this.isGuest;
+        
+        // Mouse Trail
+        const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
+        if (showTrail) {
+            document.body.classList.add('custom-cursor-active');
+            this.initCustomCursor();
+        } else {
+            document.body.classList.remove('custom-cursor-active');
+            this.destroyCustomCursor();
+        }
+        
+        // CRT Mode
+        if (isAuthenticated && this.settings.crtMode) {
+            document.body.classList.add('crt-mode');
+        } else {
+            document.body.classList.remove('crt-mode');
+        }
+        
+        // Hacker Mode
+        const hackerActive = localStorage.getItem('zenite_hacker_mode') === 'true';
+        if (hackerActive) {
+            this.isHackerMode = true;
+            document.body.classList.add('theme-hacker');
+        }
+    },
+    
+    // NOVO: Sistema de Cursor Personalizado
+    initCustomCursor() {
+        if (this.isMobile) return;
+        
+        // Remove cursor antigo se existir
+        this.destroyCustomCursor();
+        
+        // Cria elementos
+        const cursor = document.createElement('div');
+        cursor.id = 'custom-cursor';
+        document.body.appendChild(cursor);
+        
+        const trail = document.createElement('div');
+        trail.id = 'mouse-trail';
+        document.body.appendChild(trail);
+        
+        this.updateCursorColor();
+        
+        // Mouse Move Handler
+        let mouseX = 0, mouseY = 0;
+        let cursorX = 0, cursorY = 0;
+        let trailX = 0, trailY = 0;
+        
+        const handleMouseMove = (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        };
+        
+        const animate = () => {
+            // Cursor - rápido
+            cursorX += (mouseX - cursorX) * 0.5;
+            cursorY += (mouseY - cursorY) * 0.5;
+            cursor.style.left = cursorX + 'px';
+            cursor.style.top = cursorY + 'px';
+            
+            // Trail - lento
+            trailX += (mouseX - trailX) * 0.15;
+            trailY += (mouseY - trailY) * 0.15;
+            trail.style.left = (trailX - 100) + 'px';
+            trail.style.top = (trailY - 100) + 'px';
+            
+            requestAnimationFrame(animate);
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        this.cursorAnimFrame = requestAnimationFrame(animate);
+        this.cursorMoveHandler = handleMouseMove;
+    },
+    
+    destroyCustomCursor() {
+        const cursor = document.getElementById('custom-cursor');
+        const trail = document.getElementById('mouse-trail');
+        
+        if (cursor) cursor.remove();
+        if (trail) trail.remove();
+        
+        if (this.cursorAnimFrame) {
+            cancelAnimationFrame(this.cursorAnimFrame);
+            this.cursorAnimFrame = null;
+        }
+        
+        if (this.cursorMoveHandler) {
+            document.removeEventListener('mousemove', this.cursorMoveHandler);
+            this.cursorMoveHandler = null;
+        }
+    },
+
+    // WIZARD
     openWizard() { 
-        if(this.agentCount >= CONSTANTS.MAX_AGENTS) return this.notify('Limite atingido.', 'error'); 
-        this.wizardStep = 1; this.wizardPoints = 8; 
-        this.wizardData = { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} }; 
+        if(this.agentCount >= CONSTANTS.MAX_AGENTS) {
+            return this.notify('Limite de 30 agentes atingido.', 'error'); 
+        }
+        
+        this.wizardStep = 1; 
+        this.wizardPoints = 8; 
+        this.wizardData = { 
+            class: '', 
+            name: '', 
+            identity: '', 
+            age: '', 
+            history: '', 
+            photo: null, 
+            attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
+        }; 
         this.wizardOpen = true; 
     },
 
@@ -44,9 +188,20 @@ export const uiLogic = {
     },
 
     modWizardAttr(k,v) { 
-        const c = this.wizardData.attrs[k]; const f = k === this.wizardFocusAttr; 
-        if(v>0 && this.wizardPoints>0 && c<3) { this.wizardData.attrs[k]++; this.wizardPoints--; this.updateWizardChart(); } 
-        if(v<0 && c>(f?0:-1)) { this.wizardData.attrs[k]--; this.wizardPoints++; this.updateWizardChart(); } 
+        const c = this.wizardData.attrs[k]; 
+        const f = k === this.wizardFocusAttr; 
+        
+        if(v>0 && this.wizardPoints>0 && c<3) { 
+            this.wizardData.attrs[k]++; 
+            this.wizardPoints--; 
+            this.updateWizardChart(); 
+        } 
+        
+        if(v<0 && c>(f?0:-1)) { 
+            this.wizardData.attrs[k]--; 
+            this.wizardPoints++; 
+            this.updateWizardChart(); 
+        } 
     },
 
     finishWizard() {
@@ -57,42 +212,130 @@ export const uiLogic = {
             setTimeout(() => { this.wizardNameError = false; }, 500); 
             return; 
         }
+        
         const id = 'z_'+Date.now(); 
-        const calculated = calculateBaseStats(this.wizardData.class, 1, this.wizardData.attrs);
+        const calculated = calculateBaseStats(
+            this.wizardData.class, 
+            1, 
+            this.wizardData.attrs
+        );
+        
         const newChar = sanitizeChar({ 
-            id, name: this.wizardData.name, identity: this.wizardData.identity, class: this.wizardData.class, level: 1, age: this.wizardData.age, photo: this.wizardData.photo || '', history: this.wizardData.history, 
-            attrs: {...this.wizardData.attrs}, stats: { pv: {current: calculated.pv, max: calculated.pv}, pf: {current: calculated.pf, max: calculated.pf}, pdf: {current: calculated.pdf, max: calculated.pdf} }
+            id, 
+            name: this.wizardData.name, 
+            identity: this.wizardData.identity, 
+            class: this.wizardData.class, 
+            level: 1, 
+            age: this.wizardData.age, 
+            photo: this.wizardData.photo || '', 
+            history: this.wizardData.history, 
+            attrs: {...this.wizardData.attrs}, 
+            stats: { 
+                pv: {current: calculated.pv, max: calculated.pv}, 
+                pf: {current: calculated.pf, max: calculated.pf}, 
+                pdf: {current: calculated.pdf, max: calculated.pdf} 
+            }
         });
+        
         this.chars[id] = newChar; 
-        this.updateAgentCount(); this.saveLocal(); 
-        if(!this.isGuest) { this.unsavedChanges = true; this.syncCloud(true); }
+        this.updateAgentCount(); 
+        this.saveLocal(); 
+        
+        if(!this.isGuest) { 
+            this.unsavedChanges = true;
+            // Salva automaticamente personagem novo
+            this.autoSaveEnabled = true;
+            this.debouncedSaveFunc();
+        }
+        
         this.wizardOpen = false; 
         this.loadCharacter(id); 
-        this.notify('Agente Inicializado.', 'success');
+        this.notify('Agente inicializado com sucesso!', 'success');
     },
 
     loadCharacter(id, skipPush = false) {
-        if(!this.chars[id]) return this.notify('Erro ao carregar.', 'error');
-        if (!skipPush) history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
-        this.loadingChar = true; this.activeCharId = id; this.diceTrayOpen = false; 
+        if(!this.chars[id]) {
+            return this.notify('Erro ao carregar personagem.', 'error');
+        }
+        
+        if (!skipPush) {
+            history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+        }
+        
+        this.loadingChar = true; 
+        this.activeCharId = id; 
+        this.diceTrayOpen = false; 
+        
         requestAnimationFrame(() => {
             this.char = sanitizeChar(this.chars[id]);
-            this.currentView = 'sheet'; this.activeTab = 'profile'; 
-            if(!this.hasSeenDiceTip) setTimeout(() => this.showDiceTip = true, 1000);
-            this.$nextTick(() => { this.updateRadarChart(); setTimeout(() => { this.loadingChar = false; this.unsavedChanges = false; }, 300); });
+            this.currentView = 'sheet'; 
+            this.activeTab = 'profile'; 
+            
+            if(!this.hasSeenDiceTip) {
+                setTimeout(() => this.showDiceTip = true, 2000);
+            }
+            
+            this.$nextTick(() => { 
+                this.updateRadarChart(); 
+                setTimeout(() => { 
+                    this.loadingChar = false; 
+                    this.unsavedChanges = false; 
+                }, 300); 
+            });
         });
-     },
+    },
     
-    askDeleteChar(id) { this.askConfirm('ELIMINAR?', 'Irreversível.', 'danger', () => { delete this.chars[id]; this.saveLocal(); if(!this.isGuest) this.syncCloud(true); this.updateAgentCount(); this.notify('Deletado.', 'success'); }); },
-    askHardReset() { this.askConfirm('LIMPAR TUDO?', 'Apaga cache local.', 'danger', () => { localStorage.clear(); window.location.reload(); }); },
-    askConfirm(title, desc, type, action) { this.confirmData = { title, desc, type, action }; this.confirmOpen = true; }, 
-    confirmYes() { if (this.confirmData.action) this.confirmData.action(); this.confirmOpen = false; },
+    askDeleteChar(id) { 
+        const charName = this.chars[id]?.name || 'este personagem';
+        
+        this.askConfirm(
+            'ELIMINAR PERMANENTEMENTE?', 
+            `"${charName}" será deletado para sempre. Esta ação é irreversível.`, 
+            'danger', 
+            async () => { 
+                delete this.chars[id]; 
+                this.saveLocal(); 
+                
+                if(!this.isGuest && this.user) {
+                    this.unsavedChanges = true;
+                    await this.syncCloud(false); // Força sync imediato
+                }
+                
+                this.updateAgentCount(); 
+                this.notify('Personagem eliminado.', 'success'); 
+            }
+        ); 
+    },
     
-    toggleRevertMode() { this.revertConfirmMode = !this.revertConfirmMode; if(this.revertConfirmMode) this.diceTrayOpen = false; },
+    askHardReset() { 
+        this.askConfirm(
+            'LIMPAR CACHE LOCAL?', 
+            'Remove TODOS os dados salvos localmente. Use apenas se houver problemas graves.',
+            'danger', 
+            () => { 
+                localStorage.clear(); 
+                window.location.reload(); 
+            }
+        ); 
+    },
     
-    // --- REVERT CORRIGIDO ---
+    askConfirm(title, desc, type, action) { 
+        this.confirmData = { title, desc, type, action }; 
+        this.confirmOpen = true; 
+    },
+    
+    confirmYes() { 
+        if (this.confirmData.action) this.confirmData.action(); 
+        this.confirmOpen = false; 
+    },
+    
+    toggleRevertMode() { 
+        this.revertConfirmMode = !this.revertConfirmMode; 
+        if(this.revertConfirmMode) this.diceTrayOpen = false; 
+    },
+    
     async performRevert() {
-        this.isReverting = true; // Bloqueia o watcher
+        this.isReverting = true;
         this.diceTrayOpen = false; 
         this.revertConfirmMode = false;
         
@@ -116,26 +359,22 @@ export const uiLogic = {
                     this.char = null; 
                 }
                 
-                // Reset crucial
                 this.unsavedChanges = false;
                 
                 document.body.classList.remove('animating-out'); 
                 document.body.classList.add('animating-in');
-                this.notify('Dados restaurados.', 'success');
+                this.notify('Alterações descartadas.', 'success');
                 
                 setTimeout(() => { 
                     document.body.classList.remove('animating-in'); 
                     document.body.classList.remove('interaction-lock'); 
-                    
-                    // Libera o watcher e sai se necessário
                     this.isReverting = false; 
                     this.unsavedChanges = false;
-                    
                 }, 400);
                 
             } catch (e) { 
                 console.error("Revert Error:", e); 
-                this.notify("Erro na restauração.", "error"); 
+                this.notify("Erro ao descartar alterações.", "error"); 
                 document.body.classList.remove('animating-out'); 
                 document.body.classList.remove('interaction-lock'); 
                 this.isReverting = false; 
@@ -143,183 +382,359 @@ export const uiLogic = {
         }, 300);
     },
     
-    triggerShake() { this.shakeAlert = true; setTimeout(() => this.shakeAlert = false, 300); },
-    attemptGoBack() { if (this.unsavedChanges && !this.isGuest) { this.triggerShake(); this.notify("Salve ou descarte antes de sair.", "warn"); return; } this.saveAndExit(); },
+    triggerShake() { 
+        this.shakeAlert = true; 
+        playSFX('error');
+        setTimeout(() => this.shakeAlert = false, 300); 
+    },
+    
+    attemptGoBack() { 
+        if (this.unsavedChanges && !this.isGuest) { 
+            this.triggerShake(); 
+            this.notify("Salve ou descarte as alterações antes de sair.", "warn"); 
+            return; 
+        } 
+        this.saveAndExit(); 
+    },
     
     saveAndExit(fromHistory = false) {
-        if (this.unsavedChanges && !this.isGuest && !fromHistory) { this.triggerShake(); return; }
-        if(this.char && this.activeCharId) { this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); this.updateAgentCount(); } 
+        if (this.unsavedChanges && !this.isGuest && !fromHistory) { 
+            this.triggerShake(); 
+            return; 
+        }
+        
+        if(this.char && this.activeCharId) { 
+            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
+            this.updateAgentCount(); 
+        } 
+        
         this.saveLocal(); 
-        if (!this.isGuest && this.unsavedChanges) this.syncCloud(true); 
+        
+        if (!this.isGuest && this.unsavedChanges) {
+            this.autoSaveEnabled = true;
+            this.debouncedSaveFunc();
+        }
         
         this.diceTrayOpen = false; 
         this.showDiceTip = false; 
         this.currentView = 'dashboard'; 
         this.activeCharId = null;
         
-        if (!fromHistory && window.location.hash === '#sheet') { history.back(); }
-    },
-
-    // --- VISUAL WIDGETS ---
-    ensureTrayOnScreen() {
-        if(this.isMobile || this.trayDockMode !== 'float') return;
-        this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
-        this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
-    },
-    
-    // AQUI ESTÁ A CORREÇÃO DO FULLSCREEN NA TELA DE ERRO
-    triggerSystemFailure() { 
-        playSFX('glitch'); 
-        this.systemFailure = true; 
-        this.minigameActive = false;
-        // Forçar Fullscreen
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) { elem.requestFullscreen().catch(() => {}); }
-    },
-    
-    startMinigame() { this.minigameActive = true; this.minigameClicks = 5; this.moveMinigameTarget(); },
-    moveMinigameTarget() { this.minigamePos.x = Math.floor(Math.random() * 80) + 10; this.minigamePos.y = Math.floor(Math.random() * 80) + 10; },
-    
-    // CORREÇÃO: Minigame levando de volta para dashboard
-    hitMinigame() {
-        playSFX('click');
-        this.minigameClicks--;
-        if (this.minigameClicks <= 0) {
-            playSFX('success');
-            this.notify("SISTEMA RESTAURADO", "success");
-            this.systemFailure = false;
-            this.minigameActive = false;
-            
-            // Sai do fullscreen ao terminar
-            if (document.exitFullscreen) { document.exitFullscreen().catch(() => {}); }
-            
-            // Garante que voltamos ao normal
-            this.rebooting = true;
-            setTimeout(() => { this.rebooting = false; }, 1000);
-        } else {
-            this.moveMinigameTarget();
+        if (!fromHistory && window.location.hash === '#sheet') { 
+            history.back(); 
         }
     },
 
-    // Resto das funções mantidas (Chart, Cropper, etc)
-    _renderChart(id, data, isWizard=false) { const ctx = document.getElementById(id); if(!ctx) return; const color = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim(); const r = parseInt(color.slice(1, 3), 16); const g = parseInt(color.slice(3, 5), 16); const b = parseInt(color.slice(5, 7), 16); const rgb = `${r},${g},${b}`; if (ctx.chart) { ctx.chart.data.datasets[0].data = data; ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; ctx.chart.update(); } else { ctx.chart = new Chart(ctx, { type: 'radar', data: { labels: ['FOR','AGI','INT','VON','POD'], datasets: [{ data: data, backgroundColor: `rgba(${rgb}, 0.2)`, borderColor: `rgba(${rgb}, 1)`, borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: isWizard ? 4 : 3 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -1, max: isWizard ? 4 : 6, ticks: { display: false, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)', circular: false }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } }, transitions: { active: { animation: { duration: 600 } } } } }); } },
-    updateRadarChart() { if(!this.char || !this.char.attrs) return; const d = [this.char.attrs.for, this.char.attrs.agi, this.char.attrs.int, this.char.attrs.von, this.char.attrs.pod]; this._renderChart('radarChart', d); },
-    updateWizardChart() { const d = [this.wizardData.attrs.for, this.wizardData.attrs.agi, this.wizardData.attrs.int, this.wizardData.attrs.von, this.wizardData.attrs.pod]; this._renderChart('wizChart', d, true); },
-    triggerFX(type) { const el = document.getElementById(type+'-overlay'); if(el) { el.style.opacity='0.4'; setTimeout(()=>el.style.opacity='0', 200); } },
-    notify(msg, type='info') { 
-        const id = Date.now(); 
-        if(!this.notifications) this.notifications = [];
-        this.notifications.push({id, message: msg, type}); 
-        setTimeout(() => { if(this.notifications) this.notifications = this.notifications.filter(n => n.id !== id); }, 3000); 
+    // CHARTS
+    _renderChart(id, data, isWizard=false) { 
+        const ctx = document.getElementById(id); 
+        if(!ctx) return; 
+        
+        const color = getComputedStyle(document.documentElement)
+            .getPropertyValue('--neon-core').trim(); 
+        const r = parseInt(color.slice(1, 3), 16); 
+        const g = parseInt(color.slice(3, 5), 16); 
+        const b = parseInt(color.slice(5, 7), 16); 
+        const rgb = `${r},${g},${b}`; 
+        
+        if (ctx.chart) { 
+            ctx.chart.data.datasets[0].data = data; 
+            ctx.chart.data.datasets[0].backgroundColor = `rgba(${rgb}, 0.2)`; 
+            ctx.chart.data.datasets[0].borderColor = `rgba(${rgb}, 1)`; 
+            ctx.chart.update(); 
+        } else { 
+            ctx.chart = new Chart(ctx, { 
+                type: 'radar', 
+                data: { 
+                    labels: ['FOR','AGI','INT','VON','POD'], 
+                    datasets: [{ 
+                        data: data, 
+                        backgroundColor: `rgba(${rgb}, 0.2)`, 
+                        borderColor: `rgba(${rgb}, 1)`, 
+                        borderWidth: 2, 
+                        pointBackgroundColor: '#fff', 
+                        pointRadius: isWizard ? 4 : 3 
+                    }] 
+                }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        r: { 
+                            min: -1, 
+                            max: isWizard ? 4 : 6, 
+                            ticks: { display: false, stepSize: 1 }, 
+                            grid: { color: 'rgba(255,255,255,0.1)', circular: false }, 
+                            angleLines: { color: 'rgba(255,255,255,0.1)' } 
+                        } 
+                    }, 
+                    plugins: { legend: { display: false } }, 
+                    transitions: { active: { animation: { duration: 600 } } } 
+                } 
+            }); 
+        } 
+    },
+    
+    updateRadarChart() { 
+        if(!this.char || !this.char.attrs) return; 
+        const d = [
+            this.char.attrs.for, 
+            this.char.attrs.agi, 
+            this.char.attrs.int, 
+            this.char.attrs.von, 
+            this.char.attrs.pod
+        ]; 
+        this._renderChart('radarChart', d); 
+    },
+    
+    updateWizardChart() { 
+        const d = [
+            this.wizardData.attrs.for, 
+            this.wizardData.attrs.agi, 
+            this.wizardData.attrs.int, 
+            this.wizardData.attrs.von, 
+            this.wizardData.attrs.pod
+        ]; 
+        this._renderChart('wizChart', d, true); 
     },
 
-    openImageEditor(context = 'sheet') { this.uploadContext = context; document.getElementById('file-input').click(); }, 
+    // CROPPER
+    openImageEditor(context = 'sheet') { 
+        this.uploadContext = context; 
+        document.getElementById('file-input').click(); 
+    },
+    
     initCropper(e) { 
         const file = e.target.files[0]; 
         if(!file) return; 
+        
         const reader = new FileReader(); 
         reader.onload = (evt) => { 
             const img = document.getElementById('crop-target');
             if(!img) return; 
+            
             img.src = evt.target.result; 
             this.cropperOpen = true; 
+            
             setTimeout(() => { 
                 if(this.cropperInstance) this.cropperInstance.destroy(); 
-                this.cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1 }); 
+                this.cropperInstance = new Cropper(img, { 
+                    aspectRatio: 1, 
+                    viewMode: 1 
+                }); 
             }, 150);
         }; 
         reader.readAsDataURL(file); 
         e.target.value = ''; 
-    }, 
+    },
+    
     applyCrop() { 
         if(!this.cropperInstance) return; 
-        const result = this.cropperInstance.getCroppedCanvas({width:300, height:300}).toDataURL('image/jpeg', 0.8); 
-        if (this.uploadContext === 'wizard') { this.wizardData.photo = result; } 
-        else if (this.char) { this.char.photo = result; } 
+        
+        const result = this.cropperInstance
+            .getCroppedCanvas({width:300, height:300})
+            .toDataURL('image/jpeg', 0.8); 
+        
+        if (this.uploadContext === 'wizard') { 
+            this.wizardData.photo = result; 
+        } else if (this.char) { 
+            this.char.photo = result; 
+        } 
+        
         this.cropperOpen = false; 
-        this.notify('Foto processada.', 'success'); 
+        this.notify('Foto atualizada.', 'success'); 
     },
-    exportData() { const s = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.chars)); const a = document.createElement('a'); a.href = s; a.download = `zenite_bkp.json`; a.click(); a.remove(); this.notify('Backup baixado.', 'success'); },
-    triggerFileImport() { document.getElementById('import-file').click(); },
-    processImport(e) { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); this.chars = {...this.chars, ...d}; this.updateAgentCount(); this.saveLocal(); this.unsavedChanges = true; this.notify('Importado!', 'success'); this.configModal = false; } catch(e){ this.notify('Erro arquivo.', 'error'); } }; r.readAsText(f); },
 
+    // BACKUP/RESTORE
+    exportData() { 
+        const timestamp = formatDateForFilename();
+        const userEmail = this.user?.email || 'guest';
+        const username = userEmail.split('@')[0];
+        const filename = `zenite_backup_${username}_${timestamp}.json`;
+        
+        const data = {
+            version: '2.1',
+            exported: new Date().toISOString(),
+            user: userEmail,
+            chars: this.chars,
+            settings: this.settings
+        };
+        
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a'); 
+        a.href = url; 
+        a.download = filename; 
+        a.click(); 
+        
+        URL.revokeObjectURL(url);
+        a.remove(); 
+        
+        this.notify('Backup baixado com sucesso.', 'success'); 
+    },
+    
+    triggerFileImport() { 
+        document.getElementById('import-file').click(); 
+    },
+    
+    processImport(e) { 
+        const f = e.target.files[0]; 
+        if(!f) return; 
+        
+        const r = new FileReader(); 
+        r.onload = (evt) => { 
+            try { 
+                const imported = JSON.parse(evt.target.result); 
+                
+                // Valida estrutura
+                if (!imported.chars) {
+                    throw new Error('Arquivo inválido');
+                }
+                
+                // Merge com dados existentes
+                this.chars = {...this.chars, ...imported.chars}; 
+                
+                if (imported.settings) {
+                    this.settings = {...this.settings, ...imported.settings};
+                    this.applyTheme(this.settings.themeColor);
+                }
+                
+                this.updateAgentCount(); 
+                this.saveLocal(); 
+                this.unsavedChanges = true; 
+                
+                this.notify(`${Object.keys(imported.chars).length} personagens importados!`, 'success'); 
+                this.configModal = false; 
+            } catch(e){ 
+                console.error('Import error:', e);
+                this.notify('Erro ao importar arquivo.', 'error'); 
+            } 
+        }; 
+        r.readAsText(f); 
+    },
+
+    // ESC Handler
     handleEscKey() {
         if (this.systemFailure) return; 
         if (this.confirmOpen) { this.confirmOpen = false; return; }
         if (this.cropperOpen) { this.cropperOpen = false; return; }
+        if (this.welcomeModal) { this.welcomeModal = false; return; }
         if (this.configModal) { this.configModal = false; return; }
         if (this.wizardOpen) { this.wizardOpen = false; return; }
         if (this.diceTrayOpen) { this.diceTrayOpen = false; return; }
         if (this.userMenuOpen) { this.userMenuOpen = false; return; }
         if (this.currentView === 'sheet') { this.attemptGoBack(); return; }
     },
+
+    // Hacker Mode
     toggleHackerMode() {
         this.isHackerMode = !this.isHackerMode;
+        
         if (this.isHackerMode) {
             document.body.classList.add('theme-hacker');
             localStorage.setItem('zenite_hacker_mode', 'true');
             playSFX('success');
-            this.notify("SYSTEM OVERRIDE: HACKER MODE", "success");
+            this.notify(">>> HACKER MODE ACTIVATED <<<", "success");
         } else {
             document.body.classList.remove('theme-hacker');
             localStorage.removeItem('zenite_hacker_mode');
             playSFX('click');
-            this.notify("SYSTEM NORMAL", "info");
+            this.notify("System mode restored.", "info");
         }
+        
+        this.updateCursorColor();
     },
+    
     handleLogoClick() {
         clearTimeout(this.logoClickTimer); 
         this.logoClickCount++;
+        
         if (this.logoClickCount >= 5) {
             this.logoClickCount = 0;
             this.triggerSystemFailure();
             return;
         }
-        this.logoClickTimer = setTimeout(() => { this.logoClickCount = 0; }, 400);
+        
+        this.logoClickTimer = setTimeout(() => { 
+            this.logoClickCount = 0; 
+        }, 400);
     },
-    // ... (As outras funções de UI permanecem aqui se você já as tinha, ou copie do bloco anterior se preferir manter tudo junto)
-    updateVisualState() {
-        const isAuthenticated = this.user || this.isGuest;
-        const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
-        if (showTrail) { document.body.classList.add('custom-cursor-active'); } 
-        else { document.body.classList.remove('custom-cursor-active'); }
-        if (isAuthenticated && this.settings.crtMode) { document.body.classList.add('crt-mode'); } 
-        else { document.body.classList.remove('crt-mode'); }
-    },
+
+    // Dice Tray
     toggleDiceTray() {
         if (this.isReverting) return;
+        
         this.diceTrayOpen = !this.diceTrayOpen;
+        
         if(this.diceTrayOpen) {
-            if(!this.hasSeenDiceTip) { this.hasSeenDiceTip = true; this.saveLocal(); }
-            this.showDiceTip = false; this.ensureTrayOnScreen();
+            if(!this.hasSeenDiceTip) { 
+                this.hasSeenDiceTip = true; 
+                this.saveLocal(); 
+            }
+            this.showDiceTip = false; 
+            this.ensureTrayOnScreen();
         }
     },
+    
     setDockMode(mode) {
         this.trayDockMode = mode;
-        if(mode === 'float') { this.trayPosition = { x: window.innerWidth - 350, y: window.innerHeight - 500 }; this.ensureTrayOnScreen(); }
+        if(mode === 'float') { 
+            this.trayPosition = { 
+                x: window.innerWidth - 350, 
+                y: window.innerHeight - 500 
+            }; 
+            this.ensureTrayOnScreen(); 
+        }
+        this.saveLocal();
     },
+    
+    ensureTrayOnScreen() {
+        if(this.isMobile || this.trayDockMode !== 'float') return;
+        
+        this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
+        this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
+    },
+    
     startDragTray(e) {
         if(this.isMobile || this.trayDockMode !== 'float') return;
         if(e.target.closest('button') || e.target.closest('input')) return;
+        
         const trayEl = document.getElementById('dice-tray-window');
         if(!trayEl) return;
+        
         this.isDraggingTray = true;
-        const startX = e.clientX; const startY = e.clientY;
-        const startLeft = this.trayPosition.x; const startTop = this.trayPosition.y;
+        const startX = e.clientX; 
+        const startY = e.clientY;
+        const startLeft = this.trayPosition.x; 
+        const startTop = this.trayPosition.y;
+        
         trayEl.style.transition = 'none';
+        
         const moveHandler = (ev) => {
             if(!this.isDraggingTray) return;
-            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
-            trayEl.style.left = `${startLeft + dx}px`; trayEl.style.top = `${startTop + dy}px`;
+            const dx = ev.clientX - startX; 
+            const dy = ev.clientY - startY;
+            trayEl.style.left = `${startLeft + dx}px`; 
+            trayEl.style.top = `${startTop + dy}px`;
         };
+        
         const upHandler = (ev) => {
             this.isDraggingTray = false;
-            document.removeEventListener('mousemove', moveHandler); document.removeEventListener('mouseup', upHandler);
-            const dx = ev.clientX - startX; const dy = ev.clientY - startY;
-            this.trayPosition.x = startLeft + dx; this.trayPosition.y = startTop + dy;
+            document.removeEventListener('mousemove', moveHandler); 
+            document.removeEventListener('mouseup', upHandler);
+            
+            const dx = ev.clientX - startX; 
+            const dy = ev.clientY - startY;
+            this.trayPosition.x = startLeft + dx; 
+            this.trayPosition.y = startTop + dy;
+            
             if(trayEl) trayEl.style.transition = '';
             this.saveLocal(); 
         };
-        document.addEventListener('mousemove', moveHandler); document.addEventListener('mouseup', upHandler);
+        
+        document.addEventListener('mousemove', moveHandler); 
+        document.addEventListener('mouseup', upHandler);
     }
 };

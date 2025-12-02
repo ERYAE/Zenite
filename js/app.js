@@ -7,7 +7,7 @@ import { uiLogic } from './modules/ui.js';
 
 function zeniteSystem() {
     return {
-        // --- ESTADO GERAL ---
+        // --- ESTADO DO SISTEMA ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, rebooting: false,
         
@@ -17,26 +17,40 @@ function zeniteSystem() {
         
         // Navegação
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
-        searchQuery: '',
+        searchQuery: '', viewMode: 'grid',
         
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         
-        // Configs & Estado
-        settings: { compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
+        // Configs
+        settings: { 
+            compactMode: false, 
+            crtMode: false, 
+            sfxEnabled: true, 
+            themeColor: 'cyan',
+            mouseTrail: true // Adicionado explicitamente
+        },
         
         // Wizard
         wizardOpen: false, wizardStep: 1, wizardPoints: 8, 
         wizardNameError: false, wizardFocusAttr: '',
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         
-        // UI Globais
+        // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
+        welcomeModal: false, // NOVO: Modal de boas-vindas
+        historyModal: false,
         
-        // Salvamento
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
-        revertConfirmMode: false, shakeAlert: false, isReverting: false,
+        // Salvamento - CORREÇÃO CRÍTICA
+        unsavedChanges: false, 
+        isSyncing: false, 
+        saveStatus: 'idle',
+        revertConfirmMode: false, 
+        shakeAlert: false, 
+        isReverting: false,
+        autoSaveEnabled: false, // NOVO: Controle manual do auto-save
+        lastManualSave: null,
         
         // Ferramentas
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
@@ -44,10 +58,13 @@ function zeniteSystem() {
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
+        // Histórico - NOVO
+        saveHistory: [],
+        
         // Minigame & Falhas
         systemFailure: false, minigameActive: false, minigameClicks: 5, minigamePos: {x:50, y:50},
         
-        // Hacks
+        // Hacks & Segredos
         isHackerMode: false, hackerModeUnlocked: false, konamiBuffer: [], logoClickCount: 0, logoClickTimer: null,
         
         // Auxiliares
@@ -55,7 +72,7 @@ function zeniteSystem() {
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
 
-        // Módulos Externos
+        // Módulos
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
@@ -78,28 +95,33 @@ function zeniteSystem() {
         async initSystem() {
             this.loadingProgress = 20;
             
-            // Tenta inicializar áudio no primeiro clique do user
+            // Inicializa Audio Context no primeiro clique
             document.body.addEventListener('click', () => initAudio(), { once: true });
 
             this.setupListeners();
 
-            // Carrega dependências
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
 
-            // Define função de salvamento com debounce
-            this.debouncedSaveFunc = debounce(async () => { 
-                await this.saveLocal(); 
+            // CORREÇÃO: Auto-Save agora é MANUAL por padrão
+            // Usuário precisa clicar no botão SALVAR
+            this.debouncedSaveFunc = debounce(async () => {
+                if (!this.autoSaveEnabled) return; // Respeita o controle manual
+                
+                await this.saveLocal();
+                
                 if (!this.isGuest && this.user) {
                     await this.syncCloud(true);
-                    playSFX('save'); // Som de confirmação
+                    playSFX('save');
                 }
-                this.unsavedChanges = false;
+                
                 this.isSyncing = false;
-            }, 1500);
+                this.unsavedChanges = false;
+                this.autoSaveEnabled = false; // Desativa após salvar
+            }, 3000); // Aumentado para 3s
 
-            // Carrega estado inicial
+            // Carrega Banco de Dados
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             if (isGuest) {
                 this.isGuest = true;
@@ -115,7 +137,6 @@ function zeniteSystem() {
                             await this.fetchCloud();
                             this.checkOnboarding();
                         }
-                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) {
                                 if (this.user?.id === session.user.id) return;
@@ -134,37 +155,47 @@ function zeniteSystem() {
                 }
             }
 
-            // Aplica configurações visuais
+            // Carrega histórico
+            this.loadHistory();
+
+            // Aplica Configs
             if(this.settings) {
                 if(this.settings.themeColor) this.applyTheme(this.settings.themeColor);
                 setSfxEnabled(this.settings.sfxEnabled);
-                if(this.settings.crtMode) document.body.classList.add('crt-mode');
+                this.updateVisualState(); // Aplica CRT e Mouse Trail
             }
 
-            // Watchers para Autosave e UX
+            // CORREÇÃO: Watcher agora apenas marca como alterado
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
-                this.unsavedChanges = true; 
-                this.isSyncing = true; // Feedback visual imediato "Salvando..."
-                this.debouncedSaveFunc(); 
+                this.unsavedChanges = true;
+                // NÃO ativa auto-save aqui
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
+            
+            // NOVO: Watcher para mouse trail e CRT
+            this.$watch('settings.mouseTrail', () => this.updateVisualState());
+            this.$watch('settings.crtMode', () => this.updateVisualState());
 
             this.updateAgentCount();
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             
-            // Intervalo de segurança para salvamento
-            setInterval(() => { if (this.user && this.unsavedChanges) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+            // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
+            setInterval(() => { 
+                if (this.user && this.unsavedChanges && this.autoSaveEnabled) {
+                    this.syncCloud(true); 
+                }
+            }, CONSTANTS.SAVE_INTERVAL);
         },
 
         checkOnboarding() {
-            if (!localStorage.getItem('zenite_setup_done')) {
+            const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
+            if (!hasSeenWelcome) {
                 setTimeout(() => {
-                    this.notify("Bem-vindo! Configure seu terminal.", "info");
-                    this.configModal = true;
-                    localStorage.setItem('zenite_setup_done', 'true');
+                    this.welcomeModal = true;
+                    localStorage.setItem('zenite_welcome_seen', 'true');
                 }, 1000);
             }
         },
@@ -186,26 +217,84 @@ function zeniteSystem() {
                 }
             });
             
-            // Listener Global de Cliques para SFX
-            let lastHovered = null;
+            // Global Click Handler para SFX
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, input, select, .cursor-pointer, .dice-tray-opt')) {
                     playSFX('click'); 
                 }
             });
             
-            document.addEventListener('mouseover', (e) => {
-                const target = e.target.closest('button, a, .cursor-pointer');
-                if (target && target !== lastHovered) {
-                    playSFX('hover');
-                    lastHovered = target;
-                } else if (!target) {
-                    lastHovered = null;
-                }
+            // ESC key handler
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.handleEscKey();
             });
         },
 
-        // --- MINIGAME DE ERRO ---
+        // --- SALVAR MANUAL ---
+        async manualSave() {
+            if (!this.unsavedChanges) return;
+            
+            this.isSyncing = true;
+            this.autoSaveEnabled = true; // Ativa temporariamente para o debounce
+            
+            // Salva no histórico
+            this.saveToHistory();
+            
+            // Trigger o debounce
+            this.debouncedSaveFunc();
+            
+            this.notify('Salvando...', 'info');
+        },
+
+        // --- HISTÓRICO ---
+        saveToHistory() {
+            if (!this.char || !this.activeCharId) return;
+            
+            const snapshot = {
+                id: Date.now(),
+                charId: this.activeCharId,
+                timestamp: new Date().toISOString(),
+                data: JSON.parse(JSON.stringify(this.char))
+            };
+            
+            this.saveHistory.unshift(snapshot);
+            
+            // Mantém últimas 50 versões
+            if (this.saveHistory.length > 50) {
+                this.saveHistory = this.saveHistory.slice(0, 50);
+            }
+            
+            localStorage.setItem('zenite_history', JSON.stringify(this.saveHistory));
+        },
+
+        loadHistory() {
+            const stored = localStorage.getItem('zenite_history');
+            if (stored) {
+                try {
+                    this.saveHistory = JSON.parse(stored);
+                } catch(e) {
+                    this.saveHistory = [];
+                }
+            }
+        },
+
+        restoreFromHistory(snapshotId) {
+            const snapshot = this.saveHistory.find(s => s.id === snapshotId);
+            if (!snapshot) return;
+            
+            this.askConfirm(
+                'RESTAURAR VERSÃO?',
+                `Isso irá sobrescrever os dados atuais com a versão de ${new Date(snapshot.timestamp).toLocaleString('pt-BR')}`,
+                'warn',
+                () => {
+                    this.char = sanitizeChar(snapshot.data);
+                    this.unsavedChanges = true;
+                    this.notify('Versão restaurada. Clique em SALVAR.', 'success');
+                }
+            );
+        },
+
+        // --- MINIGAME ---
         triggerSystemFailure() {
             playSFX('error');
             this.systemFailure = true;
@@ -219,7 +308,6 @@ function zeniteSystem() {
             this.moveMinigameTarget();
         },
         moveMinigameTarget() {
-            // Garante que não sai da tela (margem 10% a 90%)
             this.minigamePos.x = Math.floor(Math.random() * 80) + 10;
             this.minigamePos.y = Math.floor(Math.random() * 80) + 10;
         },
@@ -239,7 +327,7 @@ function zeniteSystem() {
             }
         },
 
-        // --- UTILITÁRIOS ---
+        // --- NOTIFICAÇÕES ---
         notify(msg, type='info') {
             const id = Date.now();
             let icon = 'fa-circle-info';
@@ -253,7 +341,7 @@ function zeniteSystem() {
             }, 3000);
         },
 
-        // Atalho Konami
+        // --- KONAMI CODE ---
         handleKeys(e) {
             const key = e.key.toLowerCase();
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
@@ -261,6 +349,7 @@ function zeniteSystem() {
             if (this.konamiBuffer.length > code.length) this.konamiBuffer.shift();
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(code)) {
                 this.hackerModeUnlocked = true;
+                localStorage.setItem('zenite_hacker_unlocked', 'true');
                 this.toggleHackerMode();
                 this.konamiBuffer = [];
             }
@@ -270,7 +359,7 @@ function zeniteSystem() {
 
 window.zeniteSystem = zeniteSystem;
 
-// INICIALIZAÇÃO DO ALPINE (IMPORTANTE: NÃO APAGAR)
+// --- INICIALIZAÇÃO CRÍTICA DO ALPINE ---
 document.addEventListener('DOMContentLoaded', () => {
     import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js').then((module) => {
         const Alpine = module.default;
