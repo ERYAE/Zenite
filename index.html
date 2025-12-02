@@ -521,14 +521,25 @@
                     <div class="flex justify-between items-center mb-2 px-1"><span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span><button @click="diceLog=[]" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button></div>
                     <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-1">
                         <template x-for="log in diceLog" :key="log.id">
-                            <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-1 animate-fade-in">
-                                <div class="flex justify-between">
-                                    <span x-text="log.time"></span><span class="text-white font-bold" x-text="log.formula"></span>
-                                    <span :class="log.crit?'text-[var(--neon-warn)]':log.fumble?'text-[var(--neon-alert)]':'text-gray-300'" x-text="log.result"></span>
-                                </div>
-                                <div x-show="log.reason" class="text-[9px] text-[var(--neon-core)] italic truncate" x-text="log.reason"></div>
-                            </div>
-                        </template>
+    <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-1 rounded transition-colors">
+        
+        <div class="flex justify-between items-center">
+            <div class="flex flex-col">
+                <span class="text-[9px] text-gray-600 font-bold" x-text="log.date"></span>
+                <span class="text-[10px] text-gray-400" x-text="log.time"></span>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <span class="text-white font-bold" x-text="log.formula"></span>
+                <span class="text-lg font-bold" 
+                      :class="log.crit ? 'text-[var(--neon-warn)] drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]' : log.fumble ? 'text-[var(--neon-alert)] drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : 'text-white'" 
+                      x-text="log.result"></span>
+            </div>
+        </div>
+
+        <div x-show="log.reason" class="mt-1 text-[9px] text-[var(--neon-core)] italic truncate border-l-2 border-[var(--neon-core)] pl-1 opacity-80" x-text="log.reason"></div>
+    </div>
+</template>
                         <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
                     </div>
                 </div>

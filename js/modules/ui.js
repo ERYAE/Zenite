@@ -95,11 +95,9 @@ export const uiLogic = {
     initCustomCursor() {
         if (this.isMobile) return;
         
-        // 1. Tenta encontrar os elementos existentes para manter o CSS original
         let cursor = document.getElementById('custom-cursor');
         let trail = document.getElementById('mouse-trail');
         
-        // Se não existirem (fallback), cria-os
         if (!cursor) {
             cursor = document.createElement('div');
             cursor.id = 'custom-cursor';
@@ -111,24 +109,29 @@ export const uiLogic = {
             document.body.appendChild(trail);
         }
         
-        // 2. Garante posicionamento fixo para o transform funcionar
-        const setStyles = (el) => {
-            el.style.position = 'fixed';
-            el.style.top = '0';
-            el.style.left = '0';
-            el.style.pointerEvents = 'none'; // Importante: clicar através deles
-            el.style.margin = '0'; // Remove margens que podem desalojar
+        // ESTILOS CRÍTICOS INJETADOS VIA JS
+        const applyCriticalStyles = () => {
+            // Z-INDEX EXTREMO: Garante que fique acima de modais (z-11000)
+            cursor.style.zIndex = '100001'; 
+            trail.style.zIndex = '100000';
+            
+            cursor.style.position = 'fixed';
+            trail.style.position = 'fixed';
+            cursor.style.pointerEvents = 'none';
+            trail.style.pointerEvents = 'none';
+            cursor.style.top = '0';
+            cursor.style.left = '0';
+            
+            // OTIMIZAÇÃO VISUAL: Reduzir brilho e tamanho para performance
+            trail.style.width = '150px'; // Menor que o padrão (geralmente 200-300)
+            trail.style.height = '150px';
+            trail.style.opacity = '0.35'; // Menos intenso (era provavelmente 1.0 ou 0.8)
+            trail.style.mixBlendMode = 'screen'; // Melhor mistura com fundo escuro
         };
-        
-        setStyles(cursor);
-        setStyles(trail);
-        
-        cursor.style.zIndex = '9999';
-        trail.style.zIndex = '9998';
+        applyCriticalStyles();
 
         this.updateCursorColor();
         
-        // Posição inicial (Centro da tela para evitar "pulo")
         let mouseX = window.innerWidth / 2;
         let mouseY = window.innerHeight / 2;
         
@@ -142,26 +145,19 @@ export const uiLogic = {
             mouseY = e.clientY;
         };
         
-        // Loop de Animação Otimizado
         const animate = () => {
-            // Física (Lerp)
-            cursorX += (mouseX - cursorX) * 0.5; // Rápido
-            cursorY += (mouseY - cursorY) * 0.5;
-            trailX += (mouseX - trailX) * 0.15;  // Lento (Efeito arrasto)
-            trailY += (mouseY - trailY) * 0.15;
+            cursorX += (mouseX - cursorX) * 0.6; // Cursor mais responsivo
+            cursorY += (mouseY - cursorY) * 0.6;
+            trailX += (mouseX - trailX) * 0.2; // Rastro suave
+            trailY += (mouseY - trailY) * 0.2;
             
-            // RENDERIZAÇÃO
-            // Cursor: Âncora Topo-Esquerda (Padrão do mouse)
+            // Renderização via GPU
             cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`;
-            
-            // Trail: Âncora Centralizada (Luz deve estar no meio)
-            // O 'translate(-50%, -50%)' garante que o centro da div fique no X,Y
             trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0) translate(-50%, -50%)`;
             
             this.cursorAnimFrame = requestAnimationFrame(animate);
         };
         
-        // Limpa listeners antigos se houver
         if (this.cursorMoveHandler) document.removeEventListener('mousemove', this.cursorMoveHandler);
         if (this.cursorAnimFrame) cancelAnimationFrame(this.cursorAnimFrame);
 

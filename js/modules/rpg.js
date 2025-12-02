@@ -43,13 +43,13 @@ export const rpgLogic = {
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
         
-        // Criação do Log Completo
+        // --- ATUALIZAÇÃO: DATA E HORA DETALHADAS ---
         const now = new Date();
         const logEntry = {
             id: Date.now(), 
-            timestamp: now.getTime(), // Para controle de validade (14 dias)
-            // Formato legível: DD/MM HH:mm:ss
-            fullTime: now.toLocaleString('pt-BR'), 
+            timestamp: now.getTime(), // Mantém para ordenação e limpeza
+            date: now.toLocaleDateString('pt-BR'), // Ex: 02/12/2025
+            time: now.toLocaleTimeString('pt-BR'), // Ex: 14:30:45
             formula: formulaStr, 
             result: n+m, 
             crit: n===s, 
@@ -60,7 +60,6 @@ export const rpgLogic = {
         this.diceLog.unshift(logEntry); 
         this.diceReason = ''; 
         
-        // Salva e limpa logs antigos
         this.saveDiceHistory();
     },
 
@@ -86,10 +85,20 @@ export const rpgLogic = {
                 const now = Date.now();
                 const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
                 
-                // Filtra logs com menos de 14 dias
+                // Filtra logs antigos
                 this.diceLog = parsed.filter(log => (now - log.timestamp) < fourteenDaysMs);
                 
-                // Se houve limpeza, atualiza o storage
+                // --- CORREÇÃO DE COMPATIBILIDADE ---
+                // Se o log antigo não tiver o campo 'date' separado, forçamos a atualização
+                this.diceLog = this.diceLog.map(log => {
+                    if (!log.date && log.timestamp) {
+                        const d = new Date(log.timestamp);
+                        log.date = d.toLocaleDateString('pt-BR');
+                        log.time = d.toLocaleTimeString('pt-BR');
+                    }
+                    return log;
+                });
+
                 if (this.diceLog.length < parsed.length) {
                     this.saveDiceHistory();
                 }
