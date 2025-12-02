@@ -178,7 +178,9 @@
                             <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
                         </div>
                     </div>
-                    <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 p-2 transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10"><i class="fa-solid fa-trash-can"></i></button>
+                    <button @click.stop="askDeleteChar(id)" class="absolute top-3 right-3 text-gray-600 hover:text-red-500 z-20 w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
                 </div>
             </template>
@@ -488,7 +490,7 @@
 
     <template x-if="diceTrayOpen && currentView === 'sheet'">
         <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt" 
-     :class="{'fixed bottom-0 left-0 w-full rounded-t-xl pb-safe max-h-[60vh]': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
+     :class="{'fixed bottom-0 left-0 w-full rounded-t-xl pb-safe h-[60vh]': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80 h-[500px]': !isMobile && trayDockMode === 'float'}" 
      :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
      x-transition:enter="genie-enter" 
      x-transition:leave="genie-leave">
@@ -497,15 +499,15 @@
         <div class="flex items-center gap-2">
             <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
             <div class="flex gap-1 ml-2" x-show="!isMobile">
-                <button @click="setDockMode('dock-left')" class="p-1 hover:text-white" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
-                <button @click="setDockMode('float')" class="p-1 hover:text-white" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
-                <button @click="setDockMode('dock-right')" class="p-1 hover:text-white" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
+                <button @click="setDockMode('dock-left')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
+                <button @click="setDockMode('float')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
+                <button @click="setDockMode('dock-right')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
             </div>
         </div>
-        <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+        <button @click="toggleDiceTray()" class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors rounded"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
-    <div class="p-4 bg-black/40 backdrop-blur-md flex flex-col overflow-hidden">
+    <div class="p-4 bg-black/40 backdrop-blur-md flex flex-col flex-grow overflow-hidden h-full">
         <div class="mb-3 space-y-2 flex-shrink-0">
             <input name="dice_reason" type="text" x-model="diceReason" aria-label="Motivo Rolagem" placeholder="Motivo do teste..." class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors">
             <div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
@@ -521,15 +523,15 @@
             <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
         </div>
         
-        <div class="flex flex-col border-t border-white/10 pt-2 overflow-hidden">
+        <div class="flex flex-col border-t border-white/10 pt-2 overflow-hidden flex-grow min-h-0">
             <div class="flex justify-between items-center mb-2 px-1 flex-shrink-0">
                 <span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span>
-                <button @click="diceLog=[]; saveDiceHistory()" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button>
+                <button @click="diceLog=[]; saveDiceHistory()" class="text-[10px] text-red-900 hover:text-red-500 font-bold px-2 py-0.5 rounded hover:bg-white/5">LIMPAR</button>
             </div>
             
-            <div class="overflow-y-auto custom-scrollbar pr-2 space-y-2 max-h-40 md:max-h-60">
+            <div class="overflow-y-auto custom-scrollbar pr-2 space-y-2 flex-grow overscroll-contain">
                 <template x-for="log in diceLog" :key="log.id">
-                    <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-2 rounded transition-colors bg-black/20">
+                    <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-2 rounded transition-colors bg-black/20 flex-shrink-0">
                         <div class="flex justify-between items-start mb-1">
                             <div class="flex flex-col leading-tight">
                                 <span class="text-[9px] text-gray-600 font-bold" x-text="log.date"></span>
@@ -702,7 +704,7 @@
 
     <div x-show="configModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
-            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <button @click="configModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
             <div class="space-y-4">
                 <div>
@@ -766,7 +768,7 @@
                     <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
                     <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
                 </div>
-                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark fa-lg"></i></button>
+                <button @click="wizardOpen=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark fa-lg"></i></button>
             </div>
             <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
                 <div x-show="wizardStep === 1" class="animate-fade-in">
@@ -873,7 +875,7 @@
                 <input type="file" id="file-input" name="upload_image" class="hidden" accept="image/*" @change="initCropper($event)" aria-label="Upload de Imagem">
                 <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
                 <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
-                <button @click="cropperOpen=false" class="px-4 py-3 border border-red-500/30 text-red-500 rounded hover:bg-red-500/10"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
     </div>
