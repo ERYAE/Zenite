@@ -487,11 +487,12 @@
     </template>
 
     <template x-if="diceTrayOpen && currentView === 'sheet'">
-        <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt" 
+        <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col transition-all duration-300 ease-out border border-white/10 shadow-2xl glass dice-tray-opt max-h-[60vh]" 
              :class="{'fixed bottom-0 left-0 w-full rounded-t-xl': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80': !isMobile && trayDockMode === 'float'}" 
              :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
              x-transition:enter="genie-enter" 
              x-transition:leave="genie-leave">
+            
             <div @mousedown="startDragTray($event)" class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none" :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}">
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
@@ -503,8 +504,9 @@
                 </div>
                 <button @click="toggleDiceTray()" class="text-gray-500 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col">
-                <div class="mb-3 space-y-2">
+            
+            <div class="p-4 bg-black/40 backdrop-blur-md flex-grow flex flex-col overflow-hidden">
+                <div class="mb-3 space-y-2 flex-shrink-0">
                     <input name="dice_reason" type="text" x-model="diceReason" aria-label="Motivo Rolagem" placeholder="Motivo do teste (opcional)..." class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors">
                     <div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
                         <div class="flex items-center gap-2">
@@ -514,32 +516,50 @@
                         <div class="text-4xl font-bold font-brand animate-pulse" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
                     </div>
                 </div>
-                <div class="grid grid-cols-4 gap-2 mb-4">
+                
+                <div class="grid grid-cols-4 gap-2 mb-4 flex-shrink-0">
                     <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
                 </div>
-                <div class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2">
-                    <div class="flex justify-between items-center mb-2 px-1"><span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span><button @click="diceLog=[]" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button></div>
-                    <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-1">
+                
+                <div class="flex-grow overflow-hidden flex flex-col border-t border-white/10 pt-2 min-h-0">
+                    <div class="flex justify-between items-center mb-2 px-1 flex-shrink-0">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span>
+                        <button @click="diceLog=[]; saveDiceHistory()" class="text-[10px] text-red-900 hover:text-red-500">LIMPAR</button>
+                    </div>
+                    
+                    <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 space-y-2">
                         <template x-for="log in diceLog" :key="log.id">
-    <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-1 rounded transition-colors">
-        
-        <div class="flex justify-between items-center">
-            <div class="flex flex-col">
-                <span class="text-[9px] text-gray-600 font-bold" x-text="log.date"></span>
-                <span class="text-[10px] text-gray-400" x-text="log.time"></span>
-            </div>
-            
-            <div class="flex items-center gap-2">
-                <span class="text-white font-bold" x-text="log.formula"></span>
-                <span class="text-lg font-bold" 
-                      :class="log.crit ? 'text-[var(--neon-warn)] drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]' : log.fumble ? 'text-[var(--neon-alert)] drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : 'text-white'" 
-                      x-text="log.result"></span>
+                            <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-2 rounded transition-colors bg-black/20">
+                                
+                                <div class="flex justify-between items-start mb-1">
+                                    <div class="flex flex-col leading-tight">
+                                        <span class="text-[9px] text-gray-600 font-bold" x-text="log.date"></span>
+                                        <span class="text-[9px] text-gray-400" x-text="log.time"></span>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold block text-sm" x-text="log.formula"></span>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-between items-center bg-black/40 rounded px-2 py-1 mb-1">
+                                    <div class="flex gap-2 text-[9px] uppercase tracking-wider">
+                                        <span class="text-gray-500">NAT: <b class="text-white" x-text="log.natural"></b></span>
+                                        <span class="text-gray-500">MOD: <b :class="log.mod > 0 ? 'text-green-400' : log.mod < 0 ? 'text-red-400' : 'text-gray-400'" x-text="log.mod >= 0 ? '+' + log.mod : log.mod"></b></span>
+                                    </div>
+                                    <span class="text-xl font-bold" 
+                                          :class="log.crit ? 'text-[var(--neon-warn)] drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]' : log.fumble ? 'text-[var(--neon-alert)] drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : 'text-white'" 
+                                          x-text="log.result"></span>
+                                </div>
+
+                                <div x-show="log.reason" class="text-[9px] text-[var(--neon-core)] italic truncate opacity-80" x-text="'> ' + log.reason"></div>
+                            </div>
+                        </template>
+                        <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div x-show="log.reason" class="mt-1 text-[9px] text-[var(--neon-core)] italic truncate border-l-2 border-[var(--neon-core)] pl-1 opacity-80" x-text="log.reason"></div>
-    </div>
-</template>
+    </template>
                         <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
                     </div>
                 </div>

@@ -43,15 +43,16 @@ export const rpgLogic = {
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
         
-        // --- ATUALIZAÇÃO: DATA E HORA DETALHADAS ---
         const now = new Date();
         const logEntry = {
             id: Date.now(), 
-            timestamp: now.getTime(), // Mantém para ordenação e limpeza
-            date: now.toLocaleDateString('pt-BR'), // Ex: 02/12/2025
-            time: now.toLocaleTimeString('pt-BR'), // Ex: 14:30:45
+            timestamp: now.getTime(),
+            date: now.toLocaleDateString('pt-BR'),
+            time: now.toLocaleTimeString('pt-BR'),
             formula: formulaStr, 
             result: n+m, 
+            natural: n, // NOVO: Valor puro do dado
+            mod: m,     // NOVO: Valor do modificador
             crit: n===s, 
             fumble: n===1, 
             reason: this.diceReason || 'Sem motivo'
