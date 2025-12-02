@@ -2140,6 +2140,11 @@
       scale: var(--tw-scale-x) var(--tw-scale-y);
     }
   }
+  .disabled\:cursor-not-allowed {
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
   .disabled\:bg-gray-700 {
     &:disabled {
       background-color: var(--color-gray-700);

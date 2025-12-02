@@ -194,6 +194,11 @@
                     <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Perfil</button>
                     <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Poderes</button>
                     <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Logística</button>
+                    <button @click="historyModal = true" 
+                    class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all text-gray-500 hover:text-white border border-white/10 hover:border-[var(--neon-core)]">
+                    <i class="fa-solid fa-clock-rotate-left mr-1"></i>
+                    HISTÓRICO
+                    </button>
                 </div>
             </div>
 
@@ -537,27 +542,133 @@
     </div>
 
     <div x-show="unsavedChanges && !isGuest" class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9500] flex justify-center pointer-events-none" x-transition.opacity>
-        <div class="glass bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-2 py-2 flex items-center shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all duration-300" 
-             :class="{'pr-6 pl-6 gap-4 bg-red-900/40 border-red-500': revertConfirmMode, 'pr-2 pl-6 gap-4': !revertConfirmMode, 'shake-anim': shakeAlert}">
-            <div x-show="!revertConfirmMode" class="flex items-center gap-4 animate-fade-in">
-                <span class="text-xs md:text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-[var(--neon-core)] animate-pulse"></i><span class="hidden md:inline">ALTERADO</span></span>
-                <div class="h-4 w-px bg-white/20"></div>
-                <div class="flex gap-2">
-                    <button @click.stop="toggleRevertMode()" class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fa-solid fa-rotate-left"></i></button>
-                    <button @click.stop="syncCloud()" class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2">
-                        <span x-show="!isSyncing">SALVAR</span><i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i><span x-show="isSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
-                    </button>
-                </div>
+    <div class="glass bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-2 py-2 flex items-center shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all duration-300" 
+         :class="{'pr-6 pl-6 gap-4 bg-red-900/40 border-red-500': revertConfirmMode, 'pr-2 pl-6 gap-4': !revertConfirmMode, 'shake-anim': shakeAlert}">
+        
+        <!-- Modo Normal -->
+        <div x-show="!revertConfirmMode" class="flex items-center gap-4 animate-fade-in">
+            <span class="text-xs md:text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-[var(--neon-core)] animate-pulse"></i>
+                <span class="hidden md:inline">NÃO SALVO</span>
+            </span>
+            <div class="h-4 w-px bg-white/20"></div>
+            <div class="flex gap-2">
+                <button @click.stop="toggleRevertMode()" 
+                        class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+                
+                <!-- BOTÃO SALVAR MANUAL -->
+                <button @click.stop="manualSave()" 
+                        :disabled="isSyncing"
+                        class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!isSyncing">SALVAR</span>
+                    <i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i>
+                    <span x-show="isSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i> SALVANDO...</span>
+                </button>
             </div>
-            <div x-show="revertConfirmMode" class="flex items-center gap-4 animate-fade-in" style="display: none;">
-                <span class="text-xs font-bold text-red-500 uppercase tracking-widest whitespace-nowrap"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Descartar tudo?</span>
-                <div class="flex gap-2">
-                    <button @click.stop="toggleRevertMode()" class="px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold text-gray-300 hover:bg-white/10 transition-colors">CANCELAR</button>
-                    <button @click.stop="performRevert()" class="px-4 py-1.5 rounded-full bg-red-600 text-white text-xs font-bold hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all">SIM, DESCARTAR</button>
-                </div>
+        </div>
+        
+        <!-- Modo Confirmação Revert -->
+        <div x-show="revertConfirmMode" class="flex items-center gap-4 animate-fade-in" style="display: none;">
+            <span class="text-xs font-bold text-red-500 uppercase tracking-widest whitespace-nowrap">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i> Descartar alterações?
+            </span>
+            <div class="flex gap-2">
+                <button @click.stop="toggleRevertMode()" 
+                        class="px-3 py-1.5 rounded-full border border-white/10 text-xs font-bold text-gray-300 hover:bg-white/10 transition-colors">
+                    CANCELAR
+                </button>
+                <button @click.stop="performRevert()" 
+                        class="px-4 py-1.5 rounded-full bg-red-600 text-white text-xs font-bold hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all">
+                    SIM, DESCARTAR
+                </button>
             </div>
         </div>
     </div>
+</div>
+
+    <div x-show="welcomeModal" style="display: none" 
+     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4"
+     x-transition.opacity>
+    <div class="glass p-8 rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter">
+        <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        
+        <div class="text-center mb-8">
+            <img src="images/zenite_logo.svg" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_15px_var(--neon-core)]">
+            <h2 class="text-3xl font-brand text-white mb-2">BEM-VINDO AO ZENITE OS</h2>
+            <p class="text-gray-400 text-sm">Sistema de Gestão Neural // v2.1</p>
+        </div>
+        
+        <div class="space-y-6">
+            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                <h3 class="text-sm font-bold text-[var(--neon-core)] mb-2 uppercase">
+                    <i class="fa-solid fa-circle-info mr-2"></i>Sobre
+                </h3>
+                <p class="text-xs text-gray-300 leading-relaxed">
+                    ZENITE OS é um sistema avançado para gerenciamento de fichas RPG. 
+                    Crie personagens, controle atributos, role dados e sincronize seus dados na nuvem.
+                </p>
+            </div>
+            
+            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3 uppercase">
+                    <i class="fa-solid fa-sliders mr-2"></i>Personalize Sua Interface
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">Cor de Destaque</p>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button @click="toggleSetting('themeColor', 'cyan')" 
+                                    class="py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all"
+                                    :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
+                            <button @click="toggleSetting('themeColor', 'purple')" 
+                                    class="py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all"
+                                    :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
+                            <button @click="toggleSetting('themeColor', 'gold')" 
+                                    class="py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all"
+                                    :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
+                            <button @click="toggleSetting('themeColor', 'red')" 
+                                    class="py-2 rounded-lg border border-white/10 bg-[#ef4444]/20 text-[#ef4444] font-bold text-xs hover:bg-[#ef4444]/40 transition-all"
+                                    :class="{'ring-2 ring-white': settings.themeColor === 'red'}">VERMELHO</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" 
+                                class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
+                                :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
+                            RASTRO MOUSE
+                        </button>
+                        <button @click="toggleSetting('crtMode')" 
+                                class="py-2 border border-white/10 rounded-lg text-xs font-bold transition-colors"
+                                :class="settings.crtMode ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">
+                            MODO CRT
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-black/40 p-4 rounded-xl border border-white/10">
+                <h3 class="text-sm font-bold text-yellow-500 mb-2 uppercase">
+                    <i class="fa-solid fa-lightbulb mr-2"></i>Dicas Rápidas
+                </h3>
+                <ul class="text-xs text-gray-400 space-y-1">
+                    <li>• Respeite os players e o mestre</li>
+                    <li>• Use o botão SALVAR para confirmar alterações</li>
+                    <li>• Arraste a bandeja de dados para reposicioná-la</li>
+                    <li>• Seja feliz! </li>
+                </ul>
+            </div>
+        </div>
+        
+        <button @click="welcomeModal = false" 
+                class="w-full mt-6 py-3 bg-[var(--neon-core)] text-black font-bold rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)]">
+            COMEÇAR
+        </button>
+    </div>
+</div>
 
     <div x-show="configModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
@@ -565,13 +676,30 @@
             <h3 class="text-xl font-brand text-white mb-6">CONFIGURAÇÕES</h3>
             <div class="space-y-4">
                 <div>
-                    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
-                    <div class="flex gap-2">
-                        <button @click="toggleSetting('themeColor', 'cyan')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">CYAN</button>
-                        <button @click="toggleSetting('themeColor', 'purple')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">ROXO</button>
-                        <button @click="toggleSetting('themeColor', 'gold')" class="flex-1 py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all" :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">OURO</button>
-                    </div>
-                </div>
+    <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
+    <div class="grid grid-cols-4 gap-2">
+        <button @click="toggleSetting('themeColor', 'cyan')" 
+                class="py-2 rounded-lg border border-white/10 bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold text-xs hover:bg-[#0ea5e9]/40 transition-all" 
+                :class="{'ring-2 ring-white': settings.themeColor === 'cyan'}">
+            CYAN
+        </button>
+        <button @click="toggleSetting('themeColor', 'purple')" 
+                class="py-2 rounded-lg border border-white/10 bg-[#d946ef]/20 text-[#d946ef] font-bold text-xs hover:bg-[#d946ef]/40 transition-all" 
+                :class="{'ring-2 ring-white': settings.themeColor === 'purple'}">
+            ROXO
+        </button>
+        <button @click="toggleSetting('themeColor', 'gold')" 
+                class="py-2 rounded-lg border border-white/10 bg-[#eab308]/20 text-[#eab308] font-bold text-xs hover:bg-[#eab308]/40 transition-all" 
+                :class="{'ring-2 ring-white': settings.themeColor === 'gold'}">
+            OURO
+        </button>
+        <button @click="toggleSetting('themeColor', 'red')" 
+                class="py-2 rounded-lg border border-white/10 bg-[#ef4444]/20 text-[#ef4444] font-bold text-xs hover:bg-[#ef4444]/40 transition-all" 
+                :class="{'ring-2 ring-white': settings.themeColor === 'red'}">
+            VERMELHO
+        </button>
+    </div>
+</div>
                 <div class="border-t border-white/10"></div>
                 <div class="grid grid-cols-2 gap-3">
                     <button x-show="!isMobile" @click="toggleSetting('mouseTrail')" class="py-3 border border-white/10 rounded-lg text-xs font-bold transition-colors" :class="settings.mouseTrail ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:bg-white/5'">RASTRO MOUSE</button>
@@ -748,6 +876,66 @@
             </div>
         </div>
     </div>
+
+
+    <div x-show="historyModal" style="display: none" 
+     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+     x-transition.opacity>
+    <div class="glass p-6 rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col relative border border-white/10 shadow-2xl modal-enter">
+        <button @click="historyModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        
+        <div class="mb-4">
+            <h2 class="text-xl font-brand text-white">HISTÓRICO DE VERSÕES</h2>
+            <p class="text-xs text-gray-500">Últimas 50 alterações salvas</p>
+        </div>
+        
+        <div class="flex-grow overflow-y-auto custom-scrollbar space-y-2">
+            <template x-for="snapshot in saveHistory" :key="snapshot.id">
+                <div class="bg-black/40 p-4 rounded-lg border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-white" x-text="snapshot.data.name"></h3>
+                            <p class="text-xs text-gray-500" x-text="new Date(snapshot.timestamp).toLocaleString('pt-BR')"></p>
+                        </div>
+                        <button @click="restoreFromHistory(snapshot.id)" 
+                                class="px-3 py-1 bg-blue-600/20 border border-blue-500/50 text-blue-400 rounded text-xs font-bold hover:bg-blue-600/30 transition-colors">
+                            RESTAURAR
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-5 gap-2 text-[10px]">
+                        <div class="text-center">
+                            <p class="text-gray-500">NVL</p>
+                            <p class="text-white font-bold" x-text="snapshot.data.level"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-500">PV</p>
+                            <p class="text-white font-bold" x-text="snapshot.data.stats.pv.current + '/' + snapshot.data.stats.pv.max"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-500">PF</p>
+                            <p class="text-white font-bold" x-text="snapshot.data.stats.pf.current + '/' + snapshot.data.stats.pf.max"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-500">PDF</p>
+                            <p class="text-white font-bold" x-text="snapshot.data.stats.pdf.current + '/' + snapshot.data.stats.pdf.max"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-500">CLASSE</p>
+                            <p class="text-white font-bold text-[9px]" x-text="snapshot.data.class"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <div x-show="saveHistory.length === 0" class="text-center py-20 text-gray-600">
+                <i class="fa-solid fa-clock-rotate-left text-4xl mb-4"></i>
+                <p class="text-sm">Nenhuma versão salva ainda</p>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

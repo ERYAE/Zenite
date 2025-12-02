@@ -17,13 +17,19 @@ function zeniteSystem() {
         
         // Navegação
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
-        searchQuery: '', viewMode: 'grid', // Adicionado para toggle Grid/Lista
+        searchQuery: '', viewMode: 'grid',
         
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         
         // Configs
-        settings: { compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
+        settings: { 
+            compactMode: false, 
+            crtMode: false, 
+            sfxEnabled: true, 
+            themeColor: 'cyan',
+            mouseTrail: true // Adicionado explicitamente
+        },
         
         // Wizard
         wizardOpen: false, wizardStep: 1, wizardPoints: 8, 
@@ -33,16 +39,27 @@ function zeniteSystem() {
         // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
+        welcomeModal: false, // NOVO: Modal de boas-vindas
+        historyModal: false,
         
-        // Salvamento
-        unsavedChanges: false, isSyncing: false, saveStatus: 'idle',
-        revertConfirmMode: false, shakeAlert: false, isReverting: false,
+        // Salvamento - CORREÇÃO CRÍTICA
+        unsavedChanges: false, 
+        isSyncing: false, 
+        saveStatus: 'idle',
+        revertConfirmMode: false, 
+        shakeAlert: false, 
+        isReverting: false,
+        autoSaveEnabled: false, // NOVO: Controle manual do auto-save
+        lastManualSave: null,
         
         // Ferramentas
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
+        
+        // Histórico - NOVO
+        saveHistory: [],
         
         // Minigame & Falhas
         systemFailure: false, minigameActive: false, minigameClicks: 5, minigamePos: {x:50, y:50},
@@ -87,16 +104,22 @@ function zeniteSystem() {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
 
-            // Configura Auto-Save com Debounce
-            this.debouncedSaveFunc = debounce(async () => { 
-                await this.saveLocal(); 
+            // CORREÇÃO: Auto-Save agora é MANUAL por padrão
+            // Usuário precisa clicar no botão SALVAR
+            this.debouncedSaveFunc = debounce(async () => {
+                if (!this.autoSaveEnabled) return; // Respeita o controle manual
+                
+                await this.saveLocal();
+                
                 if (!this.isGuest && this.user) {
                     await this.syncCloud(true);
                     playSFX('save');
                 }
+                
                 this.isSyncing = false;
                 this.unsavedChanges = false;
-            }, 1500);
+                this.autoSaveEnabled = false; // Desativa após salvar
+            }, 3000); // Aumentado para 3s
 
             // Carrega Banco de Dados
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
@@ -132,37 +155,47 @@ function zeniteSystem() {
                 }
             }
 
+            // Carrega histórico
+            this.loadHistory();
+
             // Aplica Configs
             if(this.settings) {
                 if(this.settings.themeColor) this.applyTheme(this.settings.themeColor);
                 setSfxEnabled(this.settings.sfxEnabled);
-                if(this.settings.crtMode) document.body.classList.add('crt-mode');
+                this.updateVisualState(); // Aplica CRT e Mouse Trail
             }
 
-            // Watcher de Alterações
+            // CORREÇÃO: Watcher agora apenas marca como alterado
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
-                this.unsavedChanges = true; 
-                this.isSyncing = true; // UI Imediata
-                this.debouncedSaveFunc(); 
+                this.unsavedChanges = true;
+                // NÃO ativa auto-save aqui
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
+            
+            // NOVO: Watcher para mouse trail e CRT
+            this.$watch('settings.mouseTrail', () => this.updateVisualState());
+            this.$watch('settings.crtMode', () => this.updateVisualState());
 
             this.updateAgentCount();
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             
-            // Backup Interval
-            setInterval(() => { if (this.user && this.unsavedChanges) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
+            // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
+            setInterval(() => { 
+                if (this.user && this.unsavedChanges && this.autoSaveEnabled) {
+                    this.syncCloud(true); 
+                }
+            }, CONSTANTS.SAVE_INTERVAL);
         },
 
         checkOnboarding() {
-            if (!localStorage.getItem('zenite_setup_done')) {
+            const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
+            if (!hasSeenWelcome) {
                 setTimeout(() => {
-                    this.notify("Bem-vindo! Configure seu terminal.", "info");
-                    this.configModal = true;
-                    localStorage.setItem('zenite_setup_done', 'true');
+                    this.welcomeModal = true;
+                    localStorage.setItem('zenite_welcome_seen', 'true');
                 }, 1000);
             }
         },
@@ -190,6 +223,75 @@ function zeniteSystem() {
                     playSFX('click'); 
                 }
             });
+            
+            // ESC key handler
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this.handleEscKey();
+            });
+        },
+
+        // --- SALVAR MANUAL ---
+        async manualSave() {
+            if (!this.unsavedChanges) return;
+            
+            this.isSyncing = true;
+            this.autoSaveEnabled = true; // Ativa temporariamente para o debounce
+            
+            // Salva no histórico
+            this.saveToHistory();
+            
+            // Trigger o debounce
+            this.debouncedSaveFunc();
+            
+            this.notify('Salvando...', 'info');
+        },
+
+        // --- HISTÓRICO ---
+        saveToHistory() {
+            if (!this.char || !this.activeCharId) return;
+            
+            const snapshot = {
+                id: Date.now(),
+                charId: this.activeCharId,
+                timestamp: new Date().toISOString(),
+                data: JSON.parse(JSON.stringify(this.char))
+            };
+            
+            this.saveHistory.unshift(snapshot);
+            
+            // Mantém últimas 50 versões
+            if (this.saveHistory.length > 50) {
+                this.saveHistory = this.saveHistory.slice(0, 50);
+            }
+            
+            localStorage.setItem('zenite_history', JSON.stringify(this.saveHistory));
+        },
+
+        loadHistory() {
+            const stored = localStorage.getItem('zenite_history');
+            if (stored) {
+                try {
+                    this.saveHistory = JSON.parse(stored);
+                } catch(e) {
+                    this.saveHistory = [];
+                }
+            }
+        },
+
+        restoreFromHistory(snapshotId) {
+            const snapshot = this.saveHistory.find(s => s.id === snapshotId);
+            if (!snapshot) return;
+            
+            this.askConfirm(
+                'RESTAURAR VERSÃO?',
+                `Isso irá sobrescrever os dados atuais com a versão de ${new Date(snapshot.timestamp).toLocaleString('pt-BR')}`,
+                'warn',
+                () => {
+                    this.char = sanitizeChar(snapshot.data);
+                    this.unsavedChanges = true;
+                    this.notify('Versão restaurada. Clique em SALVAR.', 'success');
+                }
+            );
         },
 
         // --- MINIGAME ---
