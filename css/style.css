@@ -11,6 +11,7 @@
     --neon-core: #0ea5e9;
     --neon-rgb: 14, 165, 233;
     --radius-std: 12px;
+    --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
     
     /* CURSORES SVG BASE64 (Cyan) */
     --cursor-normal: url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2L10.5 21L13.5 13.5L21 10.5L2 2Z" fill="%230EA5E9" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></svg>') 2 2, auto;
@@ -19,88 +20,98 @@
 
 /* TEMA HACKER (Verde) */
 body.theme-hacker {
-    --bg-void: #000500;
+    --bg-void: #000a00;
     --glass-border: #00ff41;
     --neon-core: #00ff41;
     --neon-rgb: 0, 255, 65;
+    /* Cursor Hacker */
     --cursor-normal: url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2L10.5 21L13.5 13.5L21 10.5L2 2Z" fill="%2300ff41" stroke="black" stroke-width="1.5" stroke-linejoin="round"/></svg>') 2 2, auto;
     font-family: 'JetBrains Mono', monospace !important;
 }
+body.theme-hacker * { font-family: 'JetBrains Mono', monospace !important; letter-spacing: -0.5px; }
+body.theme-hacker .text-gray-500, body.theme-hacker .text-gray-400, body.theme-hacker i { color: #22c55e !important; text-shadow: 0 0 5px rgba(34, 197, 94, 0.5); }
+body.theme-hacker .glass { border-color: #22c55e !important; background: rgba(0, 20, 0, 0.9) !important; }
 
-/* --- CONFIGURAÇÃO GLOBAL --- */
+/* GLOBAIS */
+[x-cloak] { display: none !important; }
+
 body {
+    font-family: 'Rajdhani', sans-serif;
     background-color: var(--bg-void);
     color: #e2e8f0;
-    font-family: 'Rajdhani', sans-serif;
-    overflow-x: hidden;
     min-height: 100vh;
+    overflow-x: hidden;
     cursor: var(--cursor-normal); /* Substitui o mouse nativo */
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Sobrescreve cursor em elementos interativos */
+/* Força o cursor personalizado em elementos interativos */
 a, button, input, select, textarea, .cursor-pointer {
     cursor: var(--cursor-pointer) !important;
 }
 
-[x-cloak] { display: none !important; }
+/* Esconde o antigo trail JS */
+#mouse-trail { display: none !important; }
 
-/* --- BACKGROUND GRID --- */
+/* BACKGROUND GRID */
 .bg-grid {
     position: fixed;
     inset: 0;
-    z-index: -1; /* Fica atrás de tudo */
+    z-index: -1; /* Atrás de tudo */
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 40px 40px;
-    background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    mask-image: radial-gradient(circle at 50% 50%, black 40%, transparent 100%);
+    mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
     pointer-events: none;
 }
 
-/* --- UI UTILS --- */
+/* UI COMPONENTS */
 .glass {
     background: var(--glass-panel);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s var(--ease-smooth);
     border-radius: var(--radius-std);
-    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .input-cyber {
-    background: rgba(0,0,0,0.4);
+    background: rgba(0,0,0,0.3);
     border: 1px solid var(--glass-border);
     color: white;
+    transition: all 0.3s ease;
     font-family: 'Rajdhani', sans-serif;
     border-radius: 8px;
-    transition: all 0.2s ease;
 }
 .input-cyber:focus {
     border-color: var(--neon-core);
-    box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.2);
+    box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2);
     outline: none;
 }
 
-/* --- ANIMAÇÕES --- */
-.modal-enter { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes slideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+/* ANIMAÇÕES */
+.modal-enter { animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes modalSlideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 
 .shake-anim { animation: shake 0.3s ease-in-out; }
-@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 
-/* --- MINIGAME --- */
+.blink-anim { animation: blink 1s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* MINIGAME */
 .glitch-target {
     position: absolute;
     width: 60px; height: 60px;
-    background: #ff003c;
+    background: #ef4444;
     border-radius: 50%;
-    box-shadow: 0 0 20px #ff003c;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; color: black;
     cursor: crosshair !important;
+    box-shadow: 0 0 20px #ef4444;
+    z-index: 20000; /* Garante que está acima de tudo */
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; color: black; font-size: 10px;
     user-select: none;
-    z-index: 20000; /* Garante clique */
+    transition: transform 0.1s;
 }
 .glitch-target:active { transform: scale(0.9); background: white; }
 

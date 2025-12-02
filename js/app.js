@@ -7,7 +7,7 @@ import { uiLogic } from './modules/ui.js';
 
 function zeniteSystem() {
     return {
-        // --- ESTADO GERAL ---
+        // --- ESTADO DO SISTEMA ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, rebooting: false,
         
@@ -17,12 +17,12 @@ function zeniteSystem() {
         
         // Navegação
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
-        searchQuery: '',
+        searchQuery: '', viewMode: 'grid', // Adicionado para toggle Grid/Lista
         
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         
-        // Configs & Estado
+        // Configs
         settings: { compactMode: false, crtMode: true, sfxEnabled: true, themeColor: 'cyan' },
         
         // Wizard
@@ -30,7 +30,7 @@ function zeniteSystem() {
         wizardNameError: false, wizardFocusAttr: '',
         wizardData: { class: '', name: '', identity: '', age: '', history: '', photo: null, attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} },
         
-        // UI Globais
+        // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         
@@ -47,7 +47,7 @@ function zeniteSystem() {
         // Minigame & Falhas
         systemFailure: false, minigameActive: false, minigameClicks: 5, minigamePos: {x:50, y:50},
         
-        // Hacks
+        // Hacks & Segredos
         isHackerMode: false, hackerModeUnlocked: false, konamiBuffer: [], logoClickCount: 0, logoClickTimer: null,
         
         // Auxiliares
@@ -55,7 +55,7 @@ function zeniteSystem() {
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
 
-        // Módulos Externos
+        // Módulos
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
@@ -78,28 +78,27 @@ function zeniteSystem() {
         async initSystem() {
             this.loadingProgress = 20;
             
-            // Tenta inicializar áudio no primeiro clique do user
+            // Inicializa Audio Context no primeiro clique
             document.body.addEventListener('click', () => initAudio(), { once: true });
 
             this.setupListeners();
 
-            // Carrega dependências
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
             }
 
-            // Define função de salvamento com debounce
+            // Configura Auto-Save com Debounce
             this.debouncedSaveFunc = debounce(async () => { 
                 await this.saveLocal(); 
                 if (!this.isGuest && this.user) {
                     await this.syncCloud(true);
-                    playSFX('save'); // Som de confirmação
+                    playSFX('save');
                 }
-                this.unsavedChanges = false;
                 this.isSyncing = false;
+                this.unsavedChanges = false;
             }, 1500);
 
-            // Carrega estado inicial
+            // Carrega Banco de Dados
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             if (isGuest) {
                 this.isGuest = true;
@@ -115,7 +114,6 @@ function zeniteSystem() {
                             await this.fetchCloud();
                             this.checkOnboarding();
                         }
-                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             if (event === 'SIGNED_IN' && session) {
                                 if (this.user?.id === session.user.id) return;
@@ -134,18 +132,18 @@ function zeniteSystem() {
                 }
             }
 
-            // Aplica configurações visuais
+            // Aplica Configs
             if(this.settings) {
                 if(this.settings.themeColor) this.applyTheme(this.settings.themeColor);
                 setSfxEnabled(this.settings.sfxEnabled);
                 if(this.settings.crtMode) document.body.classList.add('crt-mode');
             }
 
-            // Watchers para Autosave e UX
+            // Watcher de Alterações
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
                 this.unsavedChanges = true; 
-                this.isSyncing = true; // Feedback visual imediato "Salvando..."
+                this.isSyncing = true; // UI Imediata
                 this.debouncedSaveFunc(); 
             });
             
@@ -155,7 +153,7 @@ function zeniteSystem() {
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             
-            // Intervalo de segurança para salvamento
+            // Backup Interval
             setInterval(() => { if (this.user && this.unsavedChanges) this.syncCloud(true); }, CONSTANTS.SAVE_INTERVAL);
         },
 
@@ -186,26 +184,15 @@ function zeniteSystem() {
                 }
             });
             
-            // Listener Global de Cliques para SFX
-            let lastHovered = null;
+            // Global Click Handler para SFX
             document.addEventListener('click', (e) => { 
                 if(e.target.closest('button, a, input, select, .cursor-pointer, .dice-tray-opt')) {
                     playSFX('click'); 
                 }
             });
-            
-            document.addEventListener('mouseover', (e) => {
-                const target = e.target.closest('button, a, .cursor-pointer');
-                if (target && target !== lastHovered) {
-                    playSFX('hover');
-                    lastHovered = target;
-                } else if (!target) {
-                    lastHovered = null;
-                }
-            });
         },
 
-        // --- MINIGAME DE ERRO ---
+        // --- MINIGAME ---
         triggerSystemFailure() {
             playSFX('error');
             this.systemFailure = true;
@@ -219,7 +206,6 @@ function zeniteSystem() {
             this.moveMinigameTarget();
         },
         moveMinigameTarget() {
-            // Garante que não sai da tela (margem 10% a 90%)
             this.minigamePos.x = Math.floor(Math.random() * 80) + 10;
             this.minigamePos.y = Math.floor(Math.random() * 80) + 10;
         },
@@ -239,7 +225,7 @@ function zeniteSystem() {
             }
         },
 
-        // --- UTILITÁRIOS ---
+        // --- NOTIFICAÇÕES ---
         notify(msg, type='info') {
             const id = Date.now();
             let icon = 'fa-circle-info';
@@ -253,7 +239,7 @@ function zeniteSystem() {
             }, 3000);
         },
 
-        // Atalho Konami
+        // --- KONAMI CODE ---
         handleKeys(e) {
             const key = e.key.toLowerCase();
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
@@ -261,6 +247,7 @@ function zeniteSystem() {
             if (this.konamiBuffer.length > code.length) this.konamiBuffer.shift();
             if (JSON.stringify(this.konamiBuffer) === JSON.stringify(code)) {
                 this.hackerModeUnlocked = true;
+                localStorage.setItem('zenite_hacker_unlocked', 'true');
                 this.toggleHackerMode();
                 this.konamiBuffer = [];
             }
@@ -270,7 +257,7 @@ function zeniteSystem() {
 
 window.zeniteSystem = zeniteSystem;
 
-// INICIALIZAÇÃO DO ALPINE (IMPORTANTE: NÃO APAGAR)
+// --- INICIALIZAÇÃO CRÍTICA DO ALPINE ---
 document.addEventListener('DOMContentLoaded', () => {
     import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js').then((module) => {
         const Alpine = module.default;
