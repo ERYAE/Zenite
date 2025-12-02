@@ -29,5 +29,71 @@ export const rpgLogic = {
     setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
     addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
     deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
-    roll(s) { playSFX('click'); const arr = new Uint32Array(1); window.crypto.getRandomValues(arr); const n = (arr[0] % s) + 1; const m = parseInt(this.diceMod || 0); this.lastNatural = n; this.lastFaces = s; this.lastRoll = n + m; let formulaStr = `D${s}`; if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); this.diceLog.unshift({id: Date.now(), time: new Date().toLocaleTimeString(), formula: formulaStr, result: n+m, crit: n===s, fumble: n===1, reason: this.diceReason}); this.diceReason = ''; if (this.isMobile && this.diceLog.length > 10) this.diceLog.pop(); else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop(); }
+    roll(s) { 
+        playSFX('click'); 
+        const arr = new Uint32Array(1); 
+        window.crypto.getRandomValues(arr); 
+        const n = (arr[0] % s) + 1; 
+        const m = parseInt(this.diceMod || 0); 
+        
+        this.lastNatural = n; 
+        this.lastFaces = s; 
+        this.lastRoll = n + m; 
+        
+        let formulaStr = `D${s}`; 
+        if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
+        
+        const now = new Date();
+        const logEntry = {
+            id: Date.now(), 
+            timestamp: now.getTime(), // Timestamp puro para calculos
+            dateDisplay: now.toLocaleDateString('pt-BR'), // Data visual
+            timeDisplay: now.toLocaleTimeString('pt-BR'), // Hora visual
+            formula: formulaStr, 
+            result: n+m, 
+            crit: n===s, 
+            fumble: n===1, 
+            reason: this.diceReason
+        };
+        
+        this.diceLog.unshift(logEntry); 
+        this.diceReason = ''; 
+        
+        // Persistência e Limpeza (Regra de 14 dias)
+        this.saveDiceHistory();
+    },
+
+    saveDiceHistory() {
+        // Limita o log visual para performance
+        if (this.isMobile && this.diceLog.length > 20) this.diceLog.pop();
+        else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop();
+        
+        // Salva no LocalStorage
+        try {
+            localStorage.setItem('zenite_dice_log', JSON.stringify(this.diceLog));
+        } catch(e) {
+            console.warn('Falha ao salvar histórico de dados (quota excedida?)');
+        }
+    },
+
+    loadDiceHistory() {
+        const stored = localStorage.getItem('zenite_dice_log');
+        if (stored) {
+            try {
+                let parsed = JSON.parse(stored);
+                const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
+                const now = Date.now();
+                
+                // Filtra logs com mais de 14 dias
+                this.diceLog = parsed.filter(log => (now - log.timestamp) < twoWeeksMs);
+                
+                // Se houve limpeza, atualiza o storage
+                if (this.diceLog.length < parsed.length) {
+                    this.saveDiceHistory();
+                }
+            } catch(e) {
+                this.diceLog = [];
+            }
+        }
+    }
 };

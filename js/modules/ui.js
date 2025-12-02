@@ -14,14 +14,14 @@ export const uiLogic = {
             }
         }
         
-        // Aplica mudanças visuais imediatamente
         this.updateVisualState();
         
+        // OTIMIZAÇÃO: Salva configurações silenciosamente sem travar a ficha
+        // Não ativa 'unsavedChanges' pois config é independente da ficha
         this.saveLocal(); 
-        if(!this.isGuest && this.user) { 
-            this.unsavedChanges = true; 
-            this.autoSaveEnabled = true;
-            this.debouncedSaveFunc();
+        if(!this.isGuest && this.user) {
+            // Chama uma função específica para sync leve (apenas configs se possível, ou full silent)
+            this.syncCloud(true); 
         }
     },
 
@@ -95,24 +95,37 @@ export const uiLogic = {
     initCustomCursor() {
         if (this.isMobile) return;
         
-        // Remove cursor antigo se existir
         this.destroyCustomCursor();
         
-        // Cria elementos
         const cursor = document.createElement('div');
         cursor.id = 'custom-cursor';
+        // Garante que o CSS base não interfira no posicionamento JS
+        cursor.style.position = 'fixed';
+        cursor.style.pointerEvents = 'none';
+        cursor.style.zIndex = '9999';
         document.body.appendChild(cursor);
         
         const trail = document.createElement('div');
         trail.id = 'mouse-trail';
+        trail.style.position = 'fixed';
+        trail.style.pointerEvents = 'none';
+        trail.style.zIndex = '9998';
+        // Assume que o rastro tem 200x200px (padrão CSS). Ajusta para o centro.
+        // Se mudar o tamanho no CSS, ajuste o offset (meia largura/altura) aqui.
+        trail.style.transform = 'translate(-50%, -50%)'; 
         document.body.appendChild(trail);
         
         this.updateCursorColor();
         
-        // Mouse Move Handler
-        let mouseX = 0, mouseY = 0;
-        let cursorX = 0, cursorY = 0;
-        let trailX = 0, trailY = 0;
+        // Posições
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        
+        // Coordenadas suavizadas
+        let cursorX = mouseX;
+        let cursorY = mouseY;
+        let trailX = mouseX;
+        let trailY = mouseY;
         
         const handleMouseMove = (e) => {
             mouseX = e.clientX;
@@ -120,19 +133,27 @@ export const uiLogic = {
         };
         
         const animate = () => {
-            // Cursor - rápido
+            // Física simples para suavização (Lerp)
+            // Cursor mais rápido (0.5)
             cursorX += (mouseX - cursorX) * 0.5;
             cursorY += (mouseY - cursorY) * 0.5;
-            cursor.style.left = cursorX + 'px';
-            cursor.style.top = cursorY + 'px';
             
-            // Trail - lento
+            // Rastro mais lento (0.15)
             trailX += (mouseX - trailX) * 0.15;
             trailY += (mouseY - trailY) * 0.15;
-            trail.style.left = (trailX - 100) + 'px';
-            trail.style.top = (trailY - 100) + 'px';
             
-            requestAnimationFrame(animate);
+            // PERFORMANCE: Usar translate3d ativa aceleração de hardware
+            // Subtraímos o offset se o elemento não tiver transform: translate(-50%, -50%) no CSS.
+            // Aqui aplicamos a posição direta e deixamos o CSS centralizar se necessário, 
+            // ou ajustamos matematicamente. Vamos centralizar via JS para garantir.
+            
+            // O cursor é pequeno (ex: 20px), offset de 10px
+            cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
+            
+            // O trail (luz) é grande (200px), offset de 100px já tratado ou via translate
+            trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0) translate(-50%, -50%)`;
+            
+            this.cursorAnimFrame = requestAnimationFrame(animate);
         };
         
         document.addEventListener('mousemove', handleMouseMove);

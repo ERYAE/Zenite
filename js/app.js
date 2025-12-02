@@ -156,7 +156,8 @@ function zeniteSystem() {
             }
 
             // Carrega histórico
-            this.loadHistory();
+            this.loadHistory();     // Histórico de Fichas
+            this.loadDiceHistory(); // NOVO: Histórico de Dados (rpg.js)
 
             // Aplica Configs
             if(this.settings) {
@@ -168,8 +169,14 @@ function zeniteSystem() {
             // CORREÇÃO: Watcher agora apenas marca como alterado
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
+                
+                // Marca que a ficha foi mexida recentemente
+                if (this.char) {
+                    this.char.lastAccess = Date.now();
+                }
+                
                 this.unsavedChanges = true;
-                // NÃO ativa auto-save aqui
+                // Save manual continua mandatório para FICHA
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));

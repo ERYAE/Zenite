@@ -20,7 +20,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <link href="css/output.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+
+    <link rel="stylesheet" href="css/style.css" media="print" onload="this.media='all'">
+
+    <noscript><link rel="stylesheet" href="css/style.css"></noscript>
     <script type="module" src="js/app.js"></script>
 </head>
 <body x-data="zeniteSystem" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black" x-cloak>
@@ -765,8 +768,16 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
                         <div class="space-y-4">
                             <template x-for="key in ['for','agi','int','von','pod']">
-                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors">
-                                    <span class="uppercase font-bold text-xs w-12" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
+                                <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors relative group/attr">
+        
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black border border-white/20 text-[10px] text-white rounded opacity-0 group-hover/attr:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                        <span x-show="key=='for'">Força física e vigor</span>
+                                        <span x-show="key=='agi'">Destreza e reflexos</span>
+                                        <span x-show="key=='int'">Intelecto e lógica</span>
+                                        <span x-show="key=='von'">Força de vontade</span>
+                                        <span x-show="key=='pod'">Poder sobrenatural</span>
+                                    </div>
+                                    <span class="uppercase font-bold text-xs w-12 cursor-help" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
                                     <div class="flex items-center gap-3">
                                         <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
                                         <span class="w-8 text-center font-mono font-bold text-lg text-white" x-text="wizardData.attrs[key]"></span>

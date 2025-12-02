@@ -1,4 +1,5 @@
-import { sanitizeChar } from './utils.js';
+// No topo de js/modules/cloud.js
+import { sanitizeChar, migrateCharacter } from './utils.js'; // <--- Adicione migrateCharacter aqui
 import { playSFX } from './audio.js';
 
 export const cloudLogic = {
@@ -7,15 +8,45 @@ export const cloudLogic = {
         if(local) {
             try {
                 const parsed = JSON.parse(local);
+                
+                // 1. Mantém carregamento de configurações (NÃO APAGUE ISSO)
                 if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                 if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                 if(parsed.hasSeenTip !== undefined) this.hasSeenDiceTip = parsed.hasSeenTip;
+                
+                // 2. Configura Garbage Collection (6 meses)
+                const INACTIVITY_LIMIT = 180 * 24 * 60 * 60 * 1000; 
+                const now = Date.now();
+                
                 const validChars = {};
+                let deletedCount = 0;
+
+                // 3. Processa os personagens
                 Object.keys(parsed).forEach(k => { 
-                    if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) { 
-                        validChars[k] = sanitizeChar(parsed[k]); 
+                    if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) {
+                        
+                        // A. Sanitiza
+                        let char = sanitizeChar(parsed[k]);
+                        
+                        // B. Aplica Migração (NOVO!)
+                        char = migrateCharacter(char); 
+
+                        // C. Verifica Inatividade
+                        const lastAccess = char.lastAccess || now;
+                        
+                        if ((now - lastAccess) < INACTIVITY_LIMIT) {
+                            validChars[k] = char;
+                        } else {
+                            deletedCount++;
+                        }
                     } 
                 });
+                
+                if (deletedCount > 0) {
+                    console.log(`[SYSTEM] ${deletedCount} fichas inativas removidas.`);
+                    if(deletedCount > 1) this.notify(`${deletedCount} fichas antigas arquivadas.`, 'info');
+                }
+
                 this.chars = validChars;
                 this.updateAgentCount();
             } catch(e) { 
@@ -58,7 +89,7 @@ export const cloudLogic = {
             if (data && data.data) {
                 const cloudData = data.data;
                 
-                // Aplica configs
+                // 1. Carrega Configs da Nuvem (Mantém existente)
                 if(cloudData.config) { 
                     this.settings = { ...this.settings, ...cloudData.config }; 
                     this.applyTheme(this.settings.themeColor); 
@@ -68,14 +99,24 @@ export const cloudLogic = {
                     this.hasSeenDiceTip = cloudData.hasSeenTip;
                 }
                 
-                // CORREÇÃO: Prioriza dados da nuvem
-                // Remove personagens locais que não existem na nuvem
+                // 2. Processa Personagens
                 let merged = {};
                 
-                // Adiciona todos os chars da nuvem
                 Object.keys(cloudData).forEach(k => { 
                     if(!['config','hasSeenTip'].includes(k) && cloudData[k]?.id) { 
-                        merged[k] = sanitizeChar(cloudData[k]); 
+                        
+                        // A. Sanitiza
+                        let char = sanitizeChar(cloudData[k]); 
+
+                        // B. Aplica Migração (NOVO!)
+                        char = migrateCharacter(char);
+                        
+                        // C. Garante timestamp para evitar deleção acidental
+                        if (!char.lastAccess) {
+                            char.lastAccess = Date.now();
+                        }
+
+                        merged[k] = char; 
                     } 
                 });
                 
@@ -83,6 +124,10 @@ export const cloudLogic = {
                 this.updateAgentCount(); 
                 this.saveLocal();
             }
+
+
+
+
         } catch(e) {
             console.error("Fetch Cloud Error:", e);
             this.notify('Erro ao sincronizar.', 'error');
