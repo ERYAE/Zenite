@@ -9,29 +9,22 @@ export const cloudLogic = {
             try {
                 const parsed = JSON.parse(local);
                 
-                // 1. Mantém carregamento de configurações (NÃO APAGUE ISSO)
+                // Carrega configurações (NÃO apagar isso)
                 if(parsed.config) this.settings = { ...this.settings, ...parsed.config };
                 if(parsed.trayPos) this.trayPosition = parsed.trayPos;
                 if(parsed.hasSeenTip !== undefined) this.hasSeenDiceTip = parsed.hasSeenTip;
                 
-                // 2. Configura Garbage Collection (6 meses)
+                // SISTEMA DE GARBAGE COLLECTION (180 DIAS)
                 const INACTIVITY_LIMIT = 180 * 24 * 60 * 60 * 1000; 
                 const now = Date.now();
+                let deletedCount = 0;
                 
                 const validChars = {};
-                let deletedCount = 0;
-
-                // 3. Processa os personagens
                 Object.keys(parsed).forEach(k => { 
-                    if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) {
+                    if(!['config','trayPos','hasSeenTip'].includes(k) && parsed[k]?.id) { 
+                        const char = sanitizeChar(parsed[k]);
                         
-                        // A. Sanitiza
-                        let char = sanitizeChar(parsed[k]);
-                        
-                        // B. Aplica Migração (NOVO!)
-                        char = migrateCharacter(char); 
-
-                        // C. Verifica Inatividade
+                        // Define lastAccess se não existir (para não apagar fichas antigas na migração)
                         const lastAccess = char.lastAccess || now;
                         
                         if ((now - lastAccess) < INACTIVITY_LIMIT) {
@@ -43,8 +36,7 @@ export const cloudLogic = {
                 });
                 
                 if (deletedCount > 0) {
-                    console.log(`[SYSTEM] ${deletedCount} fichas inativas removidas.`);
-                    if(deletedCount > 1) this.notify(`${deletedCount} fichas antigas arquivadas.`, 'info');
+                    this.notify(`${deletedCount} fichas antigas removidas.`, 'info');
                 }
 
                 this.chars = validChars;

@@ -95,33 +95,43 @@ export const uiLogic = {
     initCustomCursor() {
         if (this.isMobile) return;
         
-        this.destroyCustomCursor();
+        // 1. Tenta encontrar os elementos existentes para manter o CSS original
+        let cursor = document.getElementById('custom-cursor');
+        let trail = document.getElementById('mouse-trail');
         
-        const cursor = document.createElement('div');
-        cursor.id = 'custom-cursor';
-        // Garante que o CSS base não interfira no posicionamento JS
-        cursor.style.position = 'fixed';
-        cursor.style.pointerEvents = 'none';
+        // Se não existirem (fallback), cria-os
+        if (!cursor) {
+            cursor = document.createElement('div');
+            cursor.id = 'custom-cursor';
+            document.body.appendChild(cursor);
+        }
+        if (!trail) {
+            trail = document.createElement('div');
+            trail.id = 'mouse-trail';
+            document.body.appendChild(trail);
+        }
+        
+        // 2. Garante posicionamento fixo para o transform funcionar
+        const setStyles = (el) => {
+            el.style.position = 'fixed';
+            el.style.top = '0';
+            el.style.left = '0';
+            el.style.pointerEvents = 'none'; // Importante: clicar através deles
+            el.style.margin = '0'; // Remove margens que podem desalojar
+        };
+        
+        setStyles(cursor);
+        setStyles(trail);
+        
         cursor.style.zIndex = '9999';
-        document.body.appendChild(cursor);
-        
-        const trail = document.createElement('div');
-        trail.id = 'mouse-trail';
-        trail.style.position = 'fixed';
-        trail.style.pointerEvents = 'none';
         trail.style.zIndex = '9998';
-        // Assume que o rastro tem 200x200px (padrão CSS). Ajusta para o centro.
-        // Se mudar o tamanho no CSS, ajuste o offset (meia largura/altura) aqui.
-        trail.style.transform = 'translate(-50%, -50%)'; 
-        document.body.appendChild(trail);
-        
+
         this.updateCursorColor();
         
-        // Posições
+        // Posição inicial (Centro da tela para evitar "pulo")
         let mouseX = window.innerWidth / 2;
         let mouseY = window.innerHeight / 2;
         
-        // Coordenadas suavizadas
         let cursorX = mouseX;
         let cursorY = mouseY;
         let trailX = mouseX;
@@ -132,30 +142,29 @@ export const uiLogic = {
             mouseY = e.clientY;
         };
         
+        // Loop de Animação Otimizado
         const animate = () => {
-            // Física simples para suavização (Lerp)
-            // Cursor mais rápido (0.5)
-            cursorX += (mouseX - cursorX) * 0.5;
+            // Física (Lerp)
+            cursorX += (mouseX - cursorX) * 0.5; // Rápido
             cursorY += (mouseY - cursorY) * 0.5;
-            
-            // Rastro mais lento (0.15)
-            trailX += (mouseX - trailX) * 0.15;
+            trailX += (mouseX - trailX) * 0.15;  // Lento (Efeito arrasto)
             trailY += (mouseY - trailY) * 0.15;
             
-            // PERFORMANCE: Usar translate3d ativa aceleração de hardware
-            // Subtraímos o offset se o elemento não tiver transform: translate(-50%, -50%) no CSS.
-            // Aqui aplicamos a posição direta e deixamos o CSS centralizar se necessário, 
-            // ou ajustamos matematicamente. Vamos centralizar via JS para garantir.
+            // RENDERIZAÇÃO
+            // Cursor: Âncora Topo-Esquerda (Padrão do mouse)
+            cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`;
             
-            // O cursor é pequeno (ex: 20px), offset de 10px
-            cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
-            
-            // O trail (luz) é grande (200px), offset de 100px já tratado ou via translate
+            // Trail: Âncora Centralizada (Luz deve estar no meio)
+            // O 'translate(-50%, -50%)' garante que o centro da div fique no X,Y
             trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0) translate(-50%, -50%)`;
             
             this.cursorAnimFrame = requestAnimationFrame(animate);
         };
         
+        // Limpa listeners antigos se houver
+        if (this.cursorMoveHandler) document.removeEventListener('mousemove', this.cursorMoveHandler);
+        if (this.cursorAnimFrame) cancelAnimationFrame(this.cursorAnimFrame);
+
         document.addEventListener('mousemove', handleMouseMove);
         this.cursorAnimFrame = requestAnimationFrame(animate);
         this.cursorMoveHandler = handleMouseMove;

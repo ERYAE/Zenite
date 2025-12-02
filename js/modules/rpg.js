@@ -43,36 +43,38 @@ export const rpgLogic = {
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
         
+        // Criação do Log Completo
         const now = new Date();
         const logEntry = {
             id: Date.now(), 
-            timestamp: now.getTime(), // Timestamp puro para calculos
-            dateDisplay: now.toLocaleDateString('pt-BR'), // Data visual
-            timeDisplay: now.toLocaleTimeString('pt-BR'), // Hora visual
+            timestamp: now.getTime(), // Para controle de validade (14 dias)
+            // Formato legível: DD/MM HH:mm:ss
+            fullTime: now.toLocaleString('pt-BR'), 
             formula: formulaStr, 
             result: n+m, 
             crit: n===s, 
             fumble: n===1, 
-            reason: this.diceReason
+            reason: this.diceReason || 'Sem motivo'
         };
         
         this.diceLog.unshift(logEntry); 
         this.diceReason = ''; 
         
-        // Persistência e Limpeza (Regra de 14 dias)
+        // Salva e limpa logs antigos
         this.saveDiceHistory();
     },
 
     saveDiceHistory() {
-        // Limita o log visual para performance
-        if (this.isMobile && this.diceLog.length > 20) this.diceLog.pop();
-        else if (!this.isMobile && this.diceLog.length > 100) this.diceLog.pop();
+        // Limite visual para não travar a UI
+        const maxLogs = this.isMobile ? 20 : 100;
+        if (this.diceLog.length > maxLogs) {
+            this.diceLog = this.diceLog.slice(0, maxLogs);
+        }
         
-        // Salva no LocalStorage
         try {
             localStorage.setItem('zenite_dice_log', JSON.stringify(this.diceLog));
         } catch(e) {
-            console.warn('Falha ao salvar histórico de dados (quota excedida?)');
+            console.warn('Erro ao salvar histórico de dados');
         }
     },
 
@@ -80,12 +82,12 @@ export const rpgLogic = {
         const stored = localStorage.getItem('zenite_dice_log');
         if (stored) {
             try {
-                let parsed = JSON.parse(stored);
-                const twoWeeksMs = 14 * 24 * 60 * 60 * 1000;
+                const parsed = JSON.parse(stored);
                 const now = Date.now();
+                const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
                 
-                // Filtra logs com mais de 14 dias
-                this.diceLog = parsed.filter(log => (now - log.timestamp) < twoWeeksMs);
+                // Filtra logs com menos de 14 dias
+                this.diceLog = parsed.filter(log => (now - log.timestamp) < fourteenDaysMs);
                 
                 // Se houve limpeza, atualiza o storage
                 if (this.diceLog.length < parsed.length) {
