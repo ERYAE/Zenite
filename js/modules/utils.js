@@ -3,7 +3,7 @@
 // Sempre que alterar a estrutura de dados do personagem (novos campos, inventories),
 // INCREMENTE esta versão e adicione a regra na função 'migrateCharacter' abaixo.
 // =============================================================================
-export const DATA_VERSION = 1.0;
+export const DATA_VERSION = 2.2;
 
 
 export function debounce(func, wait) {
@@ -119,10 +119,11 @@ export function deepClone(obj) {
 export function migrateCharacter(char) {
     if (!char) return null;
 
+    // Se a ficha não tem versão, assumimos que é antiga (v1.0)
+    const charVersion = char.version || 1.0;
+
     // Se já está atualizada, retorna direto
     if (charVersion >= DATA_VERSION) return char;
-
-    const charVersion = char.version || 0.5;
 
     console.log(`[MIGRATION] Atualizando Agente ${char.name} da v${charVersion} para v${DATA_VERSION}`);
 
@@ -177,6 +178,8 @@ export function migrateCharacter(char) {
 
     // --- FIM DA LÓGICA ---
 
+    // Atualiza a versão da ficha
     char.version = DATA_VERSION;
+    
     return char;
 }
