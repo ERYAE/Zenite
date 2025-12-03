@@ -53,16 +53,24 @@ export const cloudLogic = {
     },
     
     saveLocal() {
-        try {
-            const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
-            const payload = { 
-                ...this.chars, 
-                config: this.settings, 
-                trayPos: this.trayPosition, 
-                trayDockMode: this.trayDockMode,
-                hasSeenTip: this.hasSeenDiceTip 
-            };
-            localStorage.setItem(key, JSON.stringify(payload));
+    try {
+        const key = this.isGuest ? 'zenite_guest_db' : 'zenite_cached_db';
+        
+        // OTIMIZAÇÃO: Se estiver apenas mudando configurações, não precisa stringificar chars se não mudaram
+        // Mas como a arquitetura atual junta tudo, vamos adicionar um debounce no watcher do Alpine no index.html
+        // Em vez disso, vamos garantir que erros de cota não quebrem o app
+        
+        const payload = { 
+            ...this.chars, 
+            config: this.settings, 
+            trayPos: this.trayPosition, 
+            trayDockMode: this.trayDockMode,
+            hasSeenTip: this.hasSeenDiceTip 
+        };
+        
+        // Performance: JSON.stringify é bloqueante. 
+        // Em apps grandes, considere usar indexedDB, mas para localStorage:
+        localStorage.setItem(key, JSON.stringify(payload));
         } catch(e) {
             console.error("Save Local Error:", e);
             // Provavelmente localStorage está cheio

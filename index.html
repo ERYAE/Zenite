@@ -124,6 +124,10 @@
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
                     <i class="fa-solid fa-chevron-down text-[10px] text-gray-500" :class="{'rotate-180': userMenuOpen}" style="transition: transform 0.2s;"></i>
+
+                    <div class="w-4 text-center inline-block">
+                        <i class="fa-solid fa-chevron-down text-[10px] text-gray-500 transition-transform duration-200" :class="{'rotate-180': userMenuOpen}"></i>
+                    </div>
                 </button>
                 <div x-show="userMenuOpen" 
                      x-transition:enter="transition ease-out duration-200"

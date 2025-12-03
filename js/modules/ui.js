@@ -15,14 +15,8 @@ export const uiLogic = {
         }
         
         this.updateVisualState();
-        
-        // OTIMIZAÇÃO: Salva configurações silenciosamente sem travar a ficha
-        // Não ativa 'unsavedChanges' pois config é independente da ficha
+
         this.saveLocal(); 
-        if(!this.isGuest && this.user) {
-            // Chama uma função específica para sync leve (apenas configs se possível, ou full silent)
-            this.syncCloud(true); 
-        }
     },
 
     applyTheme(color) {
@@ -576,38 +570,34 @@ export const uiLogic = {
             }
             this.showDiceTip = false;
             
-            // CORREÇÃO: Posiciona a tray próxima ao botão de dados (canto inferior direito)
+            // CORREÇÃO: Recalcula posição segura para garantir visibilidade
             if (this.trayDockMode === 'float' && !this.isMobile) {
                 const trayWidth = 320;
-                const trayHeight = 500;
-                // Posiciona no canto inferior direito, acima do botão de dados
+                const trayHeight = 520; // Altura aproximada da tray
+                const buttonMargin = 80; // Espaço do botão flutuante
+                
+                // Garante que não ultrapasse o topo ou esquerda
+                // Prioriza abrir alinhado à direita inferior (perto do botão)
                 this.trayPosition = {
-                    x: Math.max(10, window.innerWidth - trayWidth - 80),
-                    y: Math.max(60, window.innerHeight - trayHeight - 80)
+                    x: Math.max(20, window.innerWidth - trayWidth - 20),
+                    y: Math.max(80, window.innerHeight - trayHeight - buttonMargin)
                 };
             }
-            
-            this.ensureTrayOnScreen();
         }
     },
     
     setDockMode(mode) {
         this.trayDockMode = mode;
         if(mode === 'float') { 
+             // Reseta para uma posição visível padrão
+            const trayWidth = 320;
+            const trayHeight = 520;
             this.trayPosition = { 
-                x: window.innerWidth - 350, 
-                y: window.innerHeight - 500 
+                x: window.innerWidth - trayWidth - 20, 
+                y: window.innerHeight - trayHeight - 80 
             }; 
-            this.ensureTrayOnScreen(); 
         }
         this.saveLocal();
-    },
-    
-    ensureTrayOnScreen() {
-        if(this.isMobile || this.trayDockMode !== 'float') return;
-        
-        this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
-        this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
     },
     
     startDragTray(e) {
