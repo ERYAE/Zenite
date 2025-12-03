@@ -30,7 +30,7 @@ export const rpgLogic = {
     addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
     deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
     roll(s) { 
-        playSFX('click'); 
+        playSFX('dice'); // Som especial de dados
         const arr = new Uint32Array(1); 
         window.crypto.getRandomValues(arr); 
         const n = (arr[0] % s) + 1; 
