@@ -570,18 +570,22 @@ export const uiLogic = {
             }
             this.showDiceTip = false;
             
-            // CORREÇÃO: Recalcula posição segura para garantir visibilidade
+            // CORREÇÃO: Garante que a tray abra visível na tela
             if (this.trayDockMode === 'float' && !this.isMobile) {
                 const trayWidth = 320;
-                const trayHeight = 520; // Altura aproximada da tray
-                const buttonMargin = 80; // Espaço do botão flutuante
+                const trayHeight = 550; // Altura estimada da tray aberta
+                const safeMargin = 20;
+                const buttonSpace = 100; // Espaço para o botão flutuante
                 
-                // Garante que não ultrapasse o topo ou esquerda
-                // Prioriza abrir alinhado à direita inferior (perto do botão)
-                this.trayPosition = {
-                    x: Math.max(20, window.innerWidth - trayWidth - 20),
-                    y: Math.max(80, window.innerHeight - trayHeight - buttonMargin)
-                };
+                // Calcula Posição: Canto Inferior Direito
+                let posX = window.innerWidth - trayWidth - safeMargin;
+                let posY = window.innerHeight - trayHeight - buttonSpace;
+
+                // Clamp para evitar valores negativos (fora da tela no topo/esquerda)
+                posX = Math.max(safeMargin, posX);
+                posY = Math.max(safeMargin, posY);
+                
+                this.trayPosition = { x: posX, y: posY };
             }
         }
     },
@@ -589,12 +593,10 @@ export const uiLogic = {
     setDockMode(mode) {
         this.trayDockMode = mode;
         if(mode === 'float') { 
-             // Reseta para uma posição visível padrão
-            const trayWidth = 320;
-            const trayHeight = 520;
+            // Reseta para posição segura
             this.trayPosition = { 
-                x: window.innerWidth - trayWidth - 20, 
-                y: window.innerHeight - trayHeight - 80 
+                x: Math.max(20, window.innerWidth - 340), 
+                y: Math.max(80, window.innerHeight - 600) 
             }; 
         }
         this.saveLocal();
