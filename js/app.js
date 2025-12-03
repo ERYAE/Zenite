@@ -239,29 +239,56 @@ function zeniteSystem() {
 
         // --- SALVAR MANUAL ---
         async manualSave() {
-            if (!this.unsavedChanges) return;
+            if (!this.unsavedChanges || this.isSyncing) return;
             
-            this.notify('Salvando...', 'info');
+            // Marca início do salvamento
             this.isSyncing = true;
+            const startTime = Date.now();
             
-            // 1. Salva no histórico de versões
-            this.saveToHistory();
+            // Toca som de feedback imediato (som de "processando")
+            playSFX('click');
+            
+            try {
+                // 1. Atualiza o personagem no objeto chars
+                if (this.char && this.activeCharId) {
+                    this.char.lastAccess = Date.now();
+                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                }
+                
+                // 2. Salva no histórico de versões
+                this.saveToHistory();
 
-            // 2. Salva Localmente (Instantâneo)
-            await this.saveLocal();
-            
-            // 3. Sincroniza com Nuvem (Silencioso para não flodar notificações)
-            if (!this.isGuest && this.user) {
-                await this.syncCloud(true); 
+                // 3. Salva Localmente (Instantâneo)
+                await this.saveLocal();
+                
+                // 4. Sincroniza com Nuvem
+                if (!this.isGuest && this.user) {
+                    await this.syncCloud(true);
+                }
+                
+                // 5. Garante um delay visual mínimo de 600ms para feedback UX
+                const elapsed = Date.now() - startTime;
+                const minDelay = 600;
+                if (elapsed < minDelay) {
+                    await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+                }
+                
+                // 6. Som de sucesso (estilo OS)
                 playSFX('save');
+                
+                this.unsavedChanges = false;
+                this.autoSaveEnabled = false;
+                
+                // 7. Feedback final para o usuário
+                this.notify('Alterações salvas com sucesso!', 'success');
+                
+            } catch (error) {
+                console.error('Erro ao salvar:', error);
+                playSFX('error');
+                this.notify('Erro ao salvar. Tente novamente.', 'error');
+            } finally {
+                this.isSyncing = false;
             }
-            
-            this.isSyncing = false;
-            this.unsavedChanges = false;
-            this.autoSaveEnabled = false;
-            
-            // 4. Feedback final para o usuário
-            this.notify('Salvo com sucesso!', 'success');
         },
 
         // --- HISTÓRICO ---

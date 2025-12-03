@@ -319,16 +319,27 @@ export const uiLogic = {
             `"${charName}" será deletado para sempre. Esta ação é irreversível.`, 
             'danger', 
             async () => { 
+                // Remove do objeto local
                 delete this.chars[id]; 
+                
+                // Salva localmente primeiro
                 this.saveLocal(); 
+                this.updateAgentCount();
                 
-                if(!this.isGuest && this.user) {
-                    this.unsavedChanges = true;
-                    await this.syncCloud(false); // Força sync imediato
+                // Sincroniza com a nuvem (isso vai enviar os chars sem o deletado)
+                if (!this.isGuest && this.user) {
+                    try {
+                        await this.syncCloud(true); // Sync silencioso
+                        this.notify('Personagem eliminado e sincronizado.', 'success');
+                        playSFX('discard');
+                    } catch (e) {
+                        console.error('Erro ao sincronizar exclusão:', e);
+                        this.notify('Eliminado localmente. Sincronize manualmente.', 'warn');
+                    }
+                } else {
+                    this.notify('Personagem eliminado.', 'success');
+                    playSFX('discard');
                 }
-                
-                this.updateAgentCount(); 
-                this.notify('Personagem eliminado.', 'success'); 
             }
         ); 
     },

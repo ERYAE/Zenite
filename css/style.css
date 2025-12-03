@@ -501,16 +501,19 @@ body.interaction-lock {
     }
 }
 
-/* --- CORREÇÃO DEFINITIVA: DESBLOQUEIO DE SCROLL E CLIQUES --- */
+/* ============================================
+   CORREÇÕES DE SCROLL E INTERAÇÃO
+   ============================================ */
 
-/* 1. Força o navegador a permitir rolagem na página inteira */
+/* 1. Permite rolagem na página inteira */
 html, body {
     overflow-y: auto !important;
     height: auto !important;
     min-height: 100vh;
+    overscroll-behavior: none;
 }
 
-/* 2. Faz o mouse/dedo "atravessar" os efeitos visuais (CRT, Grid, Rastro) */
+/* 2. Elementos visuais não bloqueiam interação */
 .bg-grid,
 #mouse-trail,
 #custom-cursor,
@@ -518,18 +521,198 @@ html, body {
 .crt-mode::after,
 .scanlines {
     pointer-events: none !important;
-    touch-action: none !important; /* Ignora toques de tela nestes elementos */
+    touch-action: none !important;
     user-select: none !important;
 }
 
-/* 3. Garante que seus botões e conteúdo estejam clicáveis acima dos efeitos */
-main, header, .glass, .modal-enter, button, input, select, a {
+/* 3. Conteúdo interativo acima dos efeitos */
+main, header, .glass, .modal-enter, button, input, select, a, textarea {
     pointer-events: auto !important;
     position: relative; 
-    z-index: 50; /* Traz o conteúdo para frente dos efeitos */
+    z-index: 50;
 }
 
-/* 4. Correção específica para o scroll suave em celulares */
+/* 4. Scroll suave em celulares */
 .custom-scrollbar, body {
     -webkit-overflow-scrolling: touch !important;
+}
+
+/* ============================================
+   DICE TRAY - CORREÇÃO DE SCROLL ISOLADO
+   ============================================ */
+#dice-tray-window {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important; /* Previne scroll no container principal */
+}
+
+#dice-tray-window > * {
+    flex-shrink: 0;
+}
+
+#dice-tray-window .flex-grow {
+    flex-shrink: 1;
+    min-height: 0; /* CRÍTICO: Permite que flex-grow funcione com overflow */
+}
+
+/* Área de histórico com scroll isolado */
+#dice-tray-window .overflow-y-auto {
+    overscroll-behavior: contain; /* Evita propagação de scroll */
+    scroll-behavior: smooth;
+}
+
+/* ============================================
+   MODAIS - OTIMIZAÇÃO MOBILE
+   ============================================ */
+
+/* Previne scroll do body quando modal está aberto */
+body.modal-open {
+    overflow: hidden !important;
+    position: fixed;
+    width: 100%;
+}
+
+/* Área segura para notch em iPhones */
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+
+/* Modais com scroll interno */
+.modal-enter {
+    max-height: 95vh;
+    max-height: 95dvh; /* Dynamic viewport height para mobile */
+}
+
+/* Botões de fechar com área de toque adequada (44x44 mínimo para acessibilidade) */
+.modal-enter button[title="Fechar"],
+.glass button[title="Fechar"] {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+/* ============================================
+   RESPONSIVIDADE MOBILE APRIMORADA
+   ============================================ */
+@media (max-width: 768px) {
+    /* Cursor nativo em mobile */
+    body.custom-cursor-active,
+    body.custom-cursor-active * {
+        cursor: auto !important;
+    }
+    
+    #custom-cursor,
+    #mouse-trail {
+        display: none !important;
+    }
+    
+    /* Modais ocupam mais espaço */
+    .modal-enter {
+        margin: 8px;
+        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - 16px);
+    }
+    
+    /* Inputs maiores para toque */
+    input, select, textarea, button {
+        min-height: 44px;
+        font-size: 16px !important; /* Previne zoom automático no iOS */
+    }
+    
+    /* Ajuste de fontes */
+    .font-brand {
+        letter-spacing: 0.05em;
+    }
+    
+    /* Cards de personagem mais compactos */
+    .glass.p-5 {
+        padding: 1rem;
+    }
+    
+    /* Barra de não salvo mais compacta */
+    .fixed.bottom-32 {
+        bottom: 5rem;
+    }
+}
+
+/* ============================================
+   LOADING E FEEDBACK VISUAL
+   ============================================ */
+   
+/* Spinner de salvamento */
+.fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+@keyframes fa-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Botão em estado de loading */
+button:disabled {
+    opacity: 0.7;
+    cursor: wait !important;
+}
+
+button:disabled .fa-spin {
+    opacity: 1;
+}
+
+/* Feedback de hover mais sutil */
+button:not(:disabled):hover {
+    transition: all 0.15s ease;
+}
+
+button:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* ============================================
+   ACESSIBILIDADE
+   ============================================ */
+   
+/* Focus visível para navegação por teclado */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--neon-core);
+    outline-offset: 2px;
+}
+
+/* Remove outline padrão mas mantém para teclado */
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ============================================
+   CORREÇÕES ESPECÍFICAS DE LAYOUT
+   ============================================ */
+
+/* Previne overflow horizontal */
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Container principal com padding seguro */
+main {
+    padding-bottom: 8rem; /* Espaço para barra de não salvo */
+}
+
+@media (max-width: 768px) {
+    main {
+        padding-bottom: 10rem;
+    }
+}
+
+/* Garante que imagens de avatar não quebrem layout */
+img[class*="rounded-full"] {
+    object-fit: cover;
+    background-color: rgba(0, 0, 0, 0.5);
 }
