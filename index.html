@@ -119,8 +119,8 @@
                 </div>
             </div>
             
-            <div x-show="user" class="relative md:ml-4 flex-shrink-0" @click.outside="userMenuOpen=false">
-                <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+            <div x-show="user" class="md:ml-4 flex-shrink-0" @click.outside="userMenuOpen=false">
+                <button @click="userMenuOpen=!userMenuOpen" class="relative flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs flex-shrink-0"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
                     <div class="w-5 h-5 flex items-center justify-center transition-transform duration-200 origin-center" :class="{'rotate-180': userMenuOpen}">
@@ -128,15 +128,14 @@
                     </div>
                 </button>
                 <div x-show="userMenuOpen" 
-                     x-transition:enter="transition ease-out duration-200"
-                     x-transition:enter-start="opacity-0 transform scale-95 -translate-y-2"
-                     x-transition:enter-end="opacity-100 transform scale-100 translate-y-0"
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
                      x-transition:leave="transition ease-in duration-100"
-                     x-transition:leave-start="opacity-100 transform scale-100"
-                     x-transition:leave-end="opacity-0 transform scale-95"
-                     class="absolute top-full mt-2 w-64 glass rounded-xl overflow-hidden shadow-2xl border border-white/10 z-50" 
-                     :class="isMobile ? 'right-0 left-auto' : 'right-0'"
-                     style="display: none;">
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0"
+                     class="fixed md:absolute top-16 md:top-auto md:mt-2 right-4 md:right-0 w-64 glass rounded-xl overflow-hidden shadow-2xl border border-white/10 z-[9999]" 
+                     x-cloak>
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado via</p>
                         <p class="text-xs text-white font-bold uppercase flex items-center gap-2">
@@ -189,7 +188,7 @@
                             <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
                         </div>
                     </div>
-                    <button @click.stop="askDeleteChar(id)" class="absolute top-1/2 -translate-y-1/2 right-3 text-gray-600 hover:text-red-500 z-20 w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20">
+                    <button @click.stop="askDeleteChar(id)" class="absolute inset-y-0 right-4 my-auto text-gray-600 hover:text-red-500 z-20 w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
@@ -490,7 +489,7 @@
                                 <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500">
                                     <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
                                 </div>
-                                <textarea :name="'power_lvl_' + lvl" x-model="char.powers['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
+                                <textarea :name="'power_lvl_' + lvl" x-model="char?.powers?.['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
                             </div>
                         </template>
                     </div>
@@ -501,7 +500,12 @@
 
     <template x-if="diceTrayOpen && currentView === 'sheet'">
         <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col border border-white/10 shadow-2xl glass dice-tray-opt" 
-     :class="{'fixed bottom-4 right-4 left-4 w-auto rounded-xl pb-safe max-h-[70vh]': isMobile, 'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 'fixed rounded-xl w-80 h-[500px]': !isMobile && trayDockMode === 'float'}" 
+     :class="{
+         'fixed bottom-0 left-0 right-0 w-full rounded-t-2xl pb-safe max-h-[65vh]': isMobile, 
+         'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 
+         'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 
+         'fixed rounded-xl w-80 h-[500px]': !isMobile && trayDockMode === 'float'
+     }" 
      :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
      x-transition:enter="transition ease-out duration-300"
      x-transition:enter-start="opacity-0 transform scale-90 translate-y-4"

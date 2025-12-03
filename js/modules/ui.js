@@ -651,7 +651,7 @@ export const uiLogic = {
         document.addEventListener('mousemove', moveHandler); 
         document.addEventListener('mouseup', upHandler);
     },
-
+    
     // Limpar todas as fichas (local + nuvem)
     askClearAllChars() {
         this.askConfirm(
@@ -659,6 +659,16 @@ export const uiLogic = {
             'Isso irá DELETAR PERMANENTEMENTE todos os seus personagens do armazenamento local e da nuvem. Esta ação é IRREVERSÍVEL!',
             'danger',
             async () => {
+                // IMPORTANTE: Primeiro muda a view para evitar erros de Alpine
+                this.configModal = false;
+                this.diceTrayOpen = false;
+                this.activeCharId = null;
+                this.char = null;
+                this.currentView = 'dashboard';
+                
+                // Aguarda o Alpine processar
+                await this.$nextTick();
+                
                 // Limpa local
                 this.chars = {};
                 this.saveLocal();
@@ -676,17 +686,11 @@ export const uiLogic = {
                     }
                 }
                 
-                // Volta pro dashboard
-                this.currentView = 'dashboard';
-                this.char = null;
-                this.activeCharId = null;
-                this.configModal = false;
-                
                 this.notify('Todas as fichas foram removidas.', 'success');
             }
         );
     },
-
+    
     // Apagar conta completamente
     askDeleteAccount() {
         this.askConfirm(
@@ -697,21 +701,16 @@ export const uiLogic = {
                 if (!this.user || !this.supabase) return;
                 
                 try {
-                    // 1. Deleta dados do perfil
                     await this.supabase
                         .from('profiles')
                         .delete()
                         .eq('id', this.user.id);
                     
-                    // 2. Limpa localStorage
                     localStorage.clear();
-                    
-                    // 3. Desloga
                     await this.supabase.auth.signOut();
                     
                     this.notify('Conta deletada com sucesso.', 'success');
                     
-                    // 4. Recarrega a página
                     setTimeout(() => {
                         window.location.reload();
                     }, 1500);
