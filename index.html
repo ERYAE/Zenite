@@ -121,11 +121,10 @@
             
             <div x-show="user" class="relative md:ml-4 flex-shrink-0" @click.outside="userMenuOpen=false">
                 <button @click="userMenuOpen=!userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors relative z-10">
-                    <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs"><i class="fa-solid fa-user"></i></div>
+                    <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs flex-shrink-0"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
-
-                    <div class="w-4 text-center inline-block">
-                        <i class="fa-solid fa-chevron-down text-[10px] text-gray-500 transition-transform duration-200" :class="{'rotate-180': userMenuOpen}"></i>
+                    <div class="w-5 h-5 flex items-center justify-center transition-transform duration-200 origin-center" :class="{'rotate-180': userMenuOpen}">
+                        <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
                     </div>
                 </button>
                 <div x-show="userMenuOpen" 
@@ -135,7 +134,7 @@
                      x-transition:leave="transition ease-in duration-100"
                      x-transition:leave-start="opacity-100 transform scale-100"
                      x-transition:leave-end="opacity-0 transform scale-95"
-                     class="absolute top-[calc(100%+8px)] right-0 w-64 glass rounded-xl overflow-hidden shadow-2xl border border-white/10 z-50" 
+                     class="absolute top-full mt-2 right-0 w-64 glass rounded-xl overflow-hidden shadow-2xl border border-white/10 z-50" 
                      style="display: none;">
                     <div class="px-4 py-3 border-b border-white/5 bg-black/40">
                         <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado via</p>
