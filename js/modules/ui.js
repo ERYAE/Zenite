@@ -9,14 +9,25 @@ export const uiLogic = {
             if(key === 'themeColor') this.applyTheme(val); 
         } else { 
             this.settings[key] = !this.settings[key]; 
-            if(key === 'compactMode' && this.isMobile) {
-                document.body.classList.toggle('compact-mode', this.settings.compactMode);
-            }
+        }
+        
+        // Aplica modo compacto
+        if(key === 'compactMode') {
+            this.applyCompactMode();
         }
         
         this.updateVisualState();
-
         this.saveLocal(); 
+    },
+
+    applyCompactMode() {
+        if (this.isMobile && this.settings.compactMode) {
+            document.body.classList.add('compact-mode');
+            document.documentElement.style.setProperty('--compact-scale', '0.9');
+        } else {
+            document.body.classList.remove('compact-mode');
+            document.documentElement.style.removeProperty('--compact-scale');
+        }
     },
 
     applyTheme(color) {
@@ -450,7 +461,7 @@ export const uiLogic = {
         const filename = `zenite_backup_${username}_${timestamp}.json`;
         
         const data = {
-            version: '2.1',
+            version: '2.2',
             exported: new Date().toISOString(),
             user: userEmail,
             chars: this.chars,
@@ -639,5 +650,77 @@ export const uiLogic = {
         
         document.addEventListener('mousemove', moveHandler); 
         document.addEventListener('mouseup', upHandler);
+    },
+
+    // Limpar todas as fichas (local + nuvem)
+    askClearAllChars() {
+        this.askConfirm(
+            'LIMPAR TODAS AS FICHAS?',
+            'Isso irá DELETAR PERMANENTEMENTE todos os seus personagens do armazenamento local e da nuvem. Esta ação é IRREVERSÍVEL!',
+            'danger',
+            async () => {
+                // Limpa local
+                this.chars = {};
+                this.saveLocal();
+                this.updateAgentCount();
+                
+                // Limpa nuvem
+                if (!this.isGuest && this.user && this.supabase) {
+                    try {
+                        await this.supabase
+                            .from('profiles')
+                            .update({ data: { config: this.settings } })
+                            .eq('id', this.user.id);
+                    } catch(e) {
+                        console.error('Erro ao limpar nuvem:', e);
+                    }
+                }
+                
+                // Volta pro dashboard
+                this.currentView = 'dashboard';
+                this.char = null;
+                this.activeCharId = null;
+                this.configModal = false;
+                
+                this.notify('Todas as fichas foram removidas.', 'success');
+            }
+        );
+    },
+
+    // Apagar conta completamente
+    askDeleteAccount() {
+        this.askConfirm(
+            'APAGAR CONTA PERMANENTEMENTE?',
+            'Isso irá DELETAR sua conta e TODOS os dados associados. Você será deslogado e não poderá recuperar nenhuma informação. TEM CERTEZA?',
+            'danger',
+            async () => {
+                if (!this.user || !this.supabase) return;
+                
+                try {
+                    // 1. Deleta dados do perfil
+                    await this.supabase
+                        .from('profiles')
+                        .delete()
+                        .eq('id', this.user.id);
+                    
+                    // 2. Limpa localStorage
+                    localStorage.clear();
+                    
+                    // 3. Desloga
+                    await this.supabase.auth.signOut();
+                    
+                    this.notify('Conta deletada com sucesso.', 'success');
+                    
+                    // 4. Recarrega a página
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                    
+                } catch(e) {
+                    console.error('Erro ao deletar conta:', e);
+                    this.notify('Erro ao deletar conta. Tente novamente.', 'error');
+                }
+            }
+        );
     }
 };

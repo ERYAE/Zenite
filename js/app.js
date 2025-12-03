@@ -167,6 +167,7 @@ function zeniteSystem() {
                 if(this.settings.themeColor) this.applyTheme(this.settings.themeColor);
                 setSfxEnabled(this.settings.sfxEnabled);
                 this.updateVisualState(); // Aplica CRT e Mouse Trail
+                if(this.settings.compactMode && this.isMobile) this.applyCompactMode();
             }
 
             // CORREÇÃO: Watcher agora apenas marca como alterado

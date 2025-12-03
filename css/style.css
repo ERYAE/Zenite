@@ -434,3 +434,76 @@ main, header, .glass, .modal-enter, button, input, select, a {
 .custom-scrollbar, body {
     -webkit-overflow-scrolling: touch !important;
 }
+
+/* ============================================
+   MODO COMPACTO (Mobile)
+   ============================================ */
+body.compact-mode {
+    font-size: 14px;
+}
+
+body.compact-mode .glass {
+    padding: 0.75rem;
+}
+
+body.compact-mode .text-xl {
+    font-size: 1rem;
+}
+
+body.compact-mode .text-2xl {
+    font-size: 1.25rem;
+}
+
+body.compact-mode .p-6 {
+    padding: 1rem;
+}
+
+body.compact-mode .p-4 {
+    padding: 0.75rem;
+}
+
+body.compact-mode .gap-6 {
+    gap: 1rem;
+}
+
+body.compact-mode .mb-6 {
+    margin-bottom: 1rem;
+}
+
+body.compact-mode input,
+body.compact-mode textarea,
+body.compact-mode select {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+
+body.compact-mode button {
+    padding: 0.5rem 0.75rem;
+}
+
+/* ============================================
+   CORREÇÕES DE RESPONSIVIDADE
+   ============================================ */
+@media (max-width: 768px) {
+    /* Garante que o UserMenu dropdown não saia da tela */
+    .absolute.top-full {
+        max-width: calc(100vw - 2rem);
+    }
+    
+    /* Ajusta tamanho de fontes em mobile */
+    .font-brand {
+        letter-spacing: 0.05em;
+    }
+    
+    /* Melhora toque em botões */
+    button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* Exceção para botões pequenos inline */
+    button.w-6, button.w-7, button.w-8 {
+        min-height: auto;
+        min-width: auto;
+    }
+}

@@ -29,11 +29,23 @@ export const rpgLogic = {
     setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
     addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
     deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
+    
+    // Geração de número aleatório criptograficamente seguro com rejection sampling
+    // Evita viés de módulo para resultados verdadeiramente uniformes
+    cryptoRandom(sides) {
+        const maxValid = Math.floor(0xFFFFFFFF / sides) * sides;
+        let value;
+        do {
+            const arr = new Uint32Array(1);
+            window.crypto.getRandomValues(arr);
+            value = arr[0];
+        } while (value >= maxValid);
+        return (value % sides) + 1;
+    },
+    
     roll(s) { 
         playSFX('click'); 
-        const arr = new Uint32Array(1); 
-        window.crypto.getRandomValues(arr); 
-        const n = (arr[0] % s) + 1; 
+        const n = this.cryptoRandom(s);
         const m = parseInt(this.diceMod || 0); 
         
         this.lastNatural = n; 
