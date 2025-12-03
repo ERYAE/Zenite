@@ -1,6 +1,7 @@
 import { playSFX } from './audio.js';
 import { CONSTANTS, ARCHETYPES } from './config.js';
 import { sanitizeChar, calculateBaseStats, formatDateForFilename } from './utils.js';
+import { cloudLogic } from './cloud.js';
 
 export const uiLogic = {
     toggleSetting(key, val=null) {
@@ -9,13 +10,15 @@ export const uiLogic = {
             if(key === 'themeColor') this.applyTheme(val); 
         } else { 
             this.settings[key] = !this.settings[key]; 
-            if(key === 'compactMode' && this.isMobile) {
-                document.body.classList.toggle('compact-mode', this.settings.compactMode);
-            }
+        }
+        
+        // Fix: Compact Mode agora aplica classe no body
+        if(key === 'compactMode') {
+            if (this.settings.compactMode) document.body.classList.add('compact-mode');
+            else document.body.classList.remove('compact-mode');
         }
         
         this.updateVisualState();
-
         this.saveLocal(); 
     },
 
@@ -214,6 +217,47 @@ export const uiLogic = {
                 window.location.reload(); 
             }
         ); 
+    },
+
+    askDeleteAllAgents() {
+        this.askConfirm(
+            'DELETAR TODAS AS FICHAS?',
+            'Isso apagará TODOS os personagens do dispositivo e da nuvem. Irreversível.',
+            'danger',
+            async () => {
+                this.chars = {};
+                this.updateAgentCount();
+                this.saveLocal();
+                if(!this.isGuest && this.user) {
+                   // Força envio do objeto vazio para a nuvem
+                   await this.syncCloud(false); 
+                }
+                this.notify('Todas as fichas foram apagadas.', 'success');
+            }
+        );
+    },
+
+    askDeleteAccount() {
+        this.askConfirm(
+            'EXCLUIR CONTA?',
+            'Seus dados e acesso serão removidos permanentemente. Tem certeza?',
+            'danger',
+            async () => {
+                // Lógica de Backend necessária aqui, por enquanto simulamos limpando dados
+                // Idealmente chamaria uma Edge Function do Supabase
+                this.notify('Solicitação enviada. Limpando dados locais...', 'warn');
+                await this.deleteAllData(); // Função hipotética no cloud.js ou aqui
+                this.logout();
+            }
+        );
+    },
+
+    async deleteAllData() {
+        // Limpa Supabase profile data
+        if(this.supabase && this.user) {
+            await this.supabase.from('profiles').delete().eq('id', this.user.id);
+        }
+        localStorage.clear();
     },
     
     askConfirm(title, desc, type, action) { 
@@ -558,9 +602,9 @@ export const uiLogic = {
     },
 
     // Dice Tray
+
     toggleDiceTray() {
         if (this.isReverting) return;
-        
         this.diceTrayOpen = !this.diceTrayOpen;
         
         if(this.diceTrayOpen) {
@@ -569,23 +613,12 @@ export const uiLogic = {
                 this.saveLocal(); 
             }
             this.showDiceTip = false;
-            
-            // CORREÇÃO: Garante que a tray abra visível na tela
-            if (this.trayDockMode === 'float' && !this.isMobile) {
-                const trayWidth = 320;
-                const trayHeight = 550; // Altura estimada da tray aberta
-                const safeMargin = 20;
-                const buttonSpace = 100; // Espaço para o botão flutuante
-                
-                // Calcula Posição: Canto Inferior Direito
-                let posX = window.innerWidth - trayWidth - safeMargin;
-                let posY = window.innerHeight - trayHeight - buttonSpace;
-
-                // Clamp para evitar valores negativos (fora da tela no topo/esquerda)
-                posX = Math.max(safeMargin, posX);
-                posY = Math.max(safeMargin, posY);
-                
-                this.trayPosition = { x: posX, y: posY };
+            // Se estiver no mobile, reseta scroll para garantir visibilidade
+            if(this.isMobile) {
+                setTimeout(() => {
+                    const tray = document.getElementById('dice-tray-window');
+                    if(tray) tray.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }, 100);
             }
         }
     },

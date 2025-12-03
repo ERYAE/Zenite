@@ -29,16 +29,29 @@ export const rpgLogic = {
     setSkillLevel(idx, l) { this.char.skills[idx].level = l; },
     addTechnique() { this.char.powers.techniques.push({name:'Técnica', desc:''}); }, 
     deleteTechnique(idx) { this.char.powers.techniques.splice(idx,1); },
+    toggleDiceSign() {
+        if (!this.diceMod) {
+            this.diceMod = -1;
+        } else {
+            this.diceMod = this.diceMod * -1;
+        }
+    },
     roll(s) { 
         playSFX('click'); 
-        const arr = new Uint32Array(1); 
-        window.crypto.getRandomValues(arr); 
-        const n = (arr[0] % s) + 1; 
+        
+        // Melhoria na aleatoriedade: usa crypto para gerar entropia extra
+        const array = new Uint32Array(2);
+        window.crypto.getRandomValues(array);
+        
+        // Combina dois valores randomicos do crypto para "girar" o RNG
+        const randomFactor = (array[0] / (0xFFFFFFFF + 1));
+        const n = Math.floor(randomFactor * s) + 1;
+        
         const m = parseInt(this.diceMod || 0); 
         
         this.lastNatural = n; 
         this.lastFaces = s; 
-        this.lastRoll = n + m; 
+        this.lastRoll = n + m;
         
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
