@@ -27,8 +27,7 @@ function zeniteSystem() {
             compactMode: false, 
             crtMode: false, 
             sfxEnabled: true, 
-            themeColor: 'cyan',
-            mouseTrail: true // Adicionado explicitamente
+            themeColor: 'cyan'
         },
         
         // Wizard
@@ -54,7 +53,7 @@ function zeniteSystem() {
         
         // Ferramentas
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
-        diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 350, y: window.innerHeight - 500 },
+        diceTrayOpen: false, trayDockMode: 'float', trayPosition: { x: window.innerWidth - 340, y: window.innerHeight - 580 },
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
         
@@ -180,9 +179,6 @@ function zeniteSystem() {
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
-            
-            // NOVO: Watcher para mouse trail e CRT
-            this.$watch('settings.mouseTrail', () => this.updateVisualState());
             this.$watch('settings.crtMode', () => this.updateVisualState());
 
             this.updateAgentCount();

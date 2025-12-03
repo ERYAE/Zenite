@@ -188,13 +188,13 @@ export const cloudLogic = {
     async syncCloud(silent = false) {
         if (!this.user || this.isGuest || !this.supabase) {
             console.log('[CLOUD] Sync ignorado: usuário guest ou não autenticado');
-            return;
+            return false;
         }
         
         // Evita sincronizações simultâneas
         if (this.isSyncing) {
             console.log('[CLOUD] Sync já em andamento, ignorando...');
-            return;
+            return false;
         }
         
         this.isSyncing = true;
@@ -211,7 +211,12 @@ export const cloudLogic = {
             const cleanChars = {};
             Object.keys(this.chars).forEach(k => {
                 if (this.chars[k]?.id) {
-                    cleanChars[k] = JSON.parse(JSON.stringify(this.chars[k]));
+                    // Garante que cada personagem tem lastAccess
+                    const charCopy = JSON.parse(JSON.stringify(this.chars[k]));
+                    if (!charCopy.lastAccess) {
+                        charCopy.lastAccess = Date.now();
+                    }
+                    cleanChars[k] = charCopy;
                 }
             });
             
@@ -222,19 +227,35 @@ export const cloudLogic = {
             };
             
             console.log(`[CLOUD] Enviando ${Object.keys(cleanChars).length} personagens para nuvem`);
+            console.log('[CLOUD] IDs dos personagens:', Object.keys(cleanChars));
             
-            const { error } = await this.supabase
+            // Usa UPDATE ao invés de UPSERT para garantir que os dados são substituídos
+            const { data, error } = await this.supabase
                 .from('profiles')
-                .upsert({
-                    id: this.user.id,
+                .update({ 
                     data: payload,
                     updated_at: new Date().toISOString()
-                }, {
-                    onConflict: 'id'
-                });
+                })
+                .eq('id', this.user.id)
+                .select();
             
-            if (error) {
-                console.error('[CLOUD] Erro no upsert:', error);
+            // Se não encontrou registro para atualizar, faz INSERT
+            if (!data || data.length === 0) {
+                console.log('[CLOUD] Perfil não existe, criando novo...');
+                const { error: insertError } = await this.supabase
+                    .from('profiles')
+                    .insert({
+                        id: this.user.id,
+                        data: payload,
+                        updated_at: new Date().toISOString()
+                    });
+                
+                if (insertError) {
+                    console.error('[CLOUD] Erro no insert:', insertError);
+                    throw insertError;
+                }
+            } else if (error) {
+                console.error('[CLOUD] Erro no update:', error);
                 throw error;
             }
             
@@ -248,6 +269,7 @@ export const cloudLogic = {
             }
             
             console.log('[CLOUD] Sincronização concluída com sucesso');
+            return true;
             
         } catch (e) {
             console.error("[CLOUD] Erro na sincronização:", e);
@@ -256,6 +278,7 @@ export const cloudLogic = {
             if (!silent) {
                 this.notify('Erro ao salvar na nuvem. Seus dados estão salvos localmente.', 'error');
             }
+            return false;
         } finally {
             this.isSyncing = false;
         }

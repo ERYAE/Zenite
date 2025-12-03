@@ -31,7 +31,7 @@ export const uiLogic = {
             'cyan': '#0ea5e9', 
             'purple': '#d946ef', 
             'gold': '#eab308',
-            'red': '#ef4444' // NOVO: Tema Vermelho
+            'red': '#ef4444'
         };
         const hex = map[color] || map['cyan'];
         const r = parseInt(hex.slice(1, 3), 16); 
@@ -40,41 +40,11 @@ export const uiLogic = {
         
         root.style.setProperty('--neon-core', hex); 
         root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
-        
-        // Atualiza cursor e trail
-        this.updateCursorColor();
-    },
-    
-    updateCursorColor() {
-        const trail = document.getElementById('mouse-trail');
-        if(trail) {
-            const rgb = getComputedStyle(document.documentElement)
-                .getPropertyValue('--neon-rgb').trim();
-            trail.style.background = `radial-gradient(circle, rgba(${rgb}, 0.15), transparent 70%)`;
-        }
-        
-        const cursor = document.getElementById('custom-cursor');
-        if(cursor) {
-            // Cursor já usa CSS var, só precisa forçar repaint
-            cursor.style.display = 'none';
-            cursor.offsetHeight; // Force reflow
-            cursor.style.display = '';
-        }
     },
 
-    // CORRIGIDO: Aplica estados visuais
+    // Aplica estados visuais
     updateVisualState() {
         const isAuthenticated = this.user || this.isGuest;
-        
-        // Mouse Trail
-        const showTrail = isAuthenticated && this.settings.mouseTrail && !this.isMobile;
-        if (showTrail) {
-            document.body.classList.add('custom-cursor-active');
-            this.initCustomCursor();
-        } else {
-            document.body.classList.remove('custom-cursor-active');
-            this.destroyCustomCursor();
-        }
         
         // CRT Mode
         if (isAuthenticated && this.settings.crtMode) {
@@ -88,99 +58,6 @@ export const uiLogic = {
         if (hackerActive) {
             this.isHackerMode = true;
             document.body.classList.add('theme-hacker');
-        }
-    },
-    
-    // NOVO: Sistema de Cursor Personalizado
-    initCustomCursor() {
-        if (this.isMobile) return;
-        
-        let cursor = document.getElementById('custom-cursor');
-        let trail = document.getElementById('mouse-trail');
-        
-        if (!cursor) {
-            cursor = document.createElement('div');
-            cursor.id = 'custom-cursor';
-            document.body.appendChild(cursor);
-        }
-        if (!trail) {
-            trail = document.createElement('div');
-            trail.id = 'mouse-trail';
-            document.body.appendChild(trail);
-        }
-        
-        // ESTILOS CRÍTICOS INJETADOS VIA JS
-        const applyCriticalStyles = () => {
-            // Z-INDEX EXTREMO: Garante que fique acima de modais (z-11000)
-            cursor.style.zIndex = '100001'; 
-            trail.style.zIndex = '100000';
-            
-            cursor.style.position = 'fixed';
-            trail.style.position = 'fixed';
-            cursor.style.pointerEvents = 'none';
-            trail.style.pointerEvents = 'none';
-            cursor.style.top = '0';
-            cursor.style.left = '0';
-            
-            // OTIMIZAÇÃO VISUAL: Reduzir brilho e tamanho para performance
-            trail.style.width = '150px'; // Menor que o padrão (geralmente 200-300)
-            trail.style.height = '150px';
-            trail.style.opacity = '0.35'; // Menos intenso (era provavelmente 1.0 ou 0.8)
-            trail.style.mixBlendMode = 'screen'; // Melhor mistura com fundo escuro
-        };
-        applyCriticalStyles();
-
-        this.updateCursorColor();
-        
-        let mouseX = window.innerWidth / 2;
-        let mouseY = window.innerHeight / 2;
-        
-        let cursorX = mouseX;
-        let cursorY = mouseY;
-        let trailX = mouseX;
-        let trailY = mouseY;
-        
-        const handleMouseMove = (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-        };
-        
-        const animate = () => {
-            cursorX += (mouseX - cursorX) * 0.6; // Cursor mais responsivo
-            cursorY += (mouseY - cursorY) * 0.6;
-            trailX += (mouseX - trailX) * 0.2; // Rastro suave
-            trailY += (mouseY - trailY) * 0.2;
-            
-            // Renderização via GPU
-            cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0)`;
-            trail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0) translate(-50%, -50%)`;
-            
-            this.cursorAnimFrame = requestAnimationFrame(animate);
-        };
-        
-        if (this.cursorMoveHandler) document.removeEventListener('mousemove', this.cursorMoveHandler);
-        if (this.cursorAnimFrame) cancelAnimationFrame(this.cursorAnimFrame);
-
-        document.addEventListener('mousemove', handleMouseMove);
-        this.cursorAnimFrame = requestAnimationFrame(animate);
-        this.cursorMoveHandler = handleMouseMove;
-    },
-    
-    destroyCustomCursor() {
-        const cursor = document.getElementById('custom-cursor');
-        const trail = document.getElementById('mouse-trail');
-        
-        if (cursor) cursor.remove();
-        if (trail) trail.remove();
-        
-        if (this.cursorAnimFrame) {
-            cancelAnimationFrame(this.cursorAnimFrame);
-            this.cursorAnimFrame = null;
-        }
-        
-        if (this.cursorMoveHandler) {
-            document.removeEventListener('mousemove', this.cursorMoveHandler);
-            this.cursorMoveHandler = null;
         }
     },
 
@@ -680,8 +557,6 @@ export const uiLogic = {
             playSFX('click');
             this.notify("System mode restored.", "info");
         }
-        
-        this.updateCursorColor();
     },
     
     handleLogoClick() {
@@ -718,9 +593,10 @@ export const uiLogic = {
     setDockMode(mode) {
         this.trayDockMode = mode;
         if(mode === 'float') { 
+            // Posiciona a bandeja próxima ao botão flutuante (canto inferior direito)
             this.trayPosition = { 
-                x: window.innerWidth - 350, 
-                y: window.innerHeight - 500 
+                x: window.innerWidth - 340, 
+                y: window.innerHeight - 580 
             }; 
             this.ensureTrayOnScreen(); 
         }
