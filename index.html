@@ -71,7 +71,7 @@
         </p>
     </div>
 
-    <div class="fixed top-5 right-5 z-[10000] space-y-2 pointer-events-none w-full max-w-xs px-4 md:px-0">
+    <div class="fixed top-5 right-5 z-[1000000] space-y-2 pointer-events-none w-full max-w-xs px-4 md:px-0">
         <template x-for="n in notifications" :key="n.id">
             <div class="glass border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl pointer-events-auto"
                  :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
