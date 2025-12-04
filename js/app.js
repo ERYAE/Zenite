@@ -4,6 +4,7 @@ import { debounce, sanitizeChar, calculateBaseStats } from './modules/utils.js';
 import { rpgLogic } from './modules/rpg.js';
 import { cloudLogic } from './modules/cloud.js';
 import { uiLogic } from './modules/ui.js';
+import { netlinkLogic } from './modules/netlink.js';
 
 function zeniteSystem() {
     return {
@@ -38,8 +39,11 @@ function zeniteSystem() {
         // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
-        welcomeModal: false, // NOVO: Modal de boas-vindas
+        welcomeModal: false,
         historyModal: false,
+        netlinkModal: false, // Modal do NetLink
+        netlinkCreateMode: false, // Modo de criação de campanha
+        netlinkJoinCode: '', // Código de convite para entrar
         
         // Salvamento - CORREÇÃO CRÍTICA
         unsavedChanges: false, 
@@ -77,6 +81,7 @@ function zeniteSystem() {
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
+        ...netlinkLogic,
 
         // --- COMPUTEDS ---
         get filteredChars() {
@@ -210,7 +215,32 @@ function zeniteSystem() {
 
         setupListeners() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
-            window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; });
+            // Debounce para evitar múltiplas chamadas durante resize
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    const wasMobile = this.isMobile;
+                    this.isMobile = window.innerWidth < 768;
+                    
+                    // Sempre fecha menus e UI flutuante quando muda de mobile/desktop
+                    if (wasMobile !== this.isMobile) {
+                        this.diceTrayOpen = false;
+                        this.userMenuOpen = false;
+                        this.showDiceTip = false;
+                        
+                        // Reseta posição do float
+                        if (this.trayDockMode === 'float') {
+                            this.trayPosition = { x: Math.max(20, window.innerWidth - 340), y: 100 };
+                        }
+                    }
+                    
+                    // Garante que diceTray está fechado se não estiver no sheet
+                    if (this.currentView !== 'sheet' && this.diceTrayOpen) {
+                        this.diceTrayOpen = false;
+                    }
+                }, 150); // Debounce de 150ms
+            });
             window.addEventListener('popstate', () => {
                 if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { 
                     history.pushState(null, null, location.href); 

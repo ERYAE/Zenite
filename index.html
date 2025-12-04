@@ -107,7 +107,7 @@
         </div>
     </div>
 
-    <header class="relative z-20 max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center">
+    <header class="sticky top-0 z-[200] max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row justify-between items-center bg-[#050507]/95 backdrop-blur-xl">
         <div class="flex items-center justify-between w-full md:w-auto mb-4 md:mb-0">
             <div class="flex items-center gap-3 cursor-pointer group select-none" @click.stop="handleLogoClick()">
                 <div class="glass px-2 py-2 pr-5 rounded-full flex items-center gap-3 border border-white/5 hover:border-[var(--neon-core)] transition-all hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.2)]">
@@ -119,51 +119,63 @@
                 </div>
             </div>
             
-            <div x-show="user" class="md:ml-4 flex-shrink-0" @click.outside="userMenuOpen=false">
-                <button @click="userMenuOpen=!userMenuOpen" class="relative flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
+            <!-- UserMenu: Botão aqui, Dropdown via teleport -->
+            <div x-show="user" class="md:ml-4" x-data="{ btnRect: null }" x-init="$watch('userMenuOpen', v => { if(v) btnRect = $el.querySelector('button').getBoundingClientRect() })">
+                <button @click="userMenuOpen = !userMenuOpen" class="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-full border border-white/10 hover:border-[var(--neon-core)] transition-colors">
                     <div class="w-6 h-6 rounded-full bg-[var(--neon-core)] flex items-center justify-center text-black font-bold text-xs flex-shrink-0"><i class="fa-solid fa-user"></i></div>
                     <span class="text-xs font-bold hidden md:block truncate max-w-[100px]" x-text="user?.email"></span>
-                    <div class="w-5 h-5 flex items-center justify-center transition-transform duration-200 origin-center" :class="{'rotate-180': userMenuOpen}">
-                        <i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
-                    </div>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-gray-500 transition-transform duration-200" :class="{'rotate-180': userMenuOpen}"></i>
                 </button>
-                <div x-show="userMenuOpen" 
-                     x-transition:enter="transition ease-out duration-150"
-                     x-transition:enter-start="opacity-0 scale-95"
-                     x-transition:enter-end="opacity-100 scale-100"
-                     x-transition:leave="transition ease-in duration-100"
-                     x-transition:leave-start="opacity-100"
-                     x-transition:leave-end="opacity-0"
-                     class="fixed md:absolute top-16 md:top-auto md:mt-2 right-4 md:right-0 w-64 glass rounded-xl overflow-hidden shadow-2xl border border-white/10 z-[9999]" 
-                     x-cloak>
-                    <div class="px-4 py-3 border-b border-white/5 bg-black/40">
-                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado via</p>
-                        <p class="text-xs text-white font-bold uppercase flex items-center gap-2">
-                            <i class="fa-brands" :class="user?.app_metadata?.provider === 'discord' ? 'fa-discord text-indigo-500' : 'fa-google text-red-500'"></i>
-                            <span x-text="user?.app_metadata?.provider || 'EMAIL'"></span>
-                        </p>
-                        <p class="text-[10px] text-gray-400 mt-1 truncate" x-text="user?.email"></p>
+                <!-- Dropdown teleportado para fora de qualquer stacking context -->
+                <template x-teleport="body">
+                    <div x-show="userMenuOpen" 
+                         @click.outside="userMenuOpen = false"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="fixed w-64 rounded-xl overflow-hidden border border-white/20 z-[10001] user-menu-dropdown"
+                         :style="btnRect ? `top: ${btnRect.bottom + 8}px; ${isMobile ? 'right: 16px;' : 'left: ' + btnRect.left + 'px;'}` : 'top: 70px; right: 16px;'"
+                         x-cloak>
+                        <div class="px-4 py-3 border-b border-white/10" style="background: #0d0d10;">
+                            <p class="text-[10px] text-gray-500 uppercase font-bold mb-1">Conectado via</p>
+                            <p class="text-xs text-white font-bold uppercase flex items-center gap-2">
+                                <i class="fa-brands" :class="user?.app_metadata?.provider === 'discord' ? 'fa-discord text-indigo-500' : 'fa-google text-red-500'"></i>
+                                <span x-text="user?.app_metadata?.provider || 'EMAIL'"></span>
+                            </p>
+                            <p class="text-[10px] text-gray-400 mt-1 truncate" x-text="user?.email"></p>
+                        </div>
+                        <div style="background: #08080a;">
+                            <button @click="askLogout(); userMenuOpen = false;" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors flex items-center gap-2">
+                                <i class="fa-solid fa-power-off"></i> ENCERRAR SESSÃO
+                            </button>
+                        </div>
                     </div>
-                    <button @click="askLogout()" class="w-full text-left px-4 py-3 text-xs font-bold hover:bg-red-500/20 text-red-500 transition-colors"><i class="fa-solid fa-power-off mr-2"></i> ENCERRAR SESSÃO</button>
-                </div>
+                </template>
             </div>
         </div>
         <div class="flex gap-3 items-center justify-center w-full md:w-auto">
             <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded-lg hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
             <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SYNC...</div>
+            <!-- NetLink Button -->
+            <button x-show="user && !isGuest" @click="netlinkModal = true; loadCampaigns()" class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-purple-500 flex items-center justify-center transition-colors text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" title="NetLink - Campanhas Online">
+                <i class="fa-solid fa-network-wired"></i>
+            </button>
             <button @click="configModal=true" class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-colors"><i class="fa-solid fa-gear"></i></button>
             <button x-show="currentView === 'dashboard'" @click="openWizard()" class="px-6 py-2 rounded-lg bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 transition-all flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
         </div>
     </header>
 
-    <main x-show="currentView === 'dashboard'" class="relative z-10 max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
+    <main x-show="currentView === 'dashboard'" class="relative max-w-7xl mx-auto p-6 pb-32" x-transition.opacity>
         <div class="mb-8 border-b border-white/5 pb-4">
             <div class="flex justify-between items-end mb-2">
                 <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-database"></i> Banco de Dados</h2>
                 <div class="text-[10px] font-code text-gray-600">CAPACIDADE: <span x-text="agentCount" class="text-white font-bold"></span> / 30</div>
             </div>
             <div class="relative group">
-                <input id="search-dashboard" name="search_query" x-model="searchQuery" type="text" placeholder="Buscar Identidade..." aria-label="Buscar Identidade" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-10 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber">
+                <input id="search-dashboard" name="search_query" x-model="searchQuery" type="text" placeholder="Buscar Identidade..." aria-label="Buscar Identidade" class="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors input-cyber placeholder:text-gray-600">
                 <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[var(--neon-core)] transition-colors"></i>
             </div>
         </div>
@@ -188,7 +200,7 @@
                             <span class="text-[9px] font-code text-gray-500" x-text="'NVL ' + c.level"></span>
                         </div>
                     </div>
-                    <button @click.stop="askDeleteChar(id)" class="absolute inset-y-0 right-4 my-auto text-gray-600 hover:text-red-500 z-20 w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20">
+                    <button @click.stop="askDeleteChar(id)" class="ml-auto flex-shrink-0 text-gray-600 hover:text-red-500 z-20 w-8 h-8 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/80 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none"></div>
@@ -196,6 +208,224 @@
             </template>
         </div>
     </main>
+
+    <!-- CAMPAIGN VIEW -->
+    <template x-if="currentView === 'campaign' && activeCampaign">
+        <main class="relative z-10 max-w-7xl mx-auto p-4 pb-32" x-transition.opacity>
+            <!-- Header da Campanha -->
+            <div class="glass rounded-2xl p-4 mb-6 border border-purple-500/20">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div class="flex items-center gap-4">
+                        <button @click="leaveCampaign(); currentView = 'dashboard'" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-chevron-left"></i> SAIR
+                        </button>
+                        <div class="w-px h-8 bg-white/10"></div>
+                        <div>
+                            <h1 class="text-xl font-bold text-white font-brand" x-text="activeCampaign.name"></h1>
+                            <div class="flex items-center gap-3 mt-1">
+                                <span class="text-[10px] font-code text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded" x-text="activeCampaign.invite_code"></span>
+                                <button @click="copyInviteCode()" class="text-[10px] text-gray-500 hover:text-white transition-colors">
+                                    <i class="fa-solid fa-copy"></i> Copiar
+                                </button>
+                                <span x-show="isGMOfActiveCampaign()" class="text-[10px] text-yellow-500 font-bold uppercase">
+                                    <i class="fa-solid fa-crown"></i> MESTRE
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Timer (GM Only) -->
+                    <div x-show="isGMOfActiveCampaign()" class="flex items-center gap-3 bg-black/40 rounded-lg px-4 py-2">
+                        <span class="text-2xl font-code text-white" x-text="formatSessionTime()">00:00:00</span>
+                        <div class="flex gap-1">
+                            <button @click="sessionTimerInterval ? toggleSessionTimer() : startSessionTimer()" 
+                                    class="w-8 h-8 rounded flex items-center justify-center transition-colors"
+                                    :class="sessionTimerInterval && !sessionTimerPaused ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'">
+                                <i class="fa-solid" :class="sessionTimerInterval && !sessionTimerPaused ? 'fa-pause' : 'fa-play'"></i>
+                            </button>
+                            <button @click="stopSessionTimer()" class="w-8 h-8 rounded bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors">
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Coluna Principal -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Jogadores -->
+                    <div class="glass rounded-2xl p-4 border border-white/10">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-users text-purple-400"></i> Jogadores
+                            <span class="text-[10px] text-gray-600" x-text="'(' + campaignMembers.length + ')'"></span>
+                        </h2>
+                        
+                        <div x-show="campaignMembers.length === 0" class="text-center py-8 text-gray-600">
+                            <i class="fa-solid fa-user-plus text-2xl mb-2 opacity-30"></i>
+                            <p class="text-xs">Nenhum jogador ainda</p>
+                            <p class="text-[10px] mt-1">Compartilhe o código: <span class="text-purple-400 font-code" x-text="activeCampaign.invite_code"></span></p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <template x-for="member in campaignMembers" :key="member.id">
+                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
+                                            <i class="fa-solid" :class="member.role === 'gm' ? 'fa-crown text-yellow-500' : 'fa-user'"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-bold text-white truncate" x-text="member.char_data?.name || 'Sem personagem'"></p>
+                                            <p class="text-[10px] text-gray-500" x-text="member.char_data?.class || 'Aguardando...'"></p>
+                                        </div>
+                                        <template x-if="isGMOfActiveCampaign() && member.char_data?.stats">
+                                            <div class="text-right">
+                                                <p class="text-xs text-red-400"><i class="fa-solid fa-heart mr-1"></i><span x-text="member.char_data.stats.pv?.current + '/' + member.char_data.stats.pv?.max"></span></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Notas do GM -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-yellow-500/20">
+                        <h2 class="text-sm font-bold text-yellow-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-scroll"></i> Notas do Mestre (Privado)
+                        </h2>
+                        <textarea x-model="gmNotes" @input="updateGMNotes($event.target.value)"
+                                  placeholder="Suas anotações secretas... (auto-save)"
+                                  class="w-full h-32 bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white resize-none focus:border-yellow-500/50 focus:outline-none"></textarea>
+                    </div>
+
+                    <!-- Sistema de Iniciativa -->
+                    <div class="glass rounded-2xl p-4 border border-orange-500/20">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-sm font-bold text-orange-400 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-bolt"></i> Iniciativa
+                            </h2>
+                            <div class="flex gap-1" x-show="isGMOfActiveCampaign()">
+                                <button @click="clearInitiative()" class="text-[10px] text-gray-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-500/10">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Adicionar (GM) -->
+                        <div x-show="isGMOfActiveCampaign()" x-data="{ initName: '', initValue: '' }" class="flex gap-2 mb-3">
+                            <input type="text" x-model="initName" placeholder="Nome" class="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-orange-500 focus:outline-none">
+                            <input type="number" x-model="initValue" placeholder="Val" class="w-14 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-orange-500 focus:outline-none">
+                            <button @click="addToInitiative(initName, initValue); initName=''; initValue=''" class="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs hover:bg-orange-500/30">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Lista -->
+                        <div class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                            <template x-for="(p, idx) in initiativeOrder" :key="p.id">
+                                <div class="flex items-center justify-between bg-black/40 rounded px-2 py-1.5 text-xs"
+                                     :class="{'ring-2 ring-orange-500 bg-orange-500/10': p.isActive, 'opacity-50': !p.isActive && initiativeOrder.some(x => x.isActive)}">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-orange-400 w-6" x-text="p.value"></span>
+                                        <span class="text-white" x-text="p.name"></span>
+                                        <span x-show="p.isNPC" class="text-[9px] text-red-400 uppercase">(NPC)</span>
+                                    </div>
+                                    <div class="flex gap-1" x-show="isGMOfActiveCampaign()">
+                                        <button @click="setActiveInitiative(p.id)" class="text-gray-500 hover:text-orange-400 px-1" :class="{'text-orange-400': p.isActive}">
+                                            <i class="fa-solid fa-play text-[10px]"></i>
+                                        </button>
+                                        <button @click="removeFromInitiative(p.id)" class="text-gray-500 hover:text-red-400 px-1">
+                                            <i class="fa-solid fa-xmark text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="initiativeOrder.length === 0" class="text-center text-gray-600 text-xs py-2">
+                                Nenhum participante
+                            </div>
+                        </div>
+                        
+                        <!-- Avançar turno -->
+                        <button x-show="isGMOfActiveCampaign() && initiativeOrder.length > 0" 
+                                @click="nextInitiative()"
+                                class="w-full mt-3 py-2 bg-orange-500/20 text-orange-400 rounded text-xs font-bold hover:bg-orange-500/30 transition-colors">
+                            <i class="fa-solid fa-forward-step mr-1"></i> PRÓXIMO TURNO
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="space-y-6">
+                    <!-- Chat -->
+                    <div class="glass rounded-2xl p-4 border border-white/10 flex flex-col" style="height: 400px;">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-comments text-cyan-400"></i> Chat
+                        </h2>
+                        
+                        <div class="flex-1 overflow-y-auto space-y-2 mb-3 custom-scrollbar">
+                            <template x-for="msg in chatMessages" :key="msg.id">
+                                <div class="text-xs" :class="msg.metadata?.isGM ? 'bg-yellow-500/10 rounded p-2' : ''">
+                                    <span class="font-bold" :class="msg.metadata?.isGM ? 'text-yellow-400' : 'text-purple-400'" x-text="msg.sender + ':'"></span>
+                                    <span class="text-gray-300 ml-1" x-text="msg.content"></span>
+                                </div>
+                            </template>
+                            <div x-show="chatMessages.length === 0" class="text-center text-gray-600 text-xs py-4">
+                                Nenhuma mensagem ainda
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <input type="text" x-model="chatInput" @keydown.enter="sendChatMessage(chatInput)"
+                                   placeholder="Digite uma mensagem..."
+                                   class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                            <button @click="sendChatMessage(chatInput)" class="px-3 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dados da Sessão -->
+                    <div class="glass rounded-2xl p-4 border border-white/10">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-dice-d20 text-green-400"></i> Últimas Rolagens
+                        </h2>
+                        <div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                            <template x-for="log in sessionDiceLog.slice(0, 10)" :key="log.id">
+                                <div class="text-xs bg-black/40 rounded p-2 flex justify-between items-center"
+                                     :class="{'border-l-2 border-yellow-500': log.is_critical, 'border-l-2 border-red-500': log.is_fumble}">
+                                    <span class="text-gray-400" x-text="log.username"></span>
+                                    <span class="font-bold" :class="log.is_critical ? 'text-yellow-400' : log.is_fumble ? 'text-red-400' : 'text-white'" x-text="log.formula + ' = ' + log.total_result"></span>
+                                </div>
+                            </template>
+                            <div x-show="sessionDiceLog.length === 0" class="text-center text-gray-600 text-xs py-4">
+                                Nenhuma rolagem ainda
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Info da Campanha -->
+                    <div class="glass rounded-2xl p-4 border border-white/10">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-info-circle"></i> Detalhes
+                        </h2>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Código</span>
+                                <span class="font-code text-purple-400" x-text="activeCampaign.code"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Criada em</span>
+                                <span class="text-white" x-text="new Date(activeCampaign.created_at).toLocaleDateString('pt-BR')"></span>
+                            </div>
+                            <div x-show="activeCampaign.description" class="pt-2 border-t border-white/5">
+                                <p class="text-gray-400" x-text="activeCampaign.description"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </template>
 
     <template x-if="currentView === 'sheet' && char">
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-48" x-transition.opacity>
@@ -481,108 +711,125 @@
                         </template>
                     </div>
                 </div>
-                <div class="glass p-6 rounded-2xl">
-                    <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Evolução</h3>
-                    <div class="space-y-4">
-                        <template x-for="lvl in [3,6,9,10]">
-                            <div class="bg-black/20 p-3 rounded-lg border border-white/5">
-                                <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500">
-                                    <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
+                <!-- Evolução: usa x-if para evitar avaliação de x-model quando char é null -->
+                <template x-if="char && char.powers">
+                    <div class="glass p-6 rounded-2xl">
+                        <h3 class="text-xs text-[var(--neon-purple)] font-bold uppercase mb-4 border-b border-white/10 pb-2">Evolução</h3>
+                        <div class="space-y-4">
+                            <template x-for="lvl in [3,6,9,10]" :key="lvl">
+                                <div class="bg-black/20 p-3 rounded-lg border border-white/5">
+                                    <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500">
+                                        <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
+                                    </div>
+                                    <textarea :name="'power_lvl_' + lvl" x-model="char.powers['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
                                 </div>
-                                <textarea :name="'power_lvl_' + lvl" x-model="char?.powers?.['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
                     </div>
-                </div>
+                </template>
             </div>
         </main>
     </template>
 
+    <!-- DICE TRAY: Usa x-if para garantir remoção completa do DOM quando fechado -->
     <template x-if="diceTrayOpen && currentView === 'sheet'">
-        <div id="dice-tray-window" x-cloak class="z-[8000] overflow-hidden flex flex-col border border-white/10 shadow-2xl glass dice-tray-opt" 
-     :class="{
-         'fixed bottom-0 left-0 right-0 w-full rounded-t-2xl pb-safe max-h-[65vh]': isMobile, 
-         'fixed top-0 left-0 h-full w-80 rounded-r-xl border-r': !isMobile && trayDockMode === 'dock-left', 
-         'fixed top-0 right-0 h-full w-80 rounded-l-xl border-l': !isMobile && trayDockMode === 'dock-right', 
-         'fixed rounded-xl w-80 h-[500px]': !isMobile && trayDockMode === 'float'
-     }" 
-     :style="!isMobile && trayDockMode === 'float' ? `top: ${trayPosition.y}px; left: ${trayPosition.x}px` : ''"
-     x-transition:enter="transition ease-out duration-300"
-     x-transition:enter-start="opacity-0 transform scale-90 translate-y-4"
-     x-transition:enter-end="opacity-100 transform scale-100 translate-y-0"
-     x-transition:leave="transition ease-in duration-200"
-     x-transition:leave-start="opacity-100 transform scale-100"
-     x-transition:leave-end="opacity-0 transform scale-90 translate-y-4">
-    
-    <div @mousedown="startDragTray($event)" class="bg-black/60 p-3 border-b border-white/5 flex justify-between items-center select-none flex-shrink-0" :class="{'cursor-move draggable-handle': !isMobile && trayDockMode === 'float'}">
-        <div class="flex items-center gap-2">
-            <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice mr-2"></i>DICE</span>
-            <div class="flex gap-1 ml-2" x-show="!isMobile">
-                <button @click="setDockMode('dock-left')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-left"></i></button>
-                <button @click="setDockMode('float')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='float'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-up-down-left-right"></i></button>
-                <button @click="setDockMode('dock-right')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)]':'text-gray-600'"><i class="fa-solid fa-arrow-right"></i></button>
-            </div>
-        </div>
-        <button @click="toggleDiceTray()" class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors rounded"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    
-    <div class="p-4 bg-black/40 backdrop-blur-md flex flex-col flex-grow overflow-hidden h-full">
-        <div class="mb-3 space-y-2 flex-shrink-0">
-            <input name="dice_reason" type="text" x-model="diceReason" aria-label="Motivo Rolagem" placeholder="Motivo do teste..." class="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors">
-            <div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+        <div id="dice-tray-window" 
+             class="overflow-hidden"
+             :style="isMobile 
+                 ? 'position: fixed; bottom: 0; left: 0; right: 0; width: 100%; max-height: 70vh; border-radius: 1rem 1rem 0 0; z-index: 8000; background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 -10px 40px rgba(0,0,0,0.5);'
+                 : trayDockMode === 'dock-left' 
+                     ? 'position: fixed; top: 0; left: 0; height: 100vh; width: 20rem; border-radius: 0 0.75rem 0.75rem 0; z-index: 8000; background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 10px 0 40px rgba(0,0,0,0.5);'
+                     : trayDockMode === 'dock-right'
+                         ? 'position: fixed; top: 0; right: 0; height: 100vh; width: 20rem; border-radius: 0.75rem 0 0 0.75rem; z-index: 8000; background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); box-shadow: -10px 0 40px rgba(0,0,0,0.5);'
+                         : `position: fixed; top: ${trayPosition.y}px; left: ${trayPosition.x}px; width: 20rem; height: 500px; border-radius: 0.75rem; z-index: 8000; background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5);`
+             "
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+        
+        <div class="flex flex-col h-full">
+            <div @mousedown="startDragTray($event)" class="bg-black/40 px-4 py-3 border-b border-white/10 flex justify-between items-center select-none flex-shrink-0" :class="{'cursor-move': !isMobile && trayDockMode === 'float'}">
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-bold text-gray-500 uppercase">MOD</span>
-                    <div class="flex items-center gap-1">
-                        <button @click="diceMod = parseInt(diceMod || 0) - 1" class="w-7 h-7 bg-red-500/20 text-red-400 rounded flex items-center justify-center text-sm font-bold hover:bg-red-500/40 transition-colors">-</button>
-                        <input name="dice_mod" type="number" x-model="diceMod" aria-label="Modificador" inputmode="numeric" pattern="-?[0-9]*" class="w-12 bg-transparent text-center text-lg font-bold text-[var(--neon-core)] outline-none border-b border-white/20 focus:border-[var(--neon-core)]">
-                        <button @click="diceMod = parseInt(diceMod || 0) + 1" class="w-7 h-7 bg-green-500/20 text-green-400 rounded flex items-center justify-center text-sm font-bold hover:bg-green-500/40 transition-colors">+</button>
+                    <span class="text-[10px] font-bold text-[var(--neon-core)] uppercase tracking-widest"><i class="fa-solid fa-dice-d20 mr-2"></i>DICE TRAY</span>
+                    <div class="flex gap-1 ml-2" x-show="!isMobile">
+                        <button @click="setDockMode('dock-left')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded transition-colors" :class="trayDockMode==='dock-left'?'text-[var(--neon-core)] bg-white/10':'text-gray-500 hover:bg-white/5'" title="Fixar à esquerda"><i class="fa-solid fa-arrow-left text-[10px]"></i></button>
+                        <button @click="setDockMode('float')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded transition-colors" :class="trayDockMode==='float'?'text-[var(--neon-core)] bg-white/10':'text-gray-500 hover:bg-white/5'" title="Modo livre"><i class="fa-solid fa-up-down-left-right text-[10px]"></i></button>
+                        <button @click="setDockMode('dock-right')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded transition-colors" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)] bg-white/10':'text-gray-500 hover:bg-white/5'" title="Fixar à direita"><i class="fa-solid fa-arrow-right text-[10px]"></i></button>
                     </div>
                 </div>
-                <div class="text-4xl font-bold font-brand animate-pulse" :class="lastNatural===lastFaces?'crit-success':lastNatural===1?'crit-fail':'text-white'" x-text="lastRoll">--</div>
-            </div>
-        </div>
-        
-        <div class="grid grid-cols-4 gap-2 mb-4 flex-shrink-0">
-            <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-10 bg-white/5 border border-white/10 rounded hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-xs transition-all active:scale-95 shadow-lg" x-text="'D'+d"></button></template>
-        </div>
-        
-        <div class="flex flex-col border-t border-white/10 pt-2 overflow-hidden flex-grow min-h-0">
-            <div class="flex justify-between items-center mb-2 px-1 flex-shrink-0">
-                <span class="text-[10px] font-bold text-gray-500 uppercase">Histórico</span>
-                <button @click="diceLog=[]; saveDiceHistory()" class="text-[10px] text-red-900 hover:text-red-500 font-bold px-2 py-0.5 rounded hover:bg-white/5">LIMPAR</button>
+                <button @click="toggleDiceTray()" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-500/10 transition-all rounded-lg" title="Fechar"><i class="fa-solid fa-xmark"></i></button>
             </div>
             
-            <div class="overflow-y-auto custom-scrollbar pr-2 space-y-2 flex-grow overscroll-contain">
-                <template x-for="log in diceLog" :key="log.id">
-                    <div class="flex flex-col text-[10px] font-code text-gray-500 border-b border-white/5 pb-2 pt-1 animate-fade-in hover:bg-white/5 px-2 rounded transition-colors bg-black/20 flex-shrink-0">
-                        <div class="flex justify-between items-start mb-1">
-                            <div class="flex flex-col leading-tight">
-                                <span class="text-[9px] text-gray-600 font-bold" x-text="log.date"></span>
-                                <span class="text-[9px] text-gray-400" x-text="log.time"></span>
-                            </div>
+            <div class="flex-grow flex flex-col overflow-hidden p-4">
+                <div class="space-y-3 flex-shrink-0">
+                    <input name="dice_reason" type="text" x-model="diceReason" placeholder="Motivo do teste..." class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[var(--neon-core)] transition-colors placeholder:text-gray-600">
+                    
+                    <!-- Resultado Principal -->
+                    <div class="bg-black/30 p-3 rounded-lg border border-white/5">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="text-5xl font-bold font-brand" :class="lastNatural===lastFaces?'text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]':lastNatural===1?'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]':'text-white'" x-text="lastRoll">--</div>
                             <div class="text-right">
-                                <span class="text-white font-bold block text-sm" x-text="log.formula"></span>
+                                <div class="text-[9px] text-gray-500 uppercase">Natural</div>
+                                <div class="text-lg font-bold font-code" :class="lastNatural===lastFaces?'text-yellow-400':lastNatural===1?'text-red-500':'text-gray-300'" x-text="lastNatural || '--'"></div>
                             </div>
                         </div>
-                        <div class="flex justify-between items-center bg-black/40 rounded px-2 py-1 mb-1">
-                            <div class="flex gap-2 text-[9px] uppercase tracking-wider">
-                                <span class="text-gray-500">NAT: <b class="text-white" x-text="log.natural"></b></span>
-                                <span class="text-gray-500">MOD: <b :class="log.mod > 0 ? 'text-green-400' : log.mod < 0 ? 'text-red-400' : 'text-gray-400'" x-text="log.mod >= 0 ? '+' + log.mod : log.mod"></b></span>
+                        <div class="flex items-center justify-between border-t border-white/5 pt-2">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">Modificador</span>
+                            <div class="flex items-center gap-1">
+                                <button @click="diceMod = parseInt(diceMod || 0) - 1" class="w-7 h-7 bg-red-500/20 text-red-400 rounded flex items-center justify-center text-sm font-bold hover:bg-red-500/30 transition-colors">-</button>
+                                <input name="dice_mod" type="number" x-model="diceMod" class="w-10 bg-transparent text-center text-lg font-bold text-[var(--neon-core)] outline-none">
+                                <button @click="diceMod = parseInt(diceMod || 0) + 1" class="w-7 h-7 bg-green-500/20 text-green-400 rounded flex items-center justify-center text-sm font-bold hover:bg-green-500/30 transition-colors">+</button>
                             </div>
-                            <span class="text-xl font-bold" 
-                                  :class="log.crit ? 'text-[var(--neon-warn)] drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]' : log.fumble ? 'text-[var(--neon-alert)] drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : 'text-white'" 
-                                  x-text="log.result"></span>
                         </div>
-                        <div x-show="log.reason" class="text-[9px] text-[var(--neon-core)] italic truncate opacity-80" x-text="'> ' + log.reason"></div>
                     </div>
-                </template>
-                <div x-show="diceLog.length===0" class="text-center text-[10px] text-gray-700 mt-4">Role os dados...</div>
+                </div>
+                
+                <!-- Botões de Dados - Ordem correta: D3 primeiro -->
+                <div class="grid grid-cols-4 gap-2 my-4 flex-shrink-0">
+                    <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-11 bg-white/5 border border-white/10 rounded-lg hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-sm transition-all active:scale-95 hover:shadow-[0_0_15px_rgba(var(--neon-rgb),0.3)]" x-text="'D'+d"></button></template>
+                </div>
+                
+                <div class="flex flex-col flex-grow overflow-hidden min-h-0 border-t border-white/10 pt-3">
+                    <div class="flex justify-between items-center mb-2 flex-shrink-0">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Histórico de Rolagens</span>
+                        <button @click="diceLog=[]" class="text-[10px] text-gray-600 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-500/10">LIMPAR</button>
+                    </div>
+                    <div class="overflow-y-auto custom-scrollbar flex-grow space-y-2 min-h-0 pr-1">
+                        <template x-for="log in diceLog" :key="log.id">
+                            <div class="bg-black/20 rounded-lg p-2 border border-white/5 hover:border-white/10 transition-colors" :class="{'border-yellow-500/30 bg-yellow-500/5': log.crit, 'border-red-500/30 bg-red-500/5': log.fumble}">
+                                <div class="flex justify-between items-center gap-2">
+                                    <span class="text-[9px] text-gray-600 font-code" x-text="log.time"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-white font-bold px-2 py-0.5 bg-white/5 rounded" x-text="log.formula"></span>
+                                        <span class="text-lg font-bold font-brand min-w-[2.5rem] text-right" :class="log.crit?'text-yellow-400':log.fumble?'text-red-500':'text-white'" x-text="log.result"></span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center mt-1 text-[9px]">
+                                    <div class="flex gap-3">
+                                        <span class="text-gray-500">NAT: <span class="font-bold" :class="log.crit?'text-yellow-400':log.fumble?'text-red-500':'text-gray-300'" x-text="log.natural"></span></span>
+                                        <span x-show="log.mod !== 0" class="text-gray-500">MOD: <span class="font-bold" :class="log.mod > 0 ? 'text-green-400' : 'text-red-400'" x-text="(log.mod > 0 ? '+' : '') + log.mod"></span></span>
+                                    </div>
+                                    <span x-show="log.crit" class="text-yellow-400 font-bold uppercase">CRÍTICO!</span>
+                                    <span x-show="log.fumble" class="text-red-500 font-bold uppercase">FUMBLE!</span>
+                                </div>
+                                <div x-show="log.reason" class="text-[10px] text-[var(--neon-core)] mt-1 truncate border-t border-white/5 pt-1" x-text="'→ ' + log.reason"></div>
+                            </div>
+                        </template>
+                        <div x-show="diceLog.length===0" class="text-center py-8 text-gray-600">
+                            <i class="fa-solid fa-dice text-2xl mb-2 opacity-30"></i>
+                            <p class="text-[10px]">Role os dados para ver o histórico</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
     </template>
 
+    <!-- DICE TRAY BUTTON -->
     <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-[8000]">
         <div x-show="showDiceTip" class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce z-[60]" x-transition>
             <div class="text-xs font-bold">Abra a bandeja aqui!</div>
@@ -899,6 +1146,153 @@
                 <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
                 <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
                 <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NETLINK MODAL -->
+    <div x-show="netlinkModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+        <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]">
+            <!-- Header -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                        <i class="fa-solid fa-network-wired text-purple-400"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white font-brand">NETLINK</h2>
+                        <p class="text-[10px] text-gray-500 uppercase">Sistema de Campanhas Online</p>
+                    </div>
+                </div>
+                <button @click="netlinkModal = false; netlinkCreateMode = false" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <!-- Tabs -->
+                <div class="flex gap-2 mb-4">
+                    <button @click="netlinkView = 'list'; netlinkCreateMode = false" 
+                            class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all"
+                            :class="netlinkView === 'list' && !netlinkCreateMode ? 'bg-purple-500 text-white' : 'text-gray-400 hover:bg-white/5'">
+                        <i class="fa-solid fa-list mr-2"></i>Campanhas
+                    </button>
+                    <button @click="netlinkCreateMode = true" 
+                            class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all"
+                            :class="netlinkCreateMode ? 'bg-purple-500 text-white' : 'text-gray-400 hover:bg-white/5'">
+                        <i class="fa-solid fa-plus mr-2"></i>Criar
+                    </button>
+                </div>
+                
+                <!-- Lista de Campanhas -->
+                <div x-show="!netlinkCreateMode && netlinkView === 'list'">
+                    <!-- Entrar com código -->
+                    <div class="bg-white/5 rounded-xl p-4 mb-4 border border-white/10" x-data="{ selectedCharForJoin: '' }">
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-2">Entrar com código de convite</p>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex gap-2">
+                                <input type="text" x-model="netlinkJoinCode" placeholder="ABC123" 
+                                       class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white uppercase tracking-widest text-center font-code focus:border-purple-500 focus:outline-none"
+                                       maxlength="6">
+                            </div>
+                            <!-- Seletor de personagem -->
+                            <div x-show="netlinkJoinCode.length >= 6 && Object.keys(chars).length > 0">
+                                <p class="text-[10px] text-gray-500 mb-1">Selecione um personagem:</p>
+                                <select x-model="selectedCharForJoin" class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none">
+                                    <option value="">-- Nenhum (entrar sem ficha) --</option>
+                                    <template x-for="(c, id) in chars" :key="id">
+                                        <option :value="id" x-text="c.name + ' (' + c.class + ')'"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <button @click="joinCampaign(netlinkJoinCode, selectedCharForJoin || null).then(ok => { if(ok) { netlinkModal = false; netlinkJoinCode = ''; selectedCharForJoin = ''; } })" 
+                                    :disabled="netlinkJoinCode.length < 6"
+                                    class="w-full py-2 bg-purple-500 text-white rounded-lg font-bold text-xs hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <i class="fa-solid fa-door-open mr-2"></i>ENTRAR NA CAMPANHA
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Minhas Campanhas (GM) -->
+                    <div class="mb-6" x-show="myCampaigns.length > 0">
+                        <h3 class="text-[10px] text-purple-400 uppercase font-bold mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-crown"></i> Minhas Campanhas (Mestre)
+                        </h3>
+                        <div class="space-y-2">
+                            <template x-for="campaign in myCampaigns" :key="campaign.id">
+                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors cursor-pointer group"
+                                     @click="enterCampaign(campaign); netlinkModal = false">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h4 class="font-bold text-white group-hover:text-purple-400 transition-colors" x-text="campaign.name"></h4>
+                                            <p class="text-[10px] text-gray-500 mt-1" x-text="campaign.description || 'Sem descrição'"></p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[9px] font-code text-purple-400 bg-purple-500/10 px-2 py-1 rounded" x-text="campaign.invite_code"></span>
+                                            <button @click.stop="navigator.clipboard.writeText(campaign.invite_code); notify('Código copiado!', 'success')" class="text-gray-500 hover:text-white p-1" title="Copiar código">
+                                                <i class="fa-solid fa-copy text-xs"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Campanhas Participando -->
+                    <div x-show="joinedCampaigns.length > 0">
+                        <h3 class="text-[10px] text-cyan-400 uppercase font-bold mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-users"></i> Participando
+                        </h3>
+                        <div class="space-y-2">
+                            <template x-for="campaign in joinedCampaigns" :key="campaign.id">
+                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-cyan-500/30 transition-colors cursor-pointer group"
+                                     @click="enterCampaign(campaign); netlinkModal = false">
+                                    <h4 class="font-bold text-white group-hover:text-cyan-400 transition-colors" x-text="campaign.name"></h4>
+                                    <p class="text-[10px] text-gray-500 mt-1" x-text="campaign.description || 'Sem descrição'"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div x-show="myCampaigns.length === 0 && joinedCampaigns.length === 0" class="text-center py-12 text-gray-600">
+                        <i class="fa-solid fa-satellite-dish text-4xl mb-4 opacity-30"></i>
+                        <p class="text-sm font-bold">Nenhuma campanha encontrada</p>
+                        <p class="text-xs mt-1">Crie uma nova ou entre com um código de convite</p>
+                    </div>
+                </div>
+                
+                <!-- Criar Campanha -->
+                <div x-show="netlinkCreateMode" x-data="{ newCampaignName: '', newCampaignDesc: '' }">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase font-bold mb-2 block">Nome da Campanha *</label>
+                            <input type="text" x-model="newCampaignName" placeholder="Ex: A Queda de Avalon"
+                                   class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase font-bold mb-2 block">Descrição (opcional)</label>
+                            <textarea x-model="newCampaignDesc" placeholder="Uma breve descrição da campanha..." rows="3"
+                                      class="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none resize-none"></textarea>
+                        </div>
+                        <div class="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                            <div class="flex items-start gap-3">
+                                <i class="fa-solid fa-info-circle text-purple-400 mt-0.5"></i>
+                                <div class="text-xs text-gray-400">
+                                    <p class="mb-1">Ao criar uma campanha, você será o <strong class="text-purple-400">Mestre (GM)</strong>.</p>
+                                    <p>Um código de convite será gerado automaticamente para compartilhar com seus jogadores.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="createCampaign(newCampaignName, newCampaignDesc).then(c => { if(c) { netlinkCreateMode = false; newCampaignName = ''; newCampaignDesc = ''; } })"
+                                :disabled="!newCampaignName.trim()"
+                                class="w-full py-3 bg-purple-500 text-white rounded-lg font-bold text-sm hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> CRIAR CAMPANHA
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

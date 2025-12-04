@@ -44,13 +44,24 @@ export const rpgLogic = {
     },
     
     roll(s) { 
-        playSFX('click'); 
+        // Som de dado rolando
+        playSFX('dice');
+        
         const n = this.cryptoRandom(s);
         const m = parseInt(this.diceMod || 0); 
         
         this.lastNatural = n; 
         this.lastFaces = s; 
         this.lastRoll = n + m; 
+        
+        // Som especial para crítico ou fumble (com delay para sincronizar com o fim do roll)
+        setTimeout(() => {
+            if (n === s) {
+                playSFX('critical');
+            } else if (n === 1) {
+                playSFX('fumble');
+            }
+        }, 400); // Delay para tocar após o som do dado parar
         
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
@@ -63,11 +74,11 @@ export const rpgLogic = {
             time: now.toLocaleTimeString('pt-BR'),
             formula: formulaStr, 
             result: n+m, 
-            natural: n, // NOVO: Valor puro do dado
-            mod: m,     // NOVO: Valor do modificador
+            natural: n,
+            mod: m,
             crit: n===s, 
             fumble: n===1, 
-            reason: this.diceReason || 'Sem motivo'
+            reason: this.diceReason || ''
         };
         
         this.diceLog.unshift(logEntry); 

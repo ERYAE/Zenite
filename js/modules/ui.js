@@ -172,7 +172,8 @@ export const uiLogic = {
         
         this.loadingChar = true; 
         this.activeCharId = id; 
-        this.diceTrayOpen = false; 
+        this.diceTrayOpen = false;
+        this.userMenuOpen = false; 
         
         requestAnimationFrame(() => {
             this.char = sanitizeChar(this.chars[id]);
@@ -325,6 +326,7 @@ export const uiLogic = {
         
         this.diceTrayOpen = false; 
         this.showDiceTip = false; 
+        this.userMenuOpen = false;
         this.currentView = 'dashboard'; 
         this.activeCharId = null;
         
@@ -510,7 +512,6 @@ export const uiLogic = {
                 }
                 
                 this.updateAgentCount(); 
-                this.saveLocal(); 
                 this.unsavedChanges = true; 
                 
                 this.notify(`${Object.keys(imported.chars).length} personagens importados!`, 'success'); 
@@ -529,6 +530,7 @@ export const uiLogic = {
         if (this.confirmOpen) { this.confirmOpen = false; return; }
         if (this.cropperOpen) { this.cropperOpen = false; return; }
         if (this.welcomeModal) { this.welcomeModal = false; return; }
+        if (this.netlinkModal) { this.netlinkModal = false; this.netlinkCreateMode = false; return; }
         if (this.configModal) { this.configModal = false; return; }
         if (this.wizardOpen) { this.wizardOpen = false; return; }
         if (this.diceTrayOpen) { this.diceTrayOpen = false; return; }
@@ -536,10 +538,9 @@ export const uiLogic = {
         if (this.currentView === 'sheet') { this.attemptGoBack(); return; }
     },
 
-    // Hacker Mode
+    // Hacker Mode Toggle
     toggleHackerMode() {
         this.isHackerMode = !this.isHackerMode;
-        
         if (this.isHackerMode) {
             document.body.classList.add('theme-hacker');
             localStorage.setItem('zenite_hacker_mode', 'true');
@@ -552,7 +553,7 @@ export const uiLogic = {
             this.notify("System mode restored.", "info");
         }
     },
-    
+
     handleLogoClick() {
         clearTimeout(this.logoClickTimer); 
         this.logoClickCount++;
@@ -568,9 +569,21 @@ export const uiLogic = {
         }, 400);
     },
 
-    // Dice Tray
+    ensureTrayOnScreen() {
+        if(this.isMobile || this.trayDockMode !== 'float') return;
+        this.trayPosition.x = Math.max(10, Math.min(window.innerWidth - 320, this.trayPosition.x));
+        this.trayPosition.y = Math.max(60, Math.min(window.innerHeight - 400, this.trayPosition.y));
+    },
+
+    // Dice Tray - Só pode abrir na view 'sheet' (ou futuramente no painel do mestre NetLink)
     toggleDiceTray() {
         if (this.isReverting) return;
+        
+        // Bloqueia abertura fora da ficha de personagem
+        if (!this.diceTrayOpen && this.currentView !== 'sheet') {
+            // No futuro: permitir também em 'netlink-gm' para o painel do mestre
+            return;
+        }
         
         this.diceTrayOpen = !this.diceTrayOpen;
         
@@ -581,18 +594,17 @@ export const uiLogic = {
             }
             this.showDiceTip = false;
             
-            // CORREÇÃO: Recalcula posição segura para garantir visibilidade
-            if (this.trayDockMode === 'float' && !this.isMobile) {
-                const trayWidth = 320;
-                const trayHeight = 520; // Altura aproximada da tray
-                const buttonMargin = 80; // Espaço do botão flutuante
-                
-                // Garante que não ultrapasse o topo ou esquerda
-                // Prioriza abrir alinhado à direita inferior (perto do botão)
-                this.trayPosition = {
-                    x: Math.max(20, window.innerWidth - trayWidth - 20),
-                    y: Math.max(80, window.innerHeight - trayHeight - buttonMargin)
-                };
+            // Define posição inicial visível para modo float
+            if(this.trayDockMode === 'float' && !this.isMobile) {
+                // Se posição não definida ou fora da tela, centraliza
+                if(!this.trayPosition.x || !this.trayPosition.y || 
+                   this.trayPosition.y > window.innerHeight - 100) {
+                    this.trayPosition = {
+                        x: Math.max(20, window.innerWidth - 340),
+                        y: 100
+                    };
+                }
+                this.ensureTrayOnScreen();
             }
         }
     },
@@ -600,13 +612,12 @@ export const uiLogic = {
     setDockMode(mode) {
         this.trayDockMode = mode;
         if(mode === 'float') { 
-             // Reseta para uma posição visível padrão
-            const trayWidth = 320;
-            const trayHeight = 520;
+            // Posição visível: canto superior direito
             this.trayPosition = { 
-                x: window.innerWidth - trayWidth - 20, 
-                y: window.innerHeight - trayHeight - 80 
+                x: Math.max(20, window.innerWidth - 340), 
+                y: 100 
             }; 
+            this.ensureTrayOnScreen();
         }
         this.saveLocal();
     },
@@ -651,36 +662,28 @@ export const uiLogic = {
         document.addEventListener('mousemove', moveHandler); 
         document.addEventListener('mouseup', upHandler);
     },
-    
-    // Limpar todas as fichas (local + nuvem)
+
     askClearAllChars() {
         this.askConfirm(
             'LIMPAR TODAS AS FICHAS?',
-            'Isso irá DELETAR PERMANENTEMENTE todos os seus personagens do armazenamento local e da nuvem. Esta ação é IRREVERSÍVEL!',
+            'Isso irá DELETAR PERMANENTEMENTE todos os seus personagens. Esta ação é IRREVERSÍVEL!',
             'danger',
             async () => {
-                // IMPORTANTE: Primeiro muda a view para evitar erros de Alpine
                 this.configModal = false;
                 this.diceTrayOpen = false;
-                this.activeCharId = null;
-                this.char = null;
                 this.currentView = 'dashboard';
+                this.activeCharId = null;
                 
-                // Aguarda o Alpine processar
-                await this.$nextTick();
+                await new Promise(r => setTimeout(r, 100));
                 
-                // Limpa local
+                this.char = null;
                 this.chars = {};
                 this.saveLocal();
                 this.updateAgentCount();
                 
-                // Limpa nuvem
                 if (!this.isGuest && this.user && this.supabase) {
                     try {
-                        await this.supabase
-                            .from('profiles')
-                            .update({ data: { config: this.settings } })
-                            .eq('id', this.user.id);
+                        await this.supabase.from('profiles').update({ data: { config: this.settings } }).eq('id', this.user.id);
                     } catch(e) {
                         console.error('Erro ao limpar nuvem:', e);
                     }
@@ -690,34 +693,24 @@ export const uiLogic = {
             }
         );
     },
-    
-    // Apagar conta completamente
+
     askDeleteAccount() {
         this.askConfirm(
             'APAGAR CONTA PERMANENTEMENTE?',
-            'Isso irá DELETAR sua conta e TODOS os dados associados. Você será deslogado e não poderá recuperar nenhuma informação. TEM CERTEZA?',
+            'Isso irá DELETAR sua conta e TODOS os dados. TEM CERTEZA?',
             'danger',
             async () => {
                 if (!this.user || !this.supabase) return;
                 
                 try {
-                    await this.supabase
-                        .from('profiles')
-                        .delete()
-                        .eq('id', this.user.id);
-                    
+                    await this.supabase.from('profiles').delete().eq('id', this.user.id);
                     localStorage.clear();
                     await this.supabase.auth.signOut();
-                    
                     this.notify('Conta deletada com sucesso.', 'success');
-                    
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                    
+                    setTimeout(() => window.location.reload(), 1500);
                 } catch(e) {
                     console.error('Erro ao deletar conta:', e);
-                    this.notify('Erro ao deletar conta. Tente novamente.', 'error');
+                    this.notify('Erro ao deletar conta.', 'error');
                 }
             }
         );

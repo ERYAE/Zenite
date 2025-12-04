@@ -70,11 +70,9 @@ body.theme-hacker .fa-brands {
 
 /* ============================================
    MODO CRT (Tela de Tubo)
+   Nota: Evitamos transform/animation/overflow no body
+   pois quebram position:fixed dos descendentes
    ============================================ */
-body.crt-mode {
-    position: relative;
-    overflow: hidden;
-}
 
 /* Scanlines */
 body.crt-mode::before {
@@ -129,15 +127,13 @@ body.crt-mode img {
         -1px 0 0 rgba(0, 255, 255, 0.3);
 }
 
-/* Flicker sutil */
+/* Flicker sutil - REMOVIDO do body pois animation quebra position:fixed */
 @keyframes crt-flicker {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.98; }
 }
 
-body.crt-mode {
-    animation: crt-flicker 0.15s infinite;
-}
+/* A animação agora é aplicada apenas aos pseudo-elementos, não ao body */
 
 /* ============================================
    GLOBAIS
@@ -175,6 +171,13 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     transition: all 0.3s var(--ease-smooth);
     border-radius: var(--radius-std);
+}
+
+/* UserMenu Dropdown - Forçar opacidade total */
+.user-menu-dropdown {
+    background: #08080a !important;
+    backdrop-filter: none !important;
+    opacity: 1 !important;
 }
 
 .input-cyber {
@@ -482,26 +485,19 @@ body.compact-mode button {
 }
 
 /* ============================================
-   CORREÇÕES DE RESPONSIVIDADE
+   CORREÇÕES DE RESPONSIVIDADE E POSICIONAMENTO
    ============================================ */
+
 @media (max-width: 768px) {
-    /* Garante que o UserMenu dropdown não saia da tela */
-    .absolute.top-full {
-        max-width: calc(100vw - 2rem);
-    }
-    
-    /* Ajusta tamanho de fontes em mobile */
     .font-brand {
         letter-spacing: 0.05em;
     }
     
-    /* Melhora toque em botões */
     button {
         min-height: 44px;
         min-width: 44px;
     }
     
-    /* Exceção para botões pequenos inline */
     button.w-6, button.w-7, button.w-8 {
         min-height: auto;
         min-width: auto;
