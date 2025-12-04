@@ -373,27 +373,46 @@ export const netlinkLogic = {
         }
         
         const channelName = `${NETLINK_CONFIG.REALTIME_CHANNEL_PREFIX}${campaignId}`;
+        console.log('[NETLINK] Conectando ao canal:', channelName);
         
         this.realtimeChannel = this.supabase
             .channel(channelName)
+            // Escuta TUDO da tabela dice_logs
             .on('postgres_changes', 
                 { event: 'INSERT', schema: 'public', table: 'dice_logs', filter: `campaign_id=eq.${campaignId}` },
-                (payload) => this.handleNewDiceLog(payload.new)
+                (payload) => {
+                    console.log('[REALTIME] Nova rolagem recebida');
+                    this.handleNewDiceLog(payload.new);
+                }
             )
+            // Escuta TUDO da tabela campaign_members
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'campaign_members', filter: `campaign_id=eq.${campaignId}` },
-                () => this.loadCampaignMembers(campaignId)
+                () => {
+                    console.log('[REALTIME] Lista de membros atualizada');
+                    this.loadCampaignMembers(campaignId);
+                }
             )
+            // Escuta TUDO da tabela campaign_logs (Chat)
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'campaign_logs', filter: `campaign_id=eq.${campaignId}` },
-                (payload) => this.handleNewChatMessage(payload.new)
+                (payload) => {
+                    console.log('[REALTIME] Nova mensagem de chat');
+                    this.handleNewChatMessage(payload.new);
+                }
             )
+            // Broadcasts (Iniciativa, etc)
             .on('broadcast', { event: 'initiative' },
                 (payload) => this.handleInitiativeUpdate(payload)
             )
-            .subscribe();
-        
-        console.log('[NETLINK] Conectado ao canal realtime:', channelName);
+            .subscribe((status) => {
+                console.log('[NETLINK] Status da conexão:', status);
+                if (status === 'SUBSCRIBED') {
+                    // Força recarga inicial para garantir sincronia
+                    this.loadChatHistory();
+                    this.loadCampaignMembers(campaignId);
+                }
+            });
     },
     
     /**
@@ -543,6 +562,14 @@ export const netlinkLogic = {
         if (message.user_id !== this.user?.id) {
             playSFX('notification');
         }
+        
+        // Auto-scroll
+        this.$nextTick(() => {
+            const container = document.getElementById('chat-container');
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        });
     },
     
     // ─────────────────────────────────────────────────────────────────────────
@@ -656,9 +683,10 @@ export const netlinkLogic = {
         if (!this.supabase) return;
         
         try {
+            // Remove o join com profiles que pode estar falhando se a tabela estiver vazia/bloqueada
             const { data } = await this.supabase
                 .from('campaign_members')
-                .select('*, profiles(id, data)')
+                .select('*')
                 .eq('campaign_id', campaignId)
                 .eq('status', NETLINK_CONFIG.MEMBER_STATUS.ACTIVE);
             
@@ -1057,6 +1085,14 @@ export const netlinkLogic = {
                 .limit(limit);
             
             this.chatMessages = (data || []).reverse();
+            
+            // Auto-scroll
+            this.$nextTick(() => {
+                const container = document.getElementById('chat-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
         } catch (e) {
             console.error('[NETLINK] Erro ao carregar chat:', e);
         }

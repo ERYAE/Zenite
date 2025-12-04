@@ -245,6 +245,11 @@
                             <button @click="stopSessionTimer()" class="w-8 h-8 rounded bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors">
                                 <i class="fa-solid fa-stop"></i>
                             </button>
+                            <!-- Deletar Campanha -->
+                            <button @click="askConfirm('Deletar Campanha?', 'Esta ação é irreversível e apagará todos os dados.', 'danger', () => deleteCampaign(activeCampaign.id))" 
+                                    class="w-8 h-8 rounded bg-red-900/20 text-red-500 flex items-center justify-center hover:bg-red-900/40 transition-colors ml-2" title="Deletar Campanha">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -362,11 +367,11 @@
                             <i class="fa-solid fa-comments text-cyan-400"></i> Chat
                         </h2>
                         
-                        <div class="flex-1 overflow-y-auto space-y-2 mb-3 custom-scrollbar">
+                        <div id="chat-container" class="flex-1 overflow-y-auto space-y-2 mb-3 custom-scrollbar">
                             <template x-for="msg in chatMessages" :key="msg.id">
                                 <div class="text-xs" :class="msg.metadata?.isGM ? 'bg-yellow-500/10 rounded p-2' : ''">
                                     <span class="font-bold" :class="msg.metadata?.isGM ? 'text-yellow-400' : 'text-purple-400'" x-text="msg.sender + ':'"></span>
-                                    <span class="text-gray-300 ml-1" x-text="msg.content"></span>
+                                    <span class="text-gray-300 ml-1 break-words" x-text="msg.content"></span>
                                 </div>
                             </template>
                             <div x-show="chatMessages.length === 0" class="text-center text-gray-600 text-xs py-4">
@@ -381,6 +386,47 @@
                             <button @click="sendChatMessage(chatInput)" class="px-3 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors">
                                 <i class="fa-solid fa-paper-plane"></i>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Calculadora de Combate (GM Only) -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-red-500/20">
+                        <h2 class="text-sm font-bold text-red-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator"></i> Calculadora de Dano
+                        </h2>
+                        <div class="grid grid-cols-3 gap-2 mb-3" x-data="{ dmg: 0, def: 0, pen: 0 }">
+                            <div>
+                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">DANO</label>
+                                <input type="number" x-model="combatCalc.damageInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-red-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">DEFESA</label>
+                                <input type="number" x-model="combatCalc.defenseInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">PEN</label>
+                                <input type="number" x-model="combatCalc.penetrationInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-yellow-500 focus:outline-none" placeholder="0">
+                            </div>
+                        </div>
+                        <button @click="calculateDamage(combatCalc.damageInput, combatCalc.defenseInput, combatCalc.penetrationInput)" 
+                                class="w-full py-2 bg-red-500/20 text-red-400 rounded text-xs font-bold hover:bg-red-500/30 transition-colors mb-3">
+                            CALCULAR
+                        </button>
+                        
+                        <!-- Resultado e Histórico -->
+                        <div x-show="combatCalc.history.length > 0" class="bg-black/40 rounded p-2">
+                            <div class="flex justify-between items-center mb-2 border-b border-white/5 pb-1">
+                                <span class="text-xs text-gray-400">Resultado: <span class="text-white font-bold text-sm" x-text="combatCalc.result"></span></span>
+                                <button @click="clearCombatHistory()" class="text-[9px] text-gray-600 hover:text-white">LIMPAR</button>
+                            </div>
+                            <div class="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                                <template x-for="log in combatCalc.history" :key="log.id">
+                                    <div class="flex justify-between text-[9px] text-gray-500">
+                                        <span x-text="log.damage + ' vs ' + log.defense + (log.penetration > 0 ? ' (Pen ' + log.penetration + ')' : '')"></span>
+                                        <span class="text-red-400 font-bold" x-text="'= ' + log.result"></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </div>
 
