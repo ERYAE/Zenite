@@ -169,6 +169,10 @@ export const netlinkLogic = {
     // Campanhas onde o usuário é player
     joinedCampaigns: [],
     
+    // Campanhas públicas/abertas
+    publicCampaigns: [],
+    publicCampaignsLoaded: false,
+    
     // Campanha atualmente ativa
     activeCampaign: null,
     
@@ -429,6 +433,54 @@ export const netlinkLogic = {
     },
     
     /**
+     * Carrega campanhas públicas/abertas
+     */
+    async loadPublicCampaigns() {
+        if (!this.supabase) return;
+        if (this.publicCampaignsLoaded) return; // Cache
+        
+        try {
+            const { data } = await this.supabase
+                .from('campaigns')
+                .select('id, name, description, image_url, gm_id, created_at')
+                .eq('is_public', true)
+                .order('created_at', { ascending: false })
+                .limit(20);
+            
+            this.publicCampaigns = data || [];
+            this.publicCampaignsLoaded = true;
+        } catch (e) {
+            console.error('[NETLINK] Erro ao carregar campanhas públicas:', e);
+        }
+    },
+    
+    /**
+     * Alterna visibilidade pública da campanha (GM only)
+     */
+    async toggleCampaignPublic() {
+        if (!this.supabase || !this.activeCampaign || !this.isGMOfActiveCampaign()) return;
+        
+        try {
+            const newValue = !this.activeCampaign.is_public;
+            
+            await this.supabase
+                .from('campaigns')
+                .update({ is_public: newValue })
+                .eq('id', this.activeCampaign.id);
+            
+            this.activeCampaign.is_public = newValue;
+            this.notify(newValue ? 'Campanha agora é pública!' : 'Campanha agora é privada.', 'success');
+            playSFX('success');
+            
+            // Invalida cache de campanhas públicas
+            this.publicCampaignsLoaded = false;
+        } catch (e) {
+            console.error('[NETLINK] Erro ao alterar visibilidade:', e);
+            this.notify('Erro ao alterar visibilidade.', 'error');
+        }
+    },
+    
+    /**
      * Abre o inspetor de membro (GM Only)
      */
     inspectMember(member) {
@@ -445,6 +497,82 @@ export const netlinkLogic = {
     closeInspector() {
         this.memberInspectorOpen = false;
         this.inspectedMember = null;
+    },
+    
+    /**
+     * Abre a ficha de um membro usando a UI COMPLETA da ficha original
+     * Substitui temporariamente `char` pelo `char_data` do membro
+     */
+    openMemberSheet(member) {
+        if (!member?.char_data) {
+            this.notify('Este membro não possui ficha.', 'warn');
+            return;
+        }
+        
+        // Faz backup da ficha atual do usuário
+        this.campaignCharBackup = this.char ? JSON.parse(JSON.stringify(this.char)) : null;
+        this.campaignMemberId = member.id;
+        this.campaignCharMode = true;
+        
+        // Copia char_data do membro para char (a ficha usa `char`)
+        this.char = JSON.parse(JSON.stringify(member.char_data));
+        
+        // Muda para view da ficha
+        this.currentView = 'sheet';
+        
+        playSFX('success');
+    },
+    
+    /**
+     * Salva alterações e fecha o modo de ficha de campanha
+     */
+    async saveCampaignSheet() {
+        if (!this.campaignCharMode || !this.campaignMemberId) return;
+        
+        try {
+            // Salva as alterações no banco
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .update({ char_data: this.char })
+                .eq('id', this.campaignMemberId);
+            
+            if (error) throw error;
+            
+            // Broadcast para atualizar outros clientes
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'member_update',
+                    payload: { memberId: this.campaignMemberId }
+                });
+            }
+            
+            this.notify('Ficha atualizada!', 'success');
+            playSFX('save');
+            
+            // Recarrega membros
+            await this.loadCampaignMembers(this.activeCampaign.id);
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao salvar ficha:', e);
+            this.notify('Erro ao salvar ficha.', 'error');
+        }
+    },
+    
+    /**
+     * Fecha o modo de ficha de campanha e restaura a ficha original
+     */
+    closeCampaignSheet() {
+        if (!this.campaignCharMode) return;
+        
+        // Restaura a ficha original do usuário
+        this.char = this.campaignCharBackup;
+        this.campaignCharBackup = null;
+        this.campaignMemberId = null;
+        this.campaignCharMode = false;
+        
+        // Volta para a campanha
+        this.currentView = 'campaign';
     },
     
     /**
@@ -1385,9 +1513,10 @@ export const netlinkLogic = {
         this.tenorLoading = true;
         
         try {
-            // Usa Giphy API com chave pública (mais confiável)
+            // Giphy API SDK Key (pública para desenvolvimento)
+            const GIPHY_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
             const response = await fetch(
-                `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+                `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13&lang=pt`
             );
             
             if (!response.ok) throw new Error('Giphy API error');

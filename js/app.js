@@ -98,6 +98,12 @@ function zeniteSystem() {
         // FERRAMENTAS E DADOS
         // ═══════════════════════════════════════════════════════════════════════
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        
+        // Modo de visualização de ficha de campanha (GM vê ficha de jogador)
+        campaignCharMode: false,  // true = visualizando ficha de membro
+        campaignCharBackup: null, // backup da ficha local antes de entrar no modo
+        campaignMemberId: null,   // ID do membro sendo visualizado
+        
         diceTrayOpen: false, trayDockMode: 'float', 
         // Posição inicial segura - será recalculada ao abrir
         trayPosition: { x: 100, y: 100 },
@@ -324,13 +330,39 @@ function zeniteSystem() {
             }, CONSTANTS.SAVE_INTERVAL);
         },
 
-        checkOnboarding() {
-            const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
-            if (!hasSeenWelcome) {
-                setTimeout(() => {
-                    this.welcomeModal = true;
-                    localStorage.setItem('zenite_welcome_seen', 'true');
-                }, 1000);
+        async checkOnboarding() {
+            // Verifica no perfil do Supabase se já viu o welcome
+            if (!this.user || !this.supabase) {
+                // Fallback para localStorage se não estiver logado
+                const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
+                if (!hasSeenWelcome) {
+                    setTimeout(() => {
+                        this.welcomeModal = true;
+                        localStorage.setItem('zenite_welcome_seen', 'true');
+                    }, 1000);
+                }
+                return;
+            }
+            
+            try {
+                const { data: profile } = await this.supabase
+                    .from('profiles')
+                    .select('has_seen_welcome')
+                    .eq('id', this.user.id)
+                    .single();
+                
+                if (!profile?.has_seen_welcome) {
+                    setTimeout(() => {
+                        this.welcomeModal = true;
+                        // Marca como visto no Supabase
+                        this.supabase.from('profiles')
+                            .update({ has_seen_welcome: true })
+                            .eq('id', this.user.id)
+                            .then(() => console.log('[SYSTEM] Welcome marked as seen'));
+                    }, 1000);
+                }
+            } catch (e) {
+                console.error('[SYSTEM] Erro ao verificar onboarding:', e);
             }
         },
 

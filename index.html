@@ -71,15 +71,18 @@
         </p>
     </div>
 
-    <div class="fixed top-5 right-5 z-[1000000] space-y-2 pointer-events-none w-full max-w-xs px-4 md:px-0">
-        <template x-for="n in notifications" :key="n.id">
-            <div class="glass border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/90 backdrop-blur-xl pointer-events-auto"
-                 :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
-                <i class="fa-solid" :class="n.icon" :class="{'text-green-500': n.type==='success', 'text-red-500': n.type==='error', 'text-blue-500': n.type==='info', 'text-yellow-500': n.type==='warn'}"></i>
-                <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
-            </div>
-        </template>
-    </div>
+    <!-- Notificações via Teleport (sempre no topo do DOM) -->
+    <template x-teleport="body">
+        <div class="fixed top-5 right-5 space-y-2 pointer-events-none w-full max-w-xs px-4 md:px-0" style="z-index: 2147483647;">
+            <template x-for="n in notifications" :key="n.id">
+                <div class="border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/95 backdrop-blur-xl pointer-events-auto"
+                     :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
+                    <i class="fa-solid" :class="n.icon" :class="{'text-green-500': n.type==='success', 'text-red-500': n.type==='error', 'text-blue-500': n.type==='info', 'text-yellow-500': n.type==='warn'}"></i>
+                    <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
+                </div>
+            </template>
+        </div>
+    </template>
 
     <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4">
         <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-2xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.15)] text-center relative overflow-hidden">
@@ -204,7 +207,7 @@
                             <i class="fa-solid fa-chevron-down text-[10px] transition-transform" :class="sortOpen && 'rotate-180'"></i>
                         </button>
                         <div x-show="sortOpen" @click.outside="sortOpen = false" x-transition
-                             class="absolute top-full left-0 mt-1 w-40 bg-[#0a0a0c] border border-white/10 rounded-xl overflow-hidden shadow-xl z-50">
+                             class="absolute top-full left-0 mt-1 w-40 bg-[#0a0a0c] border border-white/10 rounded-xl overflow-hidden shadow-xl z-[9999]">
                             <button @click="settings.dashboardSort = 'recent'; saveLocal(); sortOpen = false" 
                                     :class="settings.dashboardSort === 'recent' ? 'bg-[var(--neon-core)]/20 text-[var(--neon-core)]' : 'text-gray-400 hover:bg-white/5 hover:text-white'"
                                     class="w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2">
@@ -544,7 +547,7 @@
                                 <div x-show="member.char_data || isGMOfActiveCampaign()" 
                                      class="bg-black/40 rounded-xl p-3 border border-white/5 hover:border-purple-500/30 transition-all"
                                      :class="isGMOfActiveCampaign() && member.char_data ? 'cursor-pointer hover:bg-white/5 hover:scale-[1.01]' : ''"
-                                     @click="isGMOfActiveCampaign() && member.char_data ? inspectMember(member) : null">
+                                     @click="isGMOfActiveCampaign() && member.char_data ? openMemberSheet(member) : null">
                                     
                                     <div class="flex items-start gap-4">
                                         <!-- Foto do personagem -->
@@ -982,11 +985,31 @@
 
     <template x-if="currentView === 'sheet' && char">
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-48" x-transition.opacity>
-            <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10 shadow-lg">
+            <!-- Banner de modo campanha -->
+            <div x-show="campaignCharMode" class="mb-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-users-viewfinder text-purple-400"></i>
+                    <div>
+                        <p class="text-sm font-bold text-white">Modo Campanha</p>
+                        <p class="text-[10px] text-gray-400">Editando ficha de jogador - alterações são em tempo real</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="saveCampaignSheet()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg text-xs hover:bg-green-400 transition-colors">
+                        <i class="fa-solid fa-save mr-1"></i> SALVAR
+                    </button>
+                    <button @click="closeCampaignSheet()" class="px-4 py-2 bg-white/10 text-white font-bold rounded-lg text-xs hover:bg-white/20 transition-colors">
+                        <i class="fa-solid fa-arrow-left mr-1"></i> VOLTAR
+                    </button>
+                </div>
+            </div>
+            
+            <div class="glass p-2 rounded-xl flex flex-wrap justify-between items-center gap-4 mb-6 sticky top-2 z-40 backdrop-blur-xl border border-white/10 shadow-lg" :class="campaignCharMode && 'border-purple-500/30'">
                 <div class="flex items-center gap-3 px-2">
-                    <button @click="attemptGoBack()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
+                    <button @click="campaignCharMode ? closeCampaignSheet() : attemptGoBack()" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors"><i class="fa-solid fa-chevron-left"></i> VOLTAR</button>
                     <div class="w-px h-4 bg-white/10"></div>
-                    <span class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId.slice(-6)"></span>
+                    <span x-show="!campaignCharMode" class="text-[10px] font-code text-[var(--neon-core)]" x-text="activeCharId?.slice(-6) || ''"></span>
+                    <span x-show="campaignCharMode" class="text-[10px] font-code text-purple-400">CAMPANHA</span>
                 </div>
                 <div class="flex gap-1 bg-black/40 p-1 rounded-lg">
                     <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Perfil</button>
@@ -1493,13 +1516,28 @@
                         <div class="space-y-4">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold mb-3 uppercase">Cor de Destaque</p>
-                                <div class="grid grid-cols-7 gap-2">
+                                <!-- PC: Listras com hover zoom | Mobile: Grid de quadrados -->
+                                <div class="hidden md:flex gap-1 h-10 rounded-xl overflow-hidden border border-white/10">
                                     <template x-for="color in getThemeColors()" :key="color.id">
                                         <button @click="toggleSetting('themeColor', color.id)" 
-                                                :style="'background-color: ' + color.hex + '20; border-color: ' + (settings.themeColor === color.id ? color.hex : 'transparent')"
+                                                :style="'background-color: ' + color.hex"
                                                 :title="color.name"
-                                                class="w-full aspect-square rounded-lg border-2 transition-all hover:scale-110 relative group">
-                                            <div class="absolute inset-1 rounded" :style="'background-color: ' + color.hex"></div>
+                                                class="flex-1 h-full transition-all duration-200 hover:flex-[2] relative group"
+                                                :class="settings.themeColor === color.id ? 'flex-[2] ring-2 ring-white ring-inset' : ''">
+                                            <div x-show="settings.themeColor === color.id" class="absolute inset-0 flex items-center justify-center">
+                                                <i class="fa-solid fa-check text-white text-sm drop-shadow-lg"></i>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                                <!-- Mobile: Grid de quadrados arredondados -->
+                                <div class="grid grid-cols-7 gap-2 md:hidden">
+                                    <template x-for="color in getThemeColors()" :key="color.id">
+                                        <button @click="toggleSetting('themeColor', color.id)" 
+                                                :style="'background-color: ' + color.hex"
+                                                :title="color.name"
+                                                class="w-full aspect-square rounded-xl relative active:scale-95 transition-transform"
+                                                :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''">
                                             <div x-show="settings.themeColor === color.id" class="absolute inset-0 flex items-center justify-center">
                                                 <i class="fa-solid fa-check text-white text-xs drop-shadow-lg"></i>
                                             </div>
@@ -1564,14 +1602,29 @@
                 <!-- Grid de Cores Expandido -->
                 <div>
                     <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
-                    <div class="grid grid-cols-7 gap-2">
+                    <!-- PC: Listras com hover zoom -->
+                    <div class="hidden md:flex gap-1 h-12 rounded-xl overflow-hidden border border-white/10">
                         <template x-for="color in getThemeColors()" :key="color.id">
                             <button @click="toggleSetting('themeColor', color.id)" 
-                                    class="aspect-square rounded-lg border-2 transition-all hover:scale-110 relative group"
-                                    :style="'background-color: ' + color.hex + '20; border-color: ' + color.hex"
-                                    :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-110' : ''">
-                                <div class="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                     :style="'background: linear-gradient(135deg, ' + color.hex + '40, transparent)'"></div>
+                                    :style="'background-color: ' + color.hex"
+                                    :title="color.name"
+                                    class="flex-1 h-full transition-all duration-200 hover:flex-[2] relative"
+                                    :class="settings.themeColor === color.id ? 'flex-[2] ring-2 ring-white ring-inset' : ''">
+                                <span x-show="settings.themeColor === color.id" 
+                                      class="absolute inset-0 flex items-center justify-center text-white text-sm">
+                                    <i class="fa-solid fa-check drop-shadow-lg"></i>
+                                </span>
+                            </button>
+                        </template>
+                    </div>
+                    <!-- Mobile: Grid de quadrados -->
+                    <div class="grid grid-cols-7 gap-2 md:hidden">
+                        <template x-for="color in getThemeColors()" :key="color.id">
+                            <button @click="toggleSetting('themeColor', color.id)" 
+                                    :style="'background-color: ' + color.hex"
+                                    :title="color.name"
+                                    class="aspect-square rounded-xl relative active:scale-95 transition-transform"
+                                    :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''">
                                 <span x-show="settings.themeColor === color.id" 
                                       class="absolute inset-0 flex items-center justify-center text-white text-xs">
                                     <i class="fa-solid fa-check"></i>
@@ -2225,8 +2278,34 @@
                         </div>
                     </div>
                     
+                    <!-- Campanhas Abertas/Públicas -->
+                    <div class="mb-6" x-init="loadPublicCampaigns()">
+                        <h3 class="text-[10px] text-emerald-400 uppercase font-bold mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-globe"></i> Campanhas Abertas
+                        </h3>
+                        <div x-show="publicCampaigns.length > 0" class="space-y-2">
+                            <template x-for="campaign in publicCampaigns" :key="campaign.id">
+                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-emerald-500/30 transition-colors group">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex-1 min-w-0">
+                                            <h4 class="font-bold text-white group-hover:text-emerald-400 transition-colors truncate" x-text="campaign.name"></h4>
+                                            <p class="text-[10px] text-gray-500 mt-1 truncate" x-text="campaign.description || 'Campanha pública aberta'"></p>
+                                        </div>
+                                        <button @click="netlinkJoinCode = campaign.invite_code || ''; selectedCharForJoin = Object.keys(chars)[0]" 
+                                                class="ml-2 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-500/30 transition-colors flex-shrink-0">
+                                            <i class="fa-solid fa-sign-in-alt mr-1"></i> ENTRAR
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div x-show="publicCampaigns.length === 0" class="text-center py-4 text-gray-600">
+                            <p class="text-xs">Nenhuma campanha pública no momento</p>
+                        </div>
+                    </div>
+                    
                     <!-- Empty State -->
-                    <div x-show="myCampaigns.length === 0 && joinedCampaigns.length === 0" class="text-center py-12 text-gray-600">
+                    <div x-show="myCampaigns.length === 0 && joinedCampaigns.length === 0 && publicCampaigns.length === 0" class="text-center py-12 text-gray-600">
                         <i class="fa-solid fa-satellite-dish text-4xl mb-4 opacity-30"></i>
                         <p class="text-sm font-bold">Nenhuma campanha encontrada</p>
                         <p class="text-xs mt-1">Crie uma nova ou entre com um código de convite</p>
@@ -2480,20 +2559,25 @@
     </div>
 </div>
 
-<!-- Player de Música Ambiente (para jogadores) -->
+<!-- Player de Música Ambiente (para jogadores) - Mini floating player -->
 <div x-show="activeCampaign && ambientMusic.playing && !isGMOfActiveCampaign()" 
-     class="fixed bottom-4 right-4 z-[100] glass rounded-xl p-3 border border-purple-500/30 flex items-center gap-3 shadow-lg">
-    <i class="fa-solid fa-music text-purple-400 animate-pulse"></i>
-    <span class="text-xs text-gray-400">Música Ambiente</span>
-    <iframe id="ambient-music-player" 
-            class="hidden" 
-            width="0" height="0" 
-            allow="autoplay" 
-            frameborder="0">
-    </iframe>
+     class="fixed bottom-4 right-4 z-[100] glass rounded-xl border border-purple-500/30 shadow-lg overflow-hidden"
+     x-data="{ expanded: false }">
+    <div class="p-3 flex items-center gap-3 cursor-pointer" @click="expanded = !expanded">
+        <i class="fa-solid fa-music text-purple-400 animate-pulse"></i>
+        <span class="text-xs text-gray-400">Música Ambiente</span>
+        <i class="fa-solid fa-chevron-up text-[10px] text-gray-500 transition-transform" :class="expanded && 'rotate-180'"></i>
+    </div>
+    <div x-show="expanded" x-collapse class="border-t border-white/10">
+        <iframe id="ambient-music-player" 
+                class="w-72 aspect-video"
+                allow="autoplay; encrypted-media" 
+                frameborder="0">
+        </iframe>
+    </div>
 </div>
 
-<!-- Modal: Música Ambiente (GM) -->
+<!-- Modal: Música Ambiente (GM) - Redesenhado -->
 <div x-show="musicModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="musicModalOpen = false">
@@ -2510,41 +2594,53 @@
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            <!-- Player Atual -->
-            <div class="bg-black/40 rounded-xl p-4 border border-purple-500/20">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                        <i class="fa-solid" :class="ambientMusic.playing ? 'fa-pause text-purple-400' : 'fa-play text-gray-500'"></i>
+            <!-- Player Principal -->
+            <div class="bg-black/40 rounded-xl border border-purple-500/20 overflow-hidden">
+                <!-- Thumbnail / Video Preview -->
+                <div x-show="ambientMusic.url && extractYouTubeId(ambientMusic.url)" class="relative">
+                    <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(ambientMusic.url) + '/mqdefault.jpg'" 
+                         class="w-full aspect-video object-cover" :class="ambientMusic.playing ? 'opacity-100' : 'opacity-50'">
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <button @click="toggleMusic()" 
+                                class="w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                                :class="ambientMusic.playing ? 'bg-red-500 hover:bg-red-400' : 'bg-purple-500 hover:bg-purple-400'">
+                            <i class="fa-solid text-2xl text-white" :class="ambientMusic.playing ? 'fa-pause' : 'fa-play ml-1'"></i>
+                        </button>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-white truncate" x-text="ambientMusic.url ? 'Tocando agora' : 'Nenhuma música'"></p>
-                        <p class="text-[10px] text-gray-500 truncate" x-text="ambientMusic.url || 'Adicione uma URL do YouTube'"></p>
+                    <div x-show="ambientMusic.playing" class="absolute bottom-2 left-2 px-2 py-1 bg-red-500 rounded text-[10px] text-white font-bold flex items-center gap-1">
+                        <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> TOCANDO
                     </div>
-                    <button @click="toggleMusic()" x-show="ambientMusic.url"
-                            :class="ambientMusic.playing ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'"
-                            class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors">
-                        <i class="fa-solid" :class="ambientMusic.playing ? 'fa-stop' : 'fa-play'"></i>
-                    </button>
                 </div>
                 
-                <!-- Player iframe (mini) -->
-                <div x-show="ambientMusic.playing && extractYouTubeId(ambientMusic.url)" 
-                     class="rounded-lg overflow-hidden border border-white/10 mb-3">
-                    <iframe id="ambient-music-player-preview"
-                            :src="ambientMusic.playing ? 'https://www.youtube.com/embed/' + extractYouTubeId(ambientMusic.url) + '?autoplay=0' : ''" 
-                            class="w-full aspect-video"
-                            allow="autoplay; encrypted-media" 
-                            allowfullscreen>
-                    </iframe>
+                <!-- Empty State -->
+                <div x-show="!ambientMusic.url || !extractYouTubeId(ambientMusic.url)" class="p-8 text-center">
+                    <i class="fa-solid fa-compact-disc text-4xl text-purple-500/30 mb-3"></i>
+                    <p class="text-sm text-gray-500">Nenhuma música selecionada</p>
+                    <p class="text-[10px] text-gray-600">Adicione uma URL do YouTube abaixo</p>
                 </div>
                 
-                <!-- Volume -->
-                <div class="flex items-center gap-3">
-                    <i class="fa-solid fa-volume-low text-gray-500 text-xs"></i>
-                    <input type="range" x-model="ambientMusic.volume" min="0" max="100" 
-                           @change="updateMusicVolume()"
-                           class="flex-1 accent-purple-500 h-1">
-                    <span class="text-[10px] text-gray-500 w-8" x-text="ambientMusic.volume + '%'"></span>
+                <!-- Controls -->
+                <div class="p-4 space-y-3">
+                    <!-- Volume Slider Estilizado -->
+                    <div class="flex items-center gap-3">
+                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="fa-solid" :class="ambientMusic.volume == 0 ? 'fa-volume-xmark text-red-400' : (ambientMusic.volume < 50 ? 'fa-volume-low' : 'fa-volume-high')"></i>
+                        </button>
+                        <div class="flex-1 relative h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all"
+                                 :style="'width: ' + ambientMusic.volume + '%'"></div>
+                            <input type="range" x-model="ambientMusic.volume" min="0" max="100" 
+                                   @input="updateMusicVolume()"
+                                   class="absolute inset-0 w-full opacity-0 cursor-pointer">
+                        </div>
+                        <span class="text-xs text-gray-400 w-10 text-right font-code" x-text="ambientMusic.volume + '%'"></span>
+                    </div>
+                    
+                    <!-- Info -->
+                    <p class="text-[9px] text-gray-600 text-center">
+                        <i class="fa-solid fa-info-circle mr-1"></i>
+                        O volume controla apenas o player dos jogadores. Use os controles do YouTube para seu áudio local.
+                    </p>
                 </div>
             </div>
             
@@ -2688,13 +2784,30 @@
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+            <!-- Meu @username -->
+            <div class="mb-4 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-xl p-3 border border-pink-500/20">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-[9px] text-gray-500 uppercase font-bold">Seu @username</p>
+                        <p class="text-sm text-pink-400 font-bold font-code" x-text="'@' + (settings.username || 'sem_nome')"></p>
+                    </div>
+                    <button @click="navigator.clipboard.writeText(settings.username || ''); notify('Username copiado!', 'success')" 
+                            class="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 hover:bg-pink-500/30 flex items-center justify-center">
+                        <i class="fa-solid fa-copy text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            
             <!-- Adicionar amigo -->
-            <div class="mb-4" x-data="{ friendCode: '' }">
-                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-2">Adicionar por ID</label>
+            <div class="mb-4" x-data="{ friendUsername: '' }">
+                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-2">Adicionar por @username</label>
                 <div class="flex gap-2">
-                    <input type="text" x-model="friendCode" placeholder="ID do usuário..."
-                           class="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-pink-500 focus:outline-none">
-                    <button @click="sendFriendRequest(friendCode); friendCode = ''" 
+                    <div class="flex-1 relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">@</span>
+                        <input type="text" x-model="friendUsername" placeholder="username"
+                               class="w-full bg-black/60 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:border-pink-500 focus:outline-none">
+                    </div>
+                    <button @click="sendFriendRequest(friendUsername); friendUsername = ''" 
                             class="px-4 py-2 bg-pink-500 text-white rounded-lg font-bold text-xs hover:bg-pink-600 transition-colors">
                         <i class="fa-solid fa-user-plus"></i>
                     </button>
@@ -2713,7 +2826,7 @@
                                 <i class="fa-solid fa-user"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs text-white font-bold truncate" x-text="req.user_id"></p>
+                                <p class="text-xs text-white font-bold truncate" x-text="'@' + (req.sender_username || 'usuário')"></p>
                             </div>
                             <div class="flex gap-1">
                                 <button @click="acceptFriendRequest(req.id)" class="w-7 h-7 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center justify-center">
@@ -2734,13 +2847,13 @@
                 <div class="space-y-2">
                     <template x-for="friendship in friends" :key="friendship.id">
                         <div class="bg-black/40 rounded-lg p-3 border border-white/5 flex items-center gap-3 group hover:border-pink-500/30 transition-colors">
-                            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400">
-                                <i class="fa-solid fa-user"></i>
+                            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden">
+                                <img x-show="friendship.friend_avatar" :src="friendship.friend_avatar" class="w-full h-full object-cover">
+                                <i x-show="!friendship.friend_avatar" class="fa-solid fa-user"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm text-white font-bold truncate" 
-                                   x-text="friendship.user_id === user?.id ? friendship.friend_id : friendship.user_id"></p>
-                                <p class="text-[9px] text-gray-600">Amigos desde <span x-text="new Date(friendship.created_at).toLocaleDateString('pt-BR')"></span></p>
+                                <p class="text-sm text-white font-bold truncate" x-text="friendship.friend_display_name || '@' + friendship.friend_username"></p>
+                                <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (friendship.friend_username || 'usuário')"></p>
                             </div>
                             <button @click="removeFriend(friendship.id)" 
                                     class="w-7 h-7 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
@@ -2752,7 +2865,7 @@
                     <div x-show="friends.length === 0" class="text-center py-8 text-gray-600">
                         <i class="fa-solid fa-user-group text-3xl mb-3"></i>
                         <p class="text-sm">Nenhum amigo ainda</p>
-                        <p class="text-[10px] text-gray-700">Adicione amigos para jogar juntos!</p>
+                        <p class="text-[10px] text-gray-700">Compartilhe seu @username!</p>
                     </div>
                 </div>
             </div>

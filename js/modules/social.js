@@ -297,15 +297,59 @@ export const socialLogic = {
                 .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`)
                 .eq('status', 'accepted');
             
-            // Busca pedidos pendentes
+            // Busca perfis dos amigos para obter username e avatar
+            if (friendships && friendships.length > 0) {
+                const friendIds = friendships.map(f => 
+                    f.user_id === this.user.id ? f.friend_id : f.user_id
+                );
+                
+                const { data: profiles } = await this.supabase
+                    .from('profiles')
+                    .select('id, username, avatar_url')
+                    .in('id', friendIds);
+                
+                // Mapeia os perfis para as amizades
+                const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+                
+                this.friends = friendships.map(f => {
+                    const friendId = f.user_id === this.user.id ? f.friend_id : f.user_id;
+                    const profile = profileMap.get(friendId);
+                    return {
+                        ...f,
+                        friend_username: profile?.username || null,
+                        friend_display_name: profile?.username || null,
+                        friend_avatar: profile?.avatar_url || null
+                    };
+                });
+            } else {
+                this.friends = [];
+            }
+            
+            // Busca pedidos pendentes com username do remetente
             const { data: requests } = await this.supabase
                 .from('friendships')
                 .select('id, user_id, created_at')
                 .eq('friend_id', this.user.id)
                 .eq('status', 'pending');
             
-            this.friends = friendships || [];
-            this.friendRequests = requests || [];
+            // Busca usernames dos remetentes
+            if (requests && requests.length > 0) {
+                const senderIds = requests.map(r => r.user_id);
+                const { data: senderProfiles } = await this.supabase
+                    .from('profiles')
+                    .select('id, username')
+                    .in('id', senderIds);
+                
+                const senderMap = new Map(senderProfiles?.map(p => [p.id, p.username]) || []);
+                
+                this.friendRequests = requests.map(r => ({
+                    ...r,
+                    sender_username: senderMap.get(r.user_id) || null
+                }));
+            } else {
+                this.friendRequests = [];
+            }
+            
             this.friendsLoaded = true;
             
             // Atualiza stat
@@ -318,19 +362,35 @@ export const socialLogic = {
         }
     },
     
-    async sendFriendRequest(friendEmail) {
+    async sendFriendRequest(usernameOrId) {
         if (!this.supabase || !this.user) return;
+        if (!usernameOrId || usernameOrId.trim().length < 2) {
+            this.notify('Digite um username ou ID válido.', 'error');
+            return;
+        }
         
         try {
-            // Busca o ID do usuário pelo email
-            const { data: profile } = await this.supabase
+            const searchTerm = usernameOrId.trim();
+            
+            // Primeiro tenta buscar por username (case insensitive)
+            let { data: profile } = await this.supabase
                 .from('profiles')
-                .select('id')
-                .eq('id', friendEmail) // Assumindo que profiles.id é o user.id
+                .select('id, username')
+                .ilike('username', searchTerm)
                 .single();
             
+            // Se não encontrou por username, tenta por ID exato
             if (!profile) {
-                this.notify('Usuário não encontrado.', 'error');
+                const { data: profileById } = await this.supabase
+                    .from('profiles')
+                    .select('id, username')
+                    .eq('id', searchTerm)
+                    .single();
+                profile = profileById;
+            }
+            
+            if (!profile) {
+                this.notify('Usuário não encontrado. Verifique o username.', 'error');
                 return;
             }
             
@@ -342,28 +402,34 @@ export const socialLogic = {
             // Verifica se já existe amizade
             const { data: existing } = await this.supabase
                 .from('friendships')
-                .select('id')
-                .or(`and(user_id.eq.${this.user.id},friend_id.eq.${profile.id}),and(user_id.eq.${profile.id},friend_id.eq.${this.user.id})`)
-                .single();
+                .select('id, status')
+                .or(`and(user_id.eq.${this.user.id},friend_id.eq.${profile.id}),and(user_id.eq.${profile.id},friend_id.eq.${this.user.id})`);
             
-            if (existing) {
-                this.notify('Vocês já são amigos ou há um pedido pendente.', 'warn');
+            if (existing && existing.length > 0) {
+                const status = existing[0].status;
+                if (status === 'accepted') {
+                    this.notify('Vocês já são amigos!', 'warn');
+                } else {
+                    this.notify('Já existe um pedido pendente.', 'warn');
+                }
                 return;
             }
             
             // Cria o pedido
-            await this.supabase.from('friendships').insert({
+            const { error } = await this.supabase.from('friendships').insert({
                 user_id: this.user.id,
                 friend_id: profile.id,
                 status: 'pending'
             });
             
-            this.notify('Pedido de amizade enviado!', 'success');
+            if (error) throw error;
+            
+            this.notify(`Pedido enviado para ${profile.username || 'usuário'}!`, 'success');
             playSFX('success');
             
         } catch (e) {
             console.error('[SOCIAL] Erro ao enviar pedido:', e);
-            this.notify('Erro ao enviar pedido.', 'error');
+            this.notify('Erro ao enviar pedido. Tente novamente.', 'error');
         }
     },
     

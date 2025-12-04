@@ -4,6 +4,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   OTIMIZAÇÕES DE PERFORMANCE (PCs antigos / mobile)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Reduzir complexidade de composição */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Hardware acceleration para elementos animados */
+.glass,
+[x-transition],
+.modal-enter,
+.animate-pulse,
+.transition-all,
+.transition-transform {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+}
+
+/* Desabilitar animações para usuários que preferem movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .bg-grid,
+    .animate-pulse,
+    .blink-anim {
+        animation: none !important;
+    }
+}
+
+/* Otimizar scroll em containers */
+.custom-scrollbar,
+.overflow-y-auto,
+.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+/* Limitar blur em mobile para melhor performance */
+@media (max-width: 768px) {
+    .backdrop-blur,
+    .backdrop-blur-xl {
+        backdrop-filter: blur(8px) !important;
+    }
+}
+
 :root {
     --bg-void: #050507;
     --glass-panel: rgba(20, 20, 25, 0.85);
