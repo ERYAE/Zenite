@@ -11,7 +11,7 @@ export const CONSTANTS = {
 // FEATURE FLAGS - Ative/desative funcionalidades em desenvolvimento
 // ═══════════════════════════════════════════════════════════════════════════════
 export const FEATURES = {
-    NETLINK_ENABLED: false,  // NetLink ainda em desenvolvimento - mude para true quando estiver pronto
+    NETLINK_ENABLED: true,  // NetLink ainda em desenvolvimento - mude para true quando estiver pronto
 };
 
 export const ARCHETYPES = [
