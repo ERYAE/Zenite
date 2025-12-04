@@ -5,6 +5,7 @@ import { rpgLogic } from './modules/rpg.js';
 import { cloudLogic } from './modules/cloud.js';
 import { uiLogic } from './modules/ui.js';
 import { netlinkLogic } from './modules/netlink.js';
+import { socialLogic, ACHIEVEMENTS } from './modules/social.js';
 
 function zeniteSystem() {
     return {
@@ -34,8 +35,29 @@ function zeniteSystem() {
             compactMode: false, 
             crtMode: false, 
             sfxEnabled: true, 
-            themeColor: 'cyan'
+            themeColor: 'cyan',
+            username: '', // Nome de usuário customizável
+            bio: '', // Biografia do usuário
+            dashboardView: 'grid', // 'grid', 'list', 'compact'
+            dashboardSort: 'recent' // 'recent', 'name', 'class', 'level'
         },
+        
+        // Macros de Dados
+        diceMacros: [], // Array de macros: { id, name, dice, modifier, description }
+        macrosModalOpen: false,
+        editingMacro: null, // Macro sendo editada
+        
+        // Música Ambiente (GM)
+        ambientMusic: {
+            url: '',
+            playing: false,
+            volume: 50,
+            currentTime: 0, // Tempo atual do vídeo
+            duration: 0 // Duração total
+        },
+        musicModalOpen: false,
+        musicPlaylist: [], // Array: { id, title, url, thumbnail }
+        playlistModalOpen: false,
         
         // Wizard
         wizardOpen: false, wizardStep: 1, wizardPoints: 8, 
@@ -47,12 +69,16 @@ function zeniteSystem() {
         confirmData: { title:'', desc:'', action:null, type:'danger' },
         welcomeModal: false,
         historyModal: false,
+        usernameModalOpen: false, // Modal para forçar username
+        tempUsername: '', // Username temporário para o modal
         netlinkModal: false, // Modal do NetLink
         netlinkCreateMode: false, // Modo de criação de campanha
         netlinkJoinCode: '', // Código de convite para entrar
+        wizardFromNetlink: false, // Se o wizard foi aberto a partir do NetLink
         memberInspectorOpen: false, // Modal de inspeção de jogador
         inspectedMember: null, // Membro sendo inspecionado
         netlinkView: 'list', // 'list' ou 'campaign'
+        playerSheetOpen: false, // Modal para jogador ver sua ficha na campanha
         unsavedChanges: false, 
         isSyncing: false, 
         saveStatus: 'idle',
@@ -61,6 +87,12 @@ function zeniteSystem() {
         isReverting: false,
         autoSaveEnabled: false, // NOVO: Controle manual do auto-save
         lastManualSave: null,
+        
+        // GIF/Tenor
+        gifModalOpen: false,
+        tenorSearch: '',
+        tenorResults: [],
+        tenorLoading: false,
         
         // ═══════════════════════════════════════════════════════════════════════
         // FERRAMENTAS E DADOS
@@ -125,12 +157,21 @@ function zeniteSystem() {
         isMobile: window.innerWidth < 768,
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // ÚLTIMA ROLAGEM DO JOGADOR (para exibir na tela)
+        // ═══════════════════════════════════════════════════════════════════════
+        playerLastRoll: null, // {formula, natural, modifier, total, isCrit, isFumble, reason, timestamp}
 
         // Módulos
         ...rpgLogic,
         ...cloudLogic,
         ...uiLogic,
         ...netlinkLogic,
+        ...socialLogic,
+        
+        // Achievements disponíveis (referência)
+        ACHIEVEMENTS,
 
         // --- COMPUTEDS ---
         get filteredChars() {
@@ -144,6 +185,30 @@ function zeniteSystem() {
                 }
             });
             return result;
+        },
+        
+        // Chars ordenados baseado na configuração do usuário
+        get sortedChars() {
+            const chars = this.filteredChars;
+            const entries = Object.entries(chars);
+            const sortMode = this.settings?.dashboardSort || 'recent';
+            
+            entries.sort(([idA, a], [idB, b]) => {
+                switch (sortMode) {
+                    case 'name':
+                        return (a.name || '').localeCompare(b.name || '');
+                    case 'class':
+                        return (a.class || '').localeCompare(b.class || '');
+                    case 'level':
+                        return (b.level || 1) - (a.level || 1);
+                    case 'recent':
+                    default:
+                        // IDs mais recentes primeiro (z_timestamp)
+                        return idB.localeCompare(idA);
+                }
+            });
+            
+            return Object.fromEntries(entries);
         },
 
         // --- INICIALIZAÇÃO ---
@@ -241,6 +306,13 @@ function zeniteSystem() {
             this.$watch('settings.crtMode', () => this.updateVisualState());
 
             this.updateAgentCount();
+            
+            // Inicializa sistema social (amigos, achievements, perfil)
+            this.initSocial();
+            
+            // Verifica se o usuário tem username definido
+            this.checkUsername();
+            
             this.loadingProgress = 100;
             setTimeout(() => { this.systemLoading = false; }, 500);
             

@@ -449,6 +449,7 @@ export const netlinkLogic = {
     
     /**
      * Salva as alterações feitas na ficha do jogador (GM Only)
+     * Envia broadcast para forçar atualização em tempo real nos clientes dos jogadores
      */
     async saveInspectedMember() {
         if (!this.supabase || !this.inspectedMember) return;
@@ -461,12 +462,21 @@ export const netlinkLogic = {
             
             if (error) throw error;
             
+            // Broadcast para forçar atualização em todos os clientes
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'member_update',
+                    payload: { memberId: this.inspectedMember.id }
+                });
+            }
+            
             playSFX('success');
             this.notify('Ficha do jogador atualizada!', 'success');
             this.closeInspector();
             
-            // Recarrega lista
-            this.loadCampaignMembers(this.activeCampaign.id);
+            // Recarrega lista (await para garantir sincronia)
+            await this.loadCampaignMembers(this.activeCampaign.id);
             
         } catch (e) {
             console.error('[NETLINK] Erro ao salvar membro:', e);
@@ -522,6 +532,22 @@ export const netlinkLogic = {
             // Broadcasts (Iniciativa, etc)
             .on('broadcast', { event: 'initiative' },
                 (payload) => this.handleInitiativeUpdate(payload)
+            )
+            // Broadcast de atualização de membro (quando GM edita ficha de jogador)
+            .on('broadcast', { event: 'member_update' },
+                () => {
+                    console.log('[REALTIME] Ficha de membro atualizada pelo GM');
+                    this.loadCampaignMembers(campaignId);
+                }
+            )
+            // Broadcast de música ambiente (GM controla, jogadores recebem)
+            .on('broadcast', { event: 'ambient_music' },
+                (payload) => {
+                    console.log('[REALTIME] Comando de música recebido:', payload.payload?.action);
+                    if (!this.isGMOfActiveCampaign()) {
+                        this.handleMusicCommand(payload.payload);
+                    }
+                }
             )
             .subscribe((status) => {
                 console.log('[NETLINK] Status da conexão:', status);
@@ -582,6 +608,25 @@ export const netlinkLogic = {
         // Formata fórmula
         let formula = `D${sides}`;
         if (modifier !== 0) formula += modifier > 0 ? `+${modifier}` : `${modifier}`;
+        
+        // NOVO: Salva última rolagem do jogador para exibição na tela
+        this.playerLastRoll = {
+            formula,
+            natural,
+            modifier,
+            total,
+            isCrit,
+            isFumble,
+            reason: this.diceReason || '',
+            timestamp: Date.now()
+        };
+        
+        // Incrementa stats para achievements
+        if (this.incrementStat) {
+            this.incrementStat('totalRolls');
+            if (isCrit) this.incrementStat('criticalRolls');
+            if (isFumble) this.incrementStat('fumbleRolls');
+        }
         
         try {
             // Envia para o Supabase
@@ -984,6 +1029,15 @@ export const netlinkLogic = {
                 .update({ char_data: charData })
                 .eq('id', memberId);
             
+            // Broadcast para forçar atualização nos clientes
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'member_update',
+                    payload: { memberId }
+                });
+            }
+            
             // Atualiza local
             await this.loadCampaignMembers(this.activeCampaign.id);
             
@@ -995,6 +1049,7 @@ export const netlinkLogic = {
     
     /**
      * Atualiza dados do personagem de um membro (GM only)
+     * Atualiza no banco, broadcast para jogadores, e recarrega localmente
      */
     async updateMemberCharData(memberId, charData) {
         if (!this.supabase || !this.isGMOfActiveCampaign()) return;
@@ -1007,7 +1062,20 @@ export const netlinkLogic = {
             
             if (error) throw error;
             
-            this.notify('Ficha atualizada.', 'success');
+            // Broadcast para forçar atualização nos clientes dos jogadores
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'member_update',
+                    payload: { memberId }
+                });
+            }
+            
+            // Recarrega membros para atualização imediata na UI do GM
+            await this.loadCampaignMembers(this.activeCampaign.id);
+            
+            this.notify('Ficha atualizada!', 'success');
+            playSFX('success');
         } catch (e) {
             console.error('[NETLINK] Erro ao atualizar ficha:', e);
             this.notify('Erro ao atualizar ficha.', 'error');
@@ -1235,7 +1303,7 @@ export const netlinkLogic = {
         if (!this.supabase || !this.activeCampaign || !content.trim()) return;
         
         try {
-            const senderName = this.char?.name || this.user?.email?.split('@')[0] || 'Anônimo';
+            const senderName = this.char?.name || this.settings?.username || this.user?.email?.split('@')[0] || 'Anônimo';
             
             const { error } = await this.supabase
                 .from('campaign_logs')
@@ -1254,22 +1322,30 @@ export const netlinkLogic = {
             
             this.chatInput = '';
             playSFX('click');
+            
+            // Incrementa stat para achievements
+            if (this.incrementStat) this.incrementStat('messagesSent');
         } catch (e) {
             console.error('[NETLINK] Erro ao enviar mensagem:', e);
         }
     },
     
     /**
-     * Compartilha imagem no chat (leve - URL externa ou base64 pequeno)
-     * @param {string} imageUrl - URL da imagem ou base64
+     * Compartilha imagem ou GIF no chat
+     * @param {string} imageUrl - URL da imagem/GIF ou base64
      * @param {string} caption - Legenda opcional
+     * @param {string} mediaType - 'image' ou 'gif'
      */
-    async shareImageInChat(imageUrl, caption = '') {
+    async shareImageInChat(imageUrl, caption = '', mediaType = 'image') {
         if (!this.supabase || !this.activeCampaign) return;
         if (!this.campaignSettings.imagesEnabled) {
             this.notify('Imagens desabilitadas nesta campanha', 'warn');
             return;
         }
+        
+        // Detecta automaticamente se é GIF pela URL
+        const isGif = mediaType === 'gif' || imageUrl.toLowerCase().includes('.gif') || 
+                      imageUrl.toLowerCase().includes('giphy') || imageUrl.toLowerCase().includes('tenor');
         
         try {
             const senderName = this.char?.name || this.user?.email?.split('@')[0] || 'Anônimo';
@@ -1281,7 +1357,7 @@ export const netlinkLogic = {
                     user_id: this.user.id,
                     sender: senderName,
                     content: caption,
-                    type: 'image',
+                    type: isGif ? 'gif' : 'image',
                     metadata: {
                         isGM: this.isGMOfActiveCampaign(),
                         imageUrl: imageUrl
@@ -1294,6 +1370,55 @@ export const netlinkLogic = {
             console.error('[NETLINK] Erro ao enviar imagem:', e);
             this.notify('Erro ao enviar imagem', 'error');
         }
+    },
+    
+    /**
+     * Busca GIFs (usando Giphy API pública)
+     * @param {string} query - Termo de busca
+     */
+    async searchTenorGifs(query) {
+        if (!query || query.trim().length < 2) {
+            this.tenorResults = [];
+            return;
+        }
+        
+        this.tenorLoading = true;
+        
+        try {
+            // Usa Giphy API com chave pública (mais confiável)
+            const response = await fetch(
+                `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+            );
+            
+            if (!response.ok) throw new Error('Giphy API error');
+            
+            const data = await response.json();
+            
+            this.tenorResults = (data.data || []).map(gif => ({
+                id: gif.id,
+                title: gif.title,
+                preview: gif.images?.fixed_height_small?.url || gif.images?.preview_gif?.url,
+                full: gif.images?.original?.url || gif.images?.downsized_medium?.url
+            }));
+        } catch (e) {
+            console.error('[GIPHY] Erro na busca:', e);
+            this.tenorResults = [];
+            this.notify('Erro ao buscar GIFs. Tente novamente.', 'warn');
+        } finally {
+            this.tenorLoading = false;
+        }
+    },
+    
+    /**
+     * Seleciona e envia um GIF
+     */
+    async selectTenorGif(gif) {
+        if (!gif || !gif.full) return;
+        
+        await this.shareImageInChat(gif.full, '', 'gif');
+        this.gifModalOpen = false;
+        this.tenorSearch = '';
+        this.tenorResults = [];
     },
     
     /**
@@ -1406,6 +1531,7 @@ export const netlinkLogic = {
             this.gmNotes = campaign.notes || '';
             this.loadBestiary();           // Carrega NPCs do localStorage
             this.loadCampaignSettings();   // Carrega configurações da campanha
+            this.loadPlaylistFromLocal();  // Carrega playlist de músicas
         }
         
         // Troca contexto do log de dados para esta campanha
@@ -1640,6 +1766,211 @@ export const netlinkLogic = {
         } catch (e) {
             console.error('[NETLINK] Erro ao salvar configurações:', e);
             this.notify('Erro ao salvar configurações.', 'error');
+        }
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MÚSICA AMBIENTE (GM ONLY)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    openMusicModal() {
+        this.musicModalOpen = true;
+    },
+
+    // Extrai o ID do vídeo do YouTube de uma URL
+    extractYouTubeId(url) {
+        if (!url) return null;
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    },
+
+    // Inicia/para a música
+    toggleMusic() {
+        if (!this.ambientMusic.url) {
+            this.notify('Insira uma URL do YouTube primeiro!', 'warn');
+            return;
+        }
+        
+        const videoId = this.extractYouTubeId(this.ambientMusic.url);
+        if (!videoId) {
+            this.notify('URL do YouTube inválida!', 'error');
+            return;
+        }
+        
+        this.ambientMusic.playing = !this.ambientMusic.playing;
+        
+        if (this.ambientMusic.playing) {
+            // Toca localmente para o GM também
+            this.playMusicLocally(videoId);
+            
+            // Broadcast para todos os jogadores
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'ambient_music',
+                    payload: { 
+                        action: 'play',
+                        videoId: videoId,
+                        volume: this.ambientMusic.volume
+                    }
+                });
+            }
+            this.notify('Música ambiente iniciada!', 'success');
+        } else {
+            // Para localmente
+            this.stopMusicLocally();
+            
+            // Para a música para todos
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'ambient_music',
+                    payload: { action: 'stop' }
+                });
+            }
+            this.notify('Música ambiente parada.', 'info');
+        }
+    },
+    
+    // Toca música localmente (para GM e jogadores)
+    playMusicLocally(videoId) {
+        const player = document.getElementById('ambient-music-player');
+        if (!player) return;
+        
+        player.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+        player.style.display = 'block';
+    },
+    
+    // Para música localmente
+    stopMusicLocally() {
+        const player = document.getElementById('ambient-music-player');
+        if (!player) return;
+        
+        player.src = '';
+        player.style.display = 'none';
+    },
+    
+    // Toca uma música específica (da playlist ou URL)
+    playMusicFromUrl(url) {
+        const videoId = this.extractYouTubeId(url);
+        if (!videoId) {
+            this.notify('URL do YouTube inválida!', 'error');
+            return;
+        }
+        
+        this.ambientMusic.url = url;
+        this.ambientMusic.playing = true;
+        
+        // Toca localmente
+        this.playMusicLocally(videoId);
+        
+        // Broadcast para jogadores
+        if (this.realtimeChannel) {
+            this.realtimeChannel.send({
+                type: 'broadcast',
+                event: 'ambient_music',
+                payload: { 
+                    action: 'play',
+                    videoId: videoId,
+                    volume: this.ambientMusic.volume
+                }
+            });
+        }
+        
+        this.notify('Tocando música!', 'success');
+    },
+
+    // Atualiza o volume
+    updateMusicVolume() {
+        if (this.realtimeChannel && this.ambientMusic.playing) {
+            this.realtimeChannel.send({
+                type: 'broadcast',
+                event: 'ambient_music',
+                payload: { 
+                    action: 'volume',
+                    volume: this.ambientMusic.volume
+                }
+            });
+        }
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // PLAYLIST DE MÚSICAS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    addToPlaylist(url, title = '') {
+        const videoId = this.extractYouTubeId(url);
+        if (!videoId) {
+            this.notify('URL do YouTube inválida!', 'error');
+            return;
+        }
+        
+        // Verifica se já existe
+        if (this.musicPlaylist.some(m => m.id === videoId)) {
+            this.notify('Música já está na playlist!', 'warn');
+            return;
+        }
+        
+        const music = {
+            id: videoId,
+            title: title || `Música ${this.musicPlaylist.length + 1}`,
+            url: url,
+            thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        };
+        
+        this.musicPlaylist.push(music);
+        this.savePlaylistToLocal();
+        this.notify('Música adicionada à playlist!', 'success');
+    },
+    
+    removeFromPlaylist(videoId) {
+        this.musicPlaylist = this.musicPlaylist.filter(m => m.id !== videoId);
+        this.savePlaylistToLocal();
+        this.notify('Música removida da playlist.', 'info');
+    },
+    
+    playFromPlaylist(music) {
+        this.playMusicFromUrl(music.url);
+    },
+    
+    savePlaylistToLocal() {
+        if (this.activeCampaign) {
+            localStorage.setItem(`zenite_playlist_${this.activeCampaign.id}`, JSON.stringify(this.musicPlaylist));
+        }
+    },
+    
+    loadPlaylistFromLocal() {
+        if (this.activeCampaign) {
+            const saved = localStorage.getItem(`zenite_playlist_${this.activeCampaign.id}`);
+            if (saved) {
+                this.musicPlaylist = JSON.parse(saved);
+            } else {
+                this.musicPlaylist = [];
+            }
+        }
+    },
+
+    // Handler para receber comandos de música (jogadores)
+    handleMusicCommand(payload) {
+        const player = document.getElementById('ambient-music-player');
+        if (!player) return;
+
+        switch (payload.action) {
+            case 'play':
+                player.src = `https://www.youtube.com/embed/${payload.videoId}?autoplay=1&loop=1&playlist=${payload.videoId}`;
+                player.style.display = 'block';
+                this.ambientMusic.playing = true;
+                break;
+            case 'stop':
+                player.src = '';
+                player.style.display = 'none';
+                this.ambientMusic.playing = false;
+                break;
+            case 'volume':
+                // Volume controlado pelo iframe não é facilmente acessível, 
+                // mas o usuário pode ajustar no próprio player
+                break;
         }
     }
 };

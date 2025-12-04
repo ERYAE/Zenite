@@ -6,7 +6,11 @@ export const uiLogic = {
     toggleSetting(key, val=null) {
         if(val !== null) { 
             this.settings[key] = val; 
-            if(key === 'themeColor') this.applyTheme(val); 
+            if(key === 'themeColor') {
+                this.applyTheme(val);
+                // Achievement: mudou tema
+                if (this.incrementStat) this.incrementStat('themeChanges');
+            }
         } else { 
             this.settings[key] = !this.settings[key]; 
         }
@@ -32,19 +36,53 @@ export const uiLogic = {
 
     applyTheme(color) {
         const root = document.documentElement; 
-        const map = { 
+        const themeColors = { 
+            // Neon/Cyberpunk
             'cyan': '#0ea5e9', 
             'purple': '#d946ef', 
             'gold': '#eab308',
-            'red': '#ef4444'
+            'red': '#ef4444',
+            // Novos
+            'green': '#22c55e',
+            'orange': '#f97316',
+            'pink': '#ec4899',
+            'lime': '#84cc16',
+            'emerald': '#10b981',
+            'violet': '#8b5cf6',
+            'rose': '#f43f5e',
+            'amber': '#f59e0b',
+            'teal': '#14b8a6',
+            'indigo': '#6366f1',
+            'fuchsia': '#d946ef',
+            'sky': '#0ea5e9'
         };
-        const hex = map[color] || map['cyan'];
+        const hex = themeColors[color] || themeColors['cyan'];
         const r = parseInt(hex.slice(1, 3), 16); 
         const g = parseInt(hex.slice(3, 5), 16); 
         const b = parseInt(hex.slice(5, 7), 16);
         
         root.style.setProperty('--neon-core', hex); 
         root.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
+    },
+    
+    // Retorna lista de cores disponíveis para UI
+    getThemeColors() {
+        return [
+            { id: 'cyan', name: 'Ciano', hex: '#0ea5e9' },
+            { id: 'purple', name: 'Roxo', hex: '#d946ef' },
+            { id: 'gold', name: 'Dourado', hex: '#eab308' },
+            { id: 'red', name: 'Vermelho', hex: '#ef4444' },
+            { id: 'green', name: 'Verde', hex: '#22c55e' },
+            { id: 'orange', name: 'Laranja', hex: '#f97316' },
+            { id: 'pink', name: 'Rosa', hex: '#ec4899' },
+            { id: 'lime', name: 'Lima', hex: '#84cc16' },
+            { id: 'emerald', name: 'Esmeralda', hex: '#10b981' },
+            { id: 'violet', name: 'Violeta', hex: '#8b5cf6' },
+            { id: 'rose', name: 'Rosé', hex: '#f43f5e' },
+            { id: 'amber', name: 'Âmbar', hex: '#f59e0b' },
+            { id: 'teal', name: 'Azul-Verde', hex: '#14b8a6' },
+            { id: 'indigo', name: 'Índigo', hex: '#6366f1' }
+        ];
     },
 
     // Aplica estados visuais (simplificado - cursor removido por performance)
@@ -88,9 +126,11 @@ export const uiLogic = {
 
     selectArchetype(a) { 
         this.wizardData.class = a.class; 
+        // CORREÇÃO: Sempre reseta os atributos E os pontos ao selecionar novo arquétipo
         this.wizardData.attrs = {for:-1, agi:-1, int:-1, von:-1, pod:-1}; 
         this.wizardData.attrs[a.focus] = 0; 
         this.wizardFocusAttr = a.focus; 
+        this.wizardPoints = 8; // Reseta pontos disponíveis ao trocar de arquétipo
         this.wizardStep = 2; 
         this.$nextTick(() => { this.updateWizardChart(); }); 
     },
@@ -157,8 +197,17 @@ export const uiLogic = {
         }
         
         this.wizardOpen = false; 
-        this.loadCharacter(id); 
-        this.notify('Agente inicializado com sucesso!', 'success');
+        
+        // Se veio do NetLink, volta para o modal ao invés de abrir a ficha
+        if (this.wizardFromNetlink) {
+            this.wizardFromNetlink = false;
+            this.netlinkModal = true;
+            this.loadCampaigns();
+            this.notify('Personagem criado! Agora selecione-o para entrar na campanha.', 'success');
+        } else {
+            this.loadCharacter(id); 
+            this.notify('Agente inicializado com sucesso!', 'success');
+        }
     },
 
     loadCharacter(id, skipPush = false) {
@@ -202,26 +251,26 @@ export const uiLogic = {
             `"${charName}" será deletado para sempre. Esta ação é irreversível.`, 
             'danger', 
             async () => { 
-                // Verifica se estamos vendo este personagem
+                // CORREÇÃO: Primeiro sai da view ANTES de deletar para evitar erros Alpine
                 const wasViewing = this.activeCharId === id;
+                
+                if (wasViewing) {
+                    this.activeCharId = null;
+                    this.char = null;
+                    this.currentView = 'dashboard';
+                    await new Promise(r => setTimeout(r, 50)); // Aguarda Alpine processar
+                }
                 
                 delete this.chars[id]; 
                 this.saveLocal(); 
                 
                 if(!this.isGuest && this.user) {
                     this.unsavedChanges = true;
-                    await this.syncCloud(false); // Força sync imediato
+                    await this.syncCloud(false);
                 }
                 
                 this.updateAgentCount(); 
                 this.notify('Personagem eliminado.', 'success'); 
-                
-                // Se estava vendo a ficha deletada, volta para dashboard
-                if (wasViewing) {
-                    this.activeCharId = null;
-                    this.char = null;
-                    this.currentView = 'dash';
-                }
             }
         ); 
     },
@@ -568,15 +617,26 @@ export const uiLogic = {
         clearTimeout(this.logoClickTimer); 
         this.logoClickCount++;
         
+        // Easter egg: 5 cliques rápidos
         if (this.logoClickCount >= 5) {
             this.logoClickCount = 0;
             this.triggerSystemFailure();
             return;
         }
         
-        this.logoClickTimer = setTimeout(() => { 
+        this.logoClickTimer = setTimeout(() => {
+            // Se foi um clique simples, vai para dashboard
+            if (this.logoClickCount === 1) {
+                // Se estiver em campanha, sai dela primeiro
+                if (this.activeCampaign) {
+                    this.leaveCampaign();
+                }
+                this.currentView = 'dashboard';
+                this.selectedCharId = null;
+                this.char = null;
+            }
             this.logoClickCount = 0; 
-        }, 400);
+        }, 300);
     },
 
     ensureTrayOnScreen() {
@@ -724,5 +784,388 @@ export const uiLogic = {
                 }
             }
         );
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // MACROS DE DADOS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    openMacrosModal() {
+        this.editingMacro = null;
+        this.macrosModalOpen = true;
+    },
+    
+    createNewMacro() {
+        this.editingMacro = {
+            id: null,
+            name: '',
+            dice: '1d20',
+            modifier: 0,
+            description: ''
+        };
+    },
+    
+    editMacro(macro) {
+        this.editingMacro = { ...macro };
+    },
+    
+    saveMacro() {
+        if (!this.editingMacro || !this.editingMacro.name.trim()) {
+            this.notify('Nome da macro é obrigatório!', 'error');
+            return;
+        }
+        
+        if (!this.editingMacro.dice.trim()) {
+            this.notify('Dados são obrigatórios!', 'error');
+            return;
+        }
+        
+        if (this.editingMacro.id) {
+            // Editando macro existente
+            const idx = this.diceMacros.findIndex(m => m.id === this.editingMacro.id);
+            if (idx !== -1) {
+                this.diceMacros[idx] = { ...this.editingMacro };
+            }
+        } else {
+            // Nova macro
+            this.diceMacros.push({
+                ...this.editingMacro,
+                id: 'macro_' + Date.now()
+            });
+        }
+        
+        this.editingMacro = null;
+        this.saveLocal();
+        this.notify('Macro salva!', 'success');
+        playSFX('success');
+    },
+    
+    deleteMacro(macroId) {
+        this.diceMacros = this.diceMacros.filter(m => m.id !== macroId);
+        this.saveLocal();
+        this.notify('Macro removida.', 'success');
+    },
+    
+    // Executa uma macro (rola os dados)
+    executeMacro(macro) {
+        if (!macro.dice) return;
+        
+        // Parse do formato de dados (ex: "2d6+3", "1d20", "3d8-2")
+        const diceRegex = /(\d+)d(\d+)([+-]\d+)?/i;
+        const match = macro.dice.match(diceRegex);
+        
+        if (!match) {
+            this.notify('Formato de dados inválido!', 'error');
+            return;
+        }
+        
+        const numDice = parseInt(match[1]);
+        const diceSides = parseInt(match[2]);
+        const diceModifier = match[3] ? parseInt(match[3]) : 0;
+        const totalModifier = diceModifier + (macro.modifier || 0);
+        
+        // Rola os dados
+        let rolls = [];
+        let total = 0;
+        for (let i = 0; i < numDice; i++) {
+            const roll = Math.floor(Math.random() * diceSides) + 1;
+            rolls.push(roll);
+            total += roll;
+        }
+        total += totalModifier;
+        
+        // Se estiver em campanha, envia para o log
+        if (this.activeCampaign && !this.isGMOfActiveCampaign()) {
+            this.rollForCampaign(`${numDice}d${diceSides}`, totalModifier, macro.name);
+        } else {
+            // Exibe resultado local
+            const modStr = totalModifier >= 0 ? `+${totalModifier}` : totalModifier;
+            const rollsStr = rolls.length > 1 ? ` (${rolls.join('+')})` : '';
+            this.notify(`${macro.name}: ${total}${rollsStr}${totalModifier !== 0 ? ' ' + modStr : ''}`, 'info');
+            playSFX('dice');
+        }
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // VERIFICAÇÃO DE USERNAME
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    checkUsername() {
+        // Só verifica para usuários logados (não guests)
+        if (this.isGuest || !this.user) return;
+        
+        // Se não tem username, abre modal para definir
+        if (!this.settings.username || this.settings.username.trim() === '') {
+            setTimeout(() => {
+                this.tempUsername = this.user?.email?.split('@')[0] || '';
+                this.usernameModalOpen = true;
+            }, 1500);
+        }
+    },
+    
+    async confirmUsername() {
+        if (!this.tempUsername || this.tempUsername.trim().length < 2) {
+            this.notify('Username precisa ter pelo menos 2 caracteres!', 'error');
+            playSFX('error');
+            return;
+        }
+        
+        this.settings.username = this.tempUsername.trim();
+        this.saveLocal();
+        
+        if (this.user && this.supabase) {
+            await this.syncCloud(true);
+        }
+        
+        this.usernameModalOpen = false;
+        this.notify('Username definido!', 'success');
+        playSFX('save');
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // EXPORTAR FICHA COMO IMAGEM (PNG)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    async exportCharAsImage() {
+        if (!this.char) {
+            this.notify('Nenhum personagem selecionado!', 'error');
+            return;
+        }
+        
+        this.notify('Gerando imagem...', 'info');
+        
+        // Cria canvas para desenhar o cartão
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Dimensões do cartão (estilo ID card)
+        canvas.width = 600;
+        canvas.height = 900;
+        
+        // Cor do tema
+        const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--neon-core').trim() || '#0ea5e9';
+        
+        // Background com gradiente
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#0a0a0f');
+        gradient.addColorStop(1, '#050508');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Borda neon
+        ctx.strokeStyle = themeColor;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+        
+        // Header com gradiente
+        const headerGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        headerGradient.addColorStop(0, themeColor + '40');
+        headerGradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = headerGradient;
+        ctx.fillRect(10, 10, canvas.width - 20, 80);
+        
+        // Logo/Título
+        ctx.fillStyle = themeColor;
+        ctx.font = 'bold 28px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ZENITE OS', canvas.width / 2, 55);
+        
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.fillText('HERO ACADEMY DATABASE // AGENT FILE', canvas.width / 2, 75);
+        
+        // Foto do personagem (ou placeholder)
+        const photoY = 110;
+        const photoSize = 150;
+        const photoX = (canvas.width - photoSize) / 2;
+        
+        // Moldura da foto
+        ctx.strokeStyle = themeColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(photoX - 5, photoY - 5, photoSize + 10, photoSize + 10);
+        
+        if (this.char.photo) {
+            try {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = this.char.photo;
+                });
+                ctx.drawImage(img, photoX, photoY, photoSize, photoSize);
+            } catch (e) {
+                // Placeholder se falhar
+                ctx.fillStyle = '#1a1a1f';
+                ctx.fillRect(photoX, photoY, photoSize, photoSize);
+                ctx.fillStyle = '#333';
+                ctx.font = '40px "Font Awesome 6 Free"';
+                ctx.textAlign = 'center';
+                ctx.fillText('?', canvas.width / 2, photoY + 90);
+            }
+        } else {
+            ctx.fillStyle = '#1a1a1f';
+            ctx.fillRect(photoX, photoY, photoSize, photoSize);
+            ctx.fillStyle = themeColor + '60';
+            ctx.font = '60px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.char.name?.charAt(0)?.toUpperCase() || '?', canvas.width / 2, photoY + 100);
+        }
+        
+        // Nome do personagem
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 32px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.char.name?.toUpperCase() || 'SEM NOME', canvas.width / 2, 310);
+        
+        // Classe
+        ctx.fillStyle = themeColor;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(this.char.class?.toUpperCase() || 'SEM CLASSE', canvas.width / 2, 340);
+        
+        // Identidade (se houver)
+        if (this.char.identity) {
+            ctx.fillStyle = '#888';
+            ctx.font = 'italic 14px sans-serif';
+            ctx.fillText(`"${this.char.identity}"`, canvas.width / 2, 365);
+        }
+        
+        // Linha divisória
+        ctx.strokeStyle = themeColor + '40';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(50, 390);
+        ctx.lineTo(canvas.width - 50, 390);
+        ctx.stroke();
+        
+        // Stats
+        const statsY = 420;
+        const statsConfig = [
+            { label: 'NÍVEL', value: this.char.level || 1, color: themeColor },
+            { label: 'IDADE', value: this.char.age || '?', color: '#888' },
+            { label: 'PV', value: `${this.char.stats?.pv?.current || 0}/${this.char.stats?.pv?.max || 0}`, color: '#ef4444' },
+            { label: 'PF', value: `${this.char.stats?.pf?.current || 0}/${this.char.stats?.pf?.max || 0}`, color: '#3b82f6' },
+        ];
+        
+        const statWidth = (canvas.width - 100) / statsConfig.length;
+        statsConfig.forEach((stat, i) => {
+            const x = 50 + statWidth * i + statWidth / 2;
+            
+            ctx.fillStyle = stat.color + '20';
+            ctx.fillRect(50 + statWidth * i + 5, statsY - 25, statWidth - 10, 55);
+            
+            ctx.fillStyle = '#888';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(stat.label, x, statsY - 8);
+            
+            ctx.fillStyle = stat.color;
+            ctx.font = 'bold 20px "Orbitron", sans-serif';
+            ctx.fillText(String(stat.value), x, statsY + 18);
+        });
+        
+        // Atributos
+        const attrsY = 510;
+        ctx.fillStyle = '#666';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ATRIBUTOS', canvas.width / 2, attrsY);
+        
+        const attrs = ['FOR', 'AGI', 'INT', 'VON', 'POD'];
+        const attrValues = [
+            this.char.attrs?.for ?? 0,
+            this.char.attrs?.agi ?? 0,
+            this.char.attrs?.int ?? 0,
+            this.char.attrs?.von ?? 0,
+            this.char.attrs?.pod ?? 0
+        ];
+        
+        const attrWidth = (canvas.width - 100) / 5;
+        attrs.forEach((attr, i) => {
+            const x = 50 + attrWidth * i + attrWidth / 2;
+            const val = attrValues[i];
+            const valColor = val >= 2 ? '#22c55e' : val >= 0 ? '#eab308' : '#ef4444';
+            
+            ctx.fillStyle = '#1a1a1f';
+            ctx.fillRect(50 + attrWidth * i + 8, attrsY + 10, attrWidth - 16, 50);
+            
+            ctx.fillStyle = '#888';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(attr, x, attrsY + 28);
+            
+            ctx.fillStyle = valColor;
+            ctx.font = 'bold 22px "Orbitron", sans-serif';
+            ctx.fillText(val >= 0 ? `+${val}` : String(val), x, attrsY + 52);
+        });
+        
+        // História (resumida)
+        if (this.char.history) {
+            const historyY = 600;
+            ctx.fillStyle = '#666';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('HISTÓRIA', canvas.width / 2, historyY);
+            
+            ctx.fillStyle = '#aaa';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            
+            // Quebra texto em linhas
+            const maxWidth = canvas.width - 80;
+            const words = this.char.history.split(' ');
+            let line = '';
+            let y = historyY + 20;
+            let lineCount = 0;
+            
+            for (let word of words) {
+                const testLine = line + word + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && line !== '') {
+                    ctx.fillText(line.trim(), canvas.width / 2, y);
+                    line = word + ' ';
+                    y += 18;
+                    lineCount++;
+                    if (lineCount >= 5) {
+                        ctx.fillText('...', canvas.width / 2, y);
+                        break;
+                    }
+                } else {
+                    line = testLine;
+                }
+            }
+            if (lineCount < 5 && line) {
+                ctx.fillText(line.trim(), canvas.width / 2, y);
+            }
+        }
+        
+        // Rodapé
+        const footerY = canvas.height - 50;
+        ctx.strokeStyle = themeColor + '40';
+        ctx.beginPath();
+        ctx.moveTo(50, footerY);
+        ctx.lineTo(canvas.width - 50, footerY);
+        ctx.stroke();
+        
+        ctx.fillStyle = '#444';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`ID: ${this.char.id || 'N/A'}`, canvas.width / 2, footerY + 20);
+        ctx.fillText(`Gerado em ${new Date().toLocaleDateString('pt-BR')} via ZENITE OS`, canvas.width / 2, footerY + 35);
+        
+        // Converte para PNG e baixa
+        try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `zenite_${this.char.name?.toLowerCase().replace(/\s+/g, '_') || 'agente'}_${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+            
+            this.notify('Imagem exportada com sucesso!', 'success');
+            playSFX('save');
+        } catch (e) {
+            console.error('Erro ao exportar imagem:', e);
+            this.notify('Erro ao exportar imagem', 'error');
+        }
     }
 };
