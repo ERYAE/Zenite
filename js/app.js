@@ -1,4 +1,4 @@
-import { CONSTANTS, ARCHETYPES } from './modules/config.js';
+import { CONSTANTS, ARCHETYPES, FEATURES } from './modules/config.js';
 import { playSFX, setSfxEnabled, initAudio } from './modules/audio.js';
 import { debounce, sanitizeChar, calculateBaseStats } from './modules/utils.js';
 import { rpgLogic } from './modules/rpg.js';
@@ -11,6 +11,9 @@ function zeniteSystem() {
         // --- ESTADO DO SISTEMA ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, rebooting: false,
+        
+        // Feature Flags
+        netlinkEnabled: FEATURES.NETLINK_ENABLED,
         
         // Auth
         user: null, isGuest: false, userMenuOpen: false, 
