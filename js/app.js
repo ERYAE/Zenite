@@ -44,8 +44,9 @@ function zeniteSystem() {
         netlinkModal: false, // Modal do NetLink
         netlinkCreateMode: false, // Modo de criação de campanha
         netlinkJoinCode: '', // Código de convite para entrar
-        
-        // Salvamento - CORREÇÃO CRÍTICA
+        memberInspectorOpen: false, // Modal de inspeção de jogador
+        inspectedMember: null, // Membro sendo inspecionado
+        netlinkView: 'list', // 'list' ou 'campaign'
         unsavedChanges: false, 
         isSyncing: false, 
         saveStatus: 'idle',

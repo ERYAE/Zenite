@@ -273,10 +273,17 @@
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <template x-for="member in campaignMembers" :key="member.id">
-                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors">
+                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
+                                     :class="isGMOfActiveCampaign() && member.char_data ? 'cursor-pointer hover:bg-white/5' : ''"
+                                     @click="isGMOfActiveCampaign() && member.char_data ? inspectMember(member) : null">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
-                                            <i class="fa-solid" :class="member.role === 'gm' ? 'fa-crown text-yellow-500' : 'fa-user'"></i>
+                                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 overflow-hidden">
+                                            <template x-if="member.char_data?.photo">
+                                                <img :src="member.char_data.photo" class="w-full h-full object-cover">
+                                            </template>
+                                            <template x-if="!member.char_data?.photo">
+                                                <i class="fa-solid" :class="member.role === 'gm' ? 'fa-crown text-yellow-500' : 'fa-user'"></i>
+                                            </template>
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <p class="font-bold text-white truncate" x-text="member.char_data?.name || 'Sem personagem'"></p>
@@ -285,6 +292,7 @@
                                         <template x-if="isGMOfActiveCampaign() && member.char_data?.stats">
                                             <div class="text-right">
                                                 <p class="text-xs text-red-400"><i class="fa-solid fa-heart mr-1"></i><span x-text="member.char_data.stats.pv?.current + '/' + member.char_data.stats.pv?.max"></span></p>
+                                                <p class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Editar</p>
                                             </div>
                                         </template>
                                     </div>
@@ -389,44 +397,47 @@
                         </div>
                     </div>
 
-                    <!-- Calculadora de Combate (GM Only) -->
-                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-red-500/20">
-                        <h2 class="text-sm font-bold text-red-400 uppercase mb-3 flex items-center gap-2">
-                            <i class="fa-solid fa-calculator"></i> Calculadora de Dano
+                    <!-- Calculadora (GM Only) -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-white/10" x-data="{ display: '0', memory: 0, op: null, waitingForOperand: false }">
+                        <h2 class="text-sm font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator"></i> Calculadora
                         </h2>
-                        <div class="grid grid-cols-3 gap-2 mb-3" x-data="{ dmg: 0, def: 0, pen: 0 }">
-                            <div>
-                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">DANO</label>
-                                <input type="number" x-model="combatCalc.damageInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-red-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">DEFESA</label>
-                                <input type="number" x-model="combatCalc.defenseInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="text-[9px] text-gray-500 uppercase font-bold block mb-1">PEN</label>
-                                <input type="number" x-model="combatCalc.penetrationInput" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-yellow-500 focus:outline-none" placeholder="0">
-                            </div>
-                        </div>
-                        <button @click="calculateDamage(combatCalc.damageInput, combatCalc.defenseInput, combatCalc.penetrationInput)" 
-                                class="w-full py-2 bg-red-500/20 text-red-400 rounded text-xs font-bold hover:bg-red-500/30 transition-colors mb-3">
-                            CALCULAR
-                        </button>
                         
-                        <!-- Resultado e Histórico -->
-                        <div x-show="combatCalc.history.length > 0" class="bg-black/40 rounded p-2">
-                            <div class="flex justify-between items-center mb-2 border-b border-white/5 pb-1">
-                                <span class="text-xs text-gray-400">Resultado: <span class="text-white font-bold text-sm" x-text="combatCalc.result"></span></span>
-                                <button @click="clearCombatHistory()" class="text-[9px] text-gray-600 hover:text-white">LIMPAR</button>
-                            </div>
-                            <div class="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
-                                <template x-for="log in combatCalc.history" :key="log.id">
-                                    <div class="flex justify-between text-[9px] text-gray-500">
-                                        <span x-text="log.damage + ' vs ' + log.defense + (log.penetration > 0 ? ' (Pen ' + log.penetration + ')' : '')"></span>
-                                        <span class="text-red-400 font-bold" x-text="'= ' + log.result"></span>
-                                    </div>
-                                </template>
-                            </div>
+                        <div class="bg-black/40 p-3 rounded-lg mb-3 text-right font-code text-xl text-white overflow-x-auto" x-text="display"></div>
+                        
+                        <div class="grid grid-cols-4 gap-2">
+                            <button @click="display = '0'; op = null; waitingForOperand = false" class="p-2 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 font-bold">C</button>
+                            <button @click="display = display.slice(0, -1) || '0'" class="p-2 rounded bg-white/5 hover:bg-white/10 text-gray-400"><i class="fa-solid fa-delete-left"></i></button>
+                            <button @click="op = '/'; memory = parseFloat(display); waitingForOperand = true" class="p-2 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 font-bold">/</button>
+                            <button @click="op = '*'; memory = parseFloat(display); waitingForOperand = true" class="p-2 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 font-bold">x</button>
+                            
+                            <button @click="if(waitingForOperand){display=String(7);waitingForOperand=false}else{display=display==='0'?'7':display+'7'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">7</button>
+                            <button @click="if(waitingForOperand){display=String(8);waitingForOperand=false}else{display=display==='0'?'8':display+'8'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">8</button>
+                            <button @click="if(waitingForOperand){display=String(9);waitingForOperand=false}else{display=display==='0'?'9':display+'9'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">9</button>
+                            <button @click="op = '-'; memory = parseFloat(display); waitingForOperand = true" class="p-2 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 font-bold">-</button>
+                            
+                            <button @click="if(waitingForOperand){display=String(4);waitingForOperand=false}else{display=display==='0'?'4':display+'4'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">4</button>
+                            <button @click="if(waitingForOperand){display=String(5);waitingForOperand=false}else{display=display==='0'?'5':display+'5'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">5</button>
+                            <button @click="if(waitingForOperand){display=String(6);waitingForOperand=false}else{display=display==='0'?'6':display+'6'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">6</button>
+                            <button @click="op = '+'; memory = parseFloat(display); waitingForOperand = true" class="p-2 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 font-bold">+</button>
+                            
+                            <button @click="if(waitingForOperand){display=String(1);waitingForOperand=false}else{display=display==='0'?'1':display+'1'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">1</button>
+                            <button @click="if(waitingForOperand){display=String(2);waitingForOperand=false}else{display=display==='0'?'2':display+'2'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">2</button>
+                            <button @click="if(waitingForOperand){display=String(3);waitingForOperand=false}else{display=display==='0'?'3':display+'3'}" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">3</button>
+                            <button @click="
+                                const current = parseFloat(display);
+                                let result = 0;
+                                if(op === '+') result = memory + current;
+                                if(op === '-') result = memory - current;
+                                if(op === '*') result = memory * current;
+                                if(op === '/') result = memory / current;
+                                display = String(result);
+                                op = null;
+                                waitingForOperand = true;
+                            " class="row-span-2 p-2 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 font-bold flex items-center justify-center">=</button>
+                            
+                            <button @click="if(waitingForOperand){display=String(0);waitingForOperand=false}else{display=display==='0'?'0':display+'0'}" class="col-span-2 p-2 rounded bg-white/5 hover:bg-white/10 font-bold">0</button>
+                            <button @click="if(!display.includes('.')) display += '.'" class="p-2 rounded bg-white/5 hover:bg-white/10 font-bold">.</button>
                         </div>
                     </div>
 
@@ -1192,6 +1203,146 @@
                 <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
                 <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
                 <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEMBER INSPECTOR MODAL (GM ONLY) -->
+    <div x-show="memberInspectorOpen" style="display: none" class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+        <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]" x-data="{ tab: 'stats' }">
+            <!-- Header -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden border border-white/10">
+                        <template x-if="inspectedMember?.char_data?.photo">
+                            <img :src="inspectedMember.char_data.photo" class="w-full h-full object-cover">
+                        </template>
+                        <template x-if="!inspectedMember?.char_data?.photo">
+                            <i class="fa-solid fa-user text-purple-400 text-xl"></i>
+                        </template>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white font-brand" x-text="inspectedMember?.char_data?.name"></h2>
+                        <p class="text-xs text-purple-400 font-bold uppercase" x-text="inspectedMember?.char_data?.class + ' - NVL ' + (inspectedMember?.char_data?.level || 1)"></p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="saveInspectedMember()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg hover:bg-green-400 transition-colors text-xs">
+                        <i class="fa-solid fa-save mr-2"></i>SALVAR
+                    </button>
+                    <button @click="closeInspector()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-white/10 overflow-x-auto">
+                <button @click="tab = 'stats'" :class="tab === 'stats' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">STATUS</button>
+                <button @click="tab = 'attrs'" :class="tab === 'attrs' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">ATRIBUTOS</button>
+                <button @click="tab = 'skills'" :class="tab === 'skills' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">PERÍCIAS</button>
+                <button @click="tab = 'inv'" :class="tab === 'inv' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">INVENTÁRIO</button>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-6 custom-scrollbar" x-show="inspectedMember?.char_data">
+                
+                <!-- TAB: STATS -->
+                <div x-show="tab === 'stats'" class="space-y-6">
+                    <!-- Barras Principais -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- PV -->
+                        <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                            <div class="flex justify-between items-end mb-2">
+                                <label class="text-red-400 font-bold text-xs">PONTOS DE VIDA</label>
+                                <i class="fa-solid fa-heart text-red-500/50 text-xl"></i>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pv.current" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-red-500 focus:outline-none">
+                                <span class="text-gray-500">/</span>
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pv.max" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-red-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <!-- PF -->
+                        <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                            <div class="flex justify-between items-end mb-2">
+                                <label class="text-blue-400 font-bold text-xs">PONTOS DE ESFORÇO</label>
+                                <i class="fa-solid fa-bolt text-blue-500/50 text-xl"></i>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pf.current" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-blue-500 focus:outline-none">
+                                <span class="text-gray-500">/</span>
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pf.max" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <!-- PDF -->
+                        <div class="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
+                            <div class="flex justify-between items-end mb-2">
+                                <label class="text-purple-400 font-bold text-xs">SANIDADE</label>
+                                <i class="fa-solid fa-brain text-purple-500/50 text-xl"></i>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pdf.current" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-purple-500 focus:outline-none">
+                                <span class="text-gray-500">/</span>
+                                <input type="number" x-model.number="inspectedMember.char_data.stats.pdf.max" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-purple-500 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Defesas -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                            <label class="text-[10px] text-gray-500 font-bold block mb-1">DEFESA</label>
+                            <input type="number" x-model.number="inspectedMember.char_data.defesa" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                        </div>
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                            <label class="text-[10px] text-gray-500 font-bold block mb-1">PROTEÇÃO</label>
+                            <input type="number" x-model.number="inspectedMember.char_data.protecao" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                        </div>
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                            <label class="text-[10px] text-gray-500 font-bold block mb-1">DESLOCAMENTO</label>
+                            <input type="number" x-model.number="inspectedMember.char_data.deslocamento" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                        </div>
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                            <label class="text-[10px] text-gray-500 font-bold block mb-1">NÍVEL</label>
+                            <input type="number" x-model.number="inspectedMember.char_data.level" class="w-full bg-transparent text-center text-xl text-yellow-500 font-bold border-none focus:ring-0 p-0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: ATTRS -->
+                <div x-show="tab === 'attrs'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <template x-for="(value, key) in inspectedMember.char_data.attrs" :key="key">
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center relative overflow-hidden">
+                            <div class="absolute top-0 right-0 text-[40px] font-black text-white/5 uppercase pointer-events-none" x-text="key"></div>
+                            <label class="text-sm font-bold text-gray-400 uppercase mb-2" x-text="key"></label>
+                            <input type="number" x-model.number="inspectedMember.char_data.attrs[key]" class="w-16 h-16 bg-black/40 border-2 border-white/20 rounded-full text-center text-2xl text-white font-bold focus:border-purple-500 focus:outline-none mb-2">
+                        </div>
+                    </template>
+                </div>
+
+                <!-- TAB: SKILLS -->
+                <div x-show="tab === 'skills'" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <template x-for="(skill, key) in inspectedMember.char_data.skills" :key="key">
+                            <div class="bg-white/5 border border-white/10 rounded px-3 py-2 flex justify-between items-center" x-show="skill.trained">
+                                <span class="text-sm font-bold text-gray-300 capitalize" x-text="key.replace(/_/g, ' ')"></span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-purple-400 font-bold" x-text="'+' + skill.bonus"></span>
+                                    <input type="checkbox" x-model="skill.trained" class="accent-purple-500">
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-4">* Mostrando apenas perícias treinadas. Edição avançada requer acesso direto à ficha original.</p>
+                </div>
+
+                <!-- TAB: INVENTÁRIO -->
+                <div x-show="tab === 'inv'" class="space-y-4">
+                    <textarea x-model="inspectedMember.char_data.inventory" class="w-full h-64 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-purple-500 focus:outline-none font-code" placeholder="Inventário vazio..."></textarea>
+                    <p class="text-xs text-gray-500">* O inventário é armazenado como texto livre nesta versão.</p>
+                </div>
+
             </div>
         </div>
     </div>

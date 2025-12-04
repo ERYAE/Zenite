@@ -356,6 +356,52 @@ export const netlinkLogic = {
         }
     },
     
+    /**
+     * Abre o inspetor de membro (GM Only)
+     */
+    inspectMember(member) {
+        if (!member.char_data) return;
+        
+        // Cria uma cópia profunda para edição segura
+        this.inspectedMember = JSON.parse(JSON.stringify(member));
+        this.memberInspectorOpen = true;
+    },
+    
+    /**
+     * Fecha o inspetor
+     */
+    closeInspector() {
+        this.memberInspectorOpen = false;
+        this.inspectedMember = null;
+    },
+    
+    /**
+     * Salva as alterações feitas na ficha do jogador (GM Only)
+     */
+    async saveInspectedMember() {
+        if (!this.supabase || !this.inspectedMember) return;
+        
+        try {
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .update({ char_data: this.inspectedMember.char_data })
+                .eq('id', this.inspectedMember.id);
+            
+            if (error) throw error;
+            
+            playSFX('success');
+            this.notify('Ficha do jogador atualizada!', 'success');
+            this.closeInspector();
+            
+            // Recarrega lista
+            this.loadCampaignMembers(this.activeCampaign.id);
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao salvar membro:', e);
+            this.notify('Erro ao salvar alterações.', 'error');
+        }
+    },
+
     // ─────────────────────────────────────────────────────────────────────────
     // REALTIME & SINCRONIZAÇÃO
     // ─────────────────────────────────────────────────────────────────────────
