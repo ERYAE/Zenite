@@ -30,7 +30,7 @@ function zeniteSystem() {
         settings: { 
             compactMode: false, 
             crtMode: false, 
-            sfxEnabled: false, // Desabilitado por padrão
+            sfxEnabled: true, 
             themeColor: 'cyan'
         },
         
@@ -101,13 +101,12 @@ function zeniteSystem() {
         // CONFIGURAÇÕES DA CAMPANHA (POR CAMPANHA)
         // ═══════════════════════════════════════════════════════════════════════
         // Cada campanha pode ter configurações específicas
+        // Armazenadas em localStorage por campanha
         campaignSettingsOpen: false,
         campaignSettings: {
             chatEnabled: true,       // Se o chat está habilitado
             diceLogEnabled: true,    // Se os dados ficam no log público
-            discordWebhook: '',      // Webhook do Discord para notificações
-            notifyDiceRolls: true,   // Notificar rolagens no Discord
-            notifyCriticals: true,   // Notificar críticos/fumbles no Discord
+            imagesEnabled: true,     // Se permite compartilhar imagens no chat
         },
         
         // Histórico - NOVO

@@ -202,6 +202,9 @@ export const uiLogic = {
             `"${charName}" será deletado para sempre. Esta ação é irreversível.`, 
             'danger', 
             async () => { 
+                // Verifica se estamos vendo este personagem
+                const wasViewing = this.activeCharId === id;
+                
                 delete this.chars[id]; 
                 this.saveLocal(); 
                 
@@ -212,6 +215,13 @@ export const uiLogic = {
                 
                 this.updateAgentCount(); 
                 this.notify('Personagem eliminado.', 'success'); 
+                
+                // Se estava vendo a ficha deletada, volta para dashboard
+                if (wasViewing) {
+                    this.activeCharId = null;
+                    this.char = null;
+                    this.currentView = 'dash';
+                }
             }
         ); 
     },

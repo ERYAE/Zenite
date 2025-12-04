@@ -318,10 +318,14 @@ export const netlinkLogic = {
                 return false;
             }
             
-            // Copia os dados do personagem
-            const charData = characterId && this.chars[characterId] 
-                ? JSON.parse(JSON.stringify(this.chars[characterId])) 
-                : null;
+            // OBRIGATÓRIO: Precisa selecionar um personagem
+            if (!characterId || !this.chars[characterId]) {
+                this.notify('Você precisa selecionar um personagem para entrar.', 'error');
+                return false;
+            }
+            
+            // Copia os dados do personagem (cópia profunda)
+            const charData = JSON.parse(JSON.stringify(this.chars[characterId]));
             
             // Adiciona como membro
             const { error: joinError } = await this.supabase
@@ -339,13 +343,55 @@ export const netlinkLogic = {
             
             this.joinedCampaigns.push(campaign);
             playSFX('success');
-            this.notify(`Você entrou em "${campaign.name}"!`, 'success');
+            this.notify(`Você entrou em "${campaign.name}" com ${charData.name || 'seu personagem'}!`, 'success');
+            
+            // Fecha o modal e entra na campanha
+            this.netlinkModal = false;
+            await this.enterCampaign(campaign);
             
             return true;
         } catch (e) {
             console.error('[NETLINK] Erro ao entrar na campanha:', e);
             this.notify('Erro ao entrar na campanha.', 'error');
             return false;
+        }
+    },
+    
+    /**
+     * Jogador sai da campanha (não é GM)
+     * Remove o membro e seus dados da campanha
+     */
+    async leaveCampaignAsMember() {
+        if (!this.supabase || !this.user || !this.activeCampaign) return;
+        
+        // Não pode sair se for o GM
+        if (this.isGMOfActiveCampaign()) {
+            this.notify('O Mestre não pode abandonar a campanha. Delete-a se necessário.', 'error');
+            return;
+        }
+        
+        try {
+            // Remove o membro
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .delete()
+                .eq('campaign_id', this.activeCampaign.id)
+                .eq('user_id', this.user.id);
+            
+            if (error) throw error;
+            
+            // Remove da lista local
+            this.joinedCampaigns = this.joinedCampaigns.filter(c => c.id !== this.activeCampaign.id);
+            
+            playSFX('success');
+            this.notify('Você saiu da campanha.', 'success');
+            
+            // Volta para a lista
+            await this.leaveCampaign();
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao sair da campanha:', e);
+            this.notify('Erro ao sair da campanha.', 'error');
         }
     },
     
@@ -1214,6 +1260,43 @@ export const netlinkLogic = {
     },
     
     /**
+     * Compartilha imagem no chat (leve - URL externa ou base64 pequeno)
+     * @param {string} imageUrl - URL da imagem ou base64
+     * @param {string} caption - Legenda opcional
+     */
+    async shareImageInChat(imageUrl, caption = '') {
+        if (!this.supabase || !this.activeCampaign) return;
+        if (!this.campaignSettings.imagesEnabled) {
+            this.notify('Imagens desabilitadas nesta campanha', 'warn');
+            return;
+        }
+        
+        try {
+            const senderName = this.char?.name || this.user?.email?.split('@')[0] || 'Anônimo';
+            
+            const { error } = await this.supabase
+                .from('campaign_logs')
+                .insert([{
+                    campaign_id: this.activeCampaign.id,
+                    user_id: this.user.id,
+                    sender: senderName,
+                    content: caption,
+                    type: 'image',
+                    metadata: {
+                        isGM: this.isGMOfActiveCampaign(),
+                        imageUrl: imageUrl
+                    }
+                }]);
+            
+            if (error) throw error;
+            playSFX('success');
+        } catch (e) {
+            console.error('[NETLINK] Erro ao enviar imagem:', e);
+            this.notify('Erro ao enviar imagem', 'error');
+        }
+    },
+    
+    /**
      * Carrega histórico de chat
      */
     async loadChatHistory(limit = 50) {
@@ -1495,109 +1578,63 @@ export const netlinkLogic = {
     },
     
     // ─────────────────────────────────────────────────────────────────────────
-    // CONFIGURAÇÕES DA CAMPANHA
+    // CONFIGURAÇÕES DA CAMPANHA (ARMAZENADAS NO BANCO)
     // ─────────────────────────────────────────────────────────────────────────
-    // Configurações são armazenadas no localStorage por campanha
+    // Configurações são armazenadas na coluna 'settings' da tabela campaigns
+    // Isso permite que as configurações sejam compartilhadas entre todos
     
     /**
-     * Carrega configurações da campanha do localStorage
+     * Carrega configurações da campanha do banco de dados
+     * A coluna 'settings' da tabela campaigns armazena um JSONB
      */
     loadCampaignSettings() {
         if (!this.activeCampaign) return;
         
-        const key = `zenite_campaign_settings_${this.activeCampaign.id}`;
-        const saved = localStorage.getItem(key);
+        // Carrega do objeto da campanha (já vem do banco)
+        const dbSettings = this.activeCampaign.settings || {};
         
-        if (saved) {
-            this.campaignSettings = { ...this.campaignSettings, ...JSON.parse(saved) };
-        } else {
-            // Valores padrão
-            this.campaignSettings = {
-                chatEnabled: true,
-                diceLogEnabled: true,
-                discordWebhook: '',
-                notifyDiceRolls: false,
-                notifyCriticals: true,
-            };
-        }
+        // Merge com valores padrão
+        this.campaignSettings = {
+            chatEnabled: dbSettings.chatEnabled !== undefined ? dbSettings.chatEnabled : true,
+            diceLogEnabled: dbSettings.diceLogEnabled !== undefined ? dbSettings.diceLogEnabled : true,
+            imagesEnabled: dbSettings.imagesEnabled !== undefined ? dbSettings.imagesEnabled : true,
+        };
     },
     
     /**
-     * Salva configurações da campanha no localStorage
+     * Salva configurações da campanha no banco de dados
+     * Atualiza a coluna 'settings' da tabela campaigns
      */
-    saveCampaignSettings() {
-        if (!this.activeCampaign) return;
+    async saveCampaignSettings() {
+        if (!this.supabase || !this.activeCampaign) return;
         
-        const key = `zenite_campaign_settings_${this.activeCampaign.id}`;
-        localStorage.setItem(key, JSON.stringify(this.campaignSettings));
-        this.notify('Configurações salvas!', 'success');
-    },
-    
-    /**
-     * Envia notificação para o Discord via webhook
-     * @param {string} content - Mensagem a enviar
-     * @param {string} type - Tipo de mensagem (roll, critical, fumble, chat)
-     */
-    async sendDiscordNotification(content, type = 'roll') {
-        if (!this.campaignSettings.discordWebhook) return;
-        
-        // Verifica se deve notificar baseado no tipo
-        if (type === 'roll' && !this.campaignSettings.notifyDiceRolls) return;
-        if ((type === 'critical' || type === 'fumble') && !this.campaignSettings.notifyCriticals) return;
-        
-        try {
-            // Prepara embed colorido baseado no tipo
-            let color = 0x6366f1; // Roxo padrão
-            let emoji = '🎲';
-            
-            if (type === 'critical') {
-                color = 0x22c55e; // Verde
-                emoji = '💥';
-            } else if (type === 'fumble') {
-                color = 0xef4444; // Vermelho
-                emoji = '💀';
-            } else if (type === 'chat') {
-                color = 0x06b6d4; // Ciano
-                emoji = '💬';
-            }
-            
-            const payload = {
-                embeds: [{
-                    title: `${emoji} ${this.activeCampaign.name}`,
-                    description: content,
-                    color: color,
-                    footer: {
-                        text: 'Zenite NetLink'
-                    },
-                    timestamp: new Date().toISOString()
-                }]
-            };
-            
-            await fetch(this.campaignSettings.discordWebhook, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-        } catch (e) {
-            console.error('[NETLINK] Erro ao enviar para Discord:', e);
-        }
-    },
-    
-    /**
-     * Testa o webhook do Discord
-     */
-    async testDiscordWebhook() {
-        if (!this.campaignSettings.discordWebhook) {
-            this.notify('Configure o webhook primeiro!', 'error');
+        // Apenas o GM pode alterar configurações
+        if (!this.isGMOfActiveCampaign()) {
+            this.notify('Apenas o Mestre pode alterar configurações.', 'error');
             return;
         }
         
-        await this.sendDiscordNotification(
-            '✅ Teste de integração Zenite NetLink funcionando!',
-            'roll'
-        );
-        this.notify('Mensagem de teste enviada!', 'success');
+        try {
+            const { error } = await this.supabase
+                .from('campaigns')
+                .update({ 
+                    settings: this.campaignSettings,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', this.activeCampaign.id);
+            
+            if (error) throw error;
+            
+            // Atualiza o objeto local também
+            this.activeCampaign.settings = { ...this.campaignSettings };
+            
+            playSFX('save');
+            this.notify('Configurações salvas!', 'success');
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao salvar configurações:', e);
+            this.notify('Erro ao salvar configurações.', 'error');
+        }
     }
 };
 
