@@ -93,8 +93,34 @@
  * - Integração com roll tables
  * - Exportar sessão como relatório
  * 
+ * SEGURANÇA E BOAS PRÁTICAS:
+ * ─────────────────────────────
+ * 1. RLS (Row Level Security) - Todas as tabelas usam políticas RLS no Supabase:
+ *    - campaigns: Apenas GM pode editar, todos autenticados podem ler
+ *    - campaign_members: Usuário só vê/edita próprios registros
+ *    - dice_logs: Inserção livre para membros, leitura por campanha
+ *    - campaign_logs: Similar aos dice_logs
+ * 
+ * 2. Validação de entrada:
+ *    - Códigos de convite são sanitizados (apenas alfanuméricos)
+ *    - Limites de tamanho para mensagens (MAX_MESSAGE_LENGTH)
+ *    - Limites de quantidade (MAX_PLAYERS, MAX_CAMPAIGNS)
+ * 
+ * 3. Dados sensíveis:
+ *    - Notas do GM ficam na tabela campaigns (só GM acessa via RLS)
+ *    - Bestiário e configurações ficam em localStorage (não sobem pro banco)
+ *    - Webhook do Discord fica local (não exposto no banco)
+ * 
+ * 4. Otimizações para Free Tier (Supabase/Vercel):
+ *    - Limite de 50 mensagens no log de chat carregado
+ *    - Limite de 100 rolagens no histórico
+ *    - Debounce no auto-save de notas (2 segundos)
+ *    - Realtime subscriptions limitadas a 1 canal por campanha
+ *    - Bestiário em localStorage (zero queries)
+ *    - Configurações em localStorage (zero queries)
+ * 
  * @author Zenite Team
- * @version 1.0.0 (preparação)
+ * @version 2.0.0 (NetLink Full Implementation)
  */
 
 import { playSFX } from './audio.js';
@@ -547,6 +573,63 @@ export const netlinkLogic = {
     },
     
     /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * ROLAGEM LOCAL DO GM (NÃO VAI PARA O LOG)
+     * ═══════════════════════════════════════════════════════════════════════
+     * Rola dados apenas localmente para o Mestre fazer testes secretos.
+     * Os resultados ficam em gmLocalDiceLog e NÃO são enviados ao banco.
+     * 
+     * @param {number} sides - Lados do dado (d4, d6, d8, d10, d12, d20, d100)
+     */
+    rollGMLocalDice(sides = 20) {
+        playSFX('dice');
+        
+        const natural = this.cryptoRandom(sides);
+        const modifier = parseInt(this.gmDiceMod || 0);
+        const total = natural + modifier;
+        
+        const isCrit = natural === sides;
+        const isFumble = natural === 1;
+        
+        // Som especial
+        setTimeout(() => {
+            if (isCrit) playSFX('critical');
+            else if (isFumble) playSFX('fumble');
+        }, 400);
+        
+        // Formata fórmula
+        let formula = `D${sides}`;
+        if (modifier !== 0) formula += modifier > 0 ? `+${modifier}` : `${modifier}`;
+        
+        // Adiciona ao log LOCAL do GM (máximo 20 entradas)
+        this.gmLocalDiceLog.unshift({
+            id: Date.now(),
+            formula,
+            natural,
+            modifier,
+            total,
+            isCrit,
+            isFumble,
+            timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+        
+        // Limita tamanho do log
+        if (this.gmLocalDiceLog.length > 20) {
+            this.gmLocalDiceLog = this.gmLocalDiceLog.slice(0, 20);
+        }
+        
+        // Reseta modificador após rolar
+        this.gmDiceMod = 0;
+    },
+    
+    /**
+     * Limpa o log de dados local do GM
+     */
+    clearGMDiceLog() {
+        this.gmLocalDiceLog = [];
+    },
+    
+    /**
      * Handler para novas rolagens recebidas via realtime
      */
     handleNewDiceLog(log) {
@@ -715,6 +798,20 @@ export const netlinkLogic = {
     resetInitiative() {
         this.initiativeOrder = [];
         this.currentInitiativeIndex = 0;
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // UTILITÁRIOS DO JOGADOR
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Retorna o membership do jogador atual na campanha ativa
+     * Útil para o jogador ver sua própria ficha/stats na campanha
+     * @returns {Object|null} O objeto de membership do jogador ou null
+     */
+    getMyMembership() {
+        if (!this.user || !this.campaignMembers) return null;
+        return this.campaignMembers.find(m => m.user_id === this.user.id) || null;
     },
     
     // ─────────────────────────────────────────────────────────────────────────
@@ -1211,16 +1308,18 @@ export const netlinkLogic = {
     async enterCampaign(campaign) {
         this.activeCampaign = campaign;
         
-        // Carrega dados
+        // Carrega dados da campanha
         await Promise.all([
             this.loadCampaignMembers(campaign.id),
             this.loadChatHistory(),
             this.connectToRealtime(campaign.id)
         ]);
         
-        // Carrega notas se for GM
+        // Carrega dados específicos do GM
         if (this.isGMOfActiveCampaign()) {
             this.gmNotes = campaign.notes || '';
+            this.loadBestiary();           // Carrega NPCs do localStorage
+            this.loadCampaignSettings();   // Carrega configurações da campanha
         }
         
         // Muda para a view da campanha
@@ -1282,6 +1381,223 @@ export const netlinkLogic = {
             console.error('[NETLINK] Erro ao deletar campanha:', e);
             this.notify('Erro ao deletar campanha', 'error');
         }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // BESTIÁRIO DO MESTRE (LOCAL STORAGE)
+    // ─────────────────────────────────────────────────────────────────────────
+    // NPCs são armazenados localmente por campanha para não sobrecarregar o banco
+    // O mestre pode criar, editar e deletar NPCs livremente
+    
+    /**
+     * Carrega o bestiário do localStorage para a campanha atual
+     */
+    loadBestiary() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_bestiary_${this.activeCampaign.id}`;
+        const saved = localStorage.getItem(key);
+        this.bestiary = saved ? JSON.parse(saved) : [];
+    },
+    
+    /**
+     * Salva o bestiário no localStorage
+     */
+    saveBestiary() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_bestiary_${this.activeCampaign.id}`;
+        localStorage.setItem(key, JSON.stringify(this.bestiary));
+    },
+    
+    /**
+     * Abre o modal para criar novo NPC
+     */
+    openNewNPCModal() {
+        this.editingNPC = JSON.parse(JSON.stringify(this.npcTemplate));
+        this.editingNPC.id = Date.now().toString();
+        this.bestiaryModalOpen = true;
+    },
+    
+    /**
+     * Abre o modal para editar NPC existente
+     */
+    editNPC(npc) {
+        this.editingNPC = JSON.parse(JSON.stringify(npc));
+        this.bestiaryModalOpen = true;
+    },
+    
+    /**
+     * Salva o NPC (novo ou editado)
+     */
+    saveNPC() {
+        if (!this.editingNPC || !this.editingNPC.name.trim()) {
+            this.notify('Nome do NPC é obrigatório', 'error');
+            return;
+        }
+        
+        const existingIndex = this.bestiary.findIndex(n => n.id === this.editingNPC.id);
+        
+        if (existingIndex >= 0) {
+            // Atualiza existente
+            this.bestiary[existingIndex] = this.editingNPC;
+        } else {
+            // Adiciona novo
+            this.bestiary.push(this.editingNPC);
+        }
+        
+        this.saveBestiary();
+        this.bestiaryModalOpen = false;
+        this.editingNPC = null;
+        playSFX('success');
+    },
+    
+    /**
+     * Deleta um NPC do bestiário
+     */
+    deleteNPC(npcId) {
+        this.bestiary = this.bestiary.filter(n => n.id !== npcId);
+        this.saveBestiary();
+        playSFX('click');
+    },
+    
+    /**
+     * Duplica um NPC
+     */
+    duplicateNPC(npc) {
+        const copy = JSON.parse(JSON.stringify(npc));
+        copy.id = Date.now().toString();
+        copy.name = copy.name + ' (cópia)';
+        this.bestiary.push(copy);
+        this.saveBestiary();
+        playSFX('success');
+    },
+    
+    /**
+     * Adiciona NPC à iniciativa
+     */
+    addNPCToInitiative(npc) {
+        // Rola iniciativa automaticamente (d20)
+        const initRoll = this.cryptoRandom(20);
+        this.addToInitiative(npc.name, initRoll, true);
+        playSFX('dice');
+    },
+    
+    /**
+     * Atualiza PV de um NPC rapidamente
+     */
+    updateNPCHP(npcId, delta) {
+        const npc = this.bestiary.find(n => n.id === npcId);
+        if (npc) {
+            npc.pv.current = Math.max(0, Math.min(npc.pv.max, npc.pv.current + delta));
+            this.saveBestiary();
+        }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONFIGURAÇÕES DA CAMPANHA
+    // ─────────────────────────────────────────────────────────────────────────
+    // Configurações são armazenadas no localStorage por campanha
+    
+    /**
+     * Carrega configurações da campanha do localStorage
+     */
+    loadCampaignSettings() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_campaign_settings_${this.activeCampaign.id}`;
+        const saved = localStorage.getItem(key);
+        
+        if (saved) {
+            this.campaignSettings = { ...this.campaignSettings, ...JSON.parse(saved) };
+        } else {
+            // Valores padrão
+            this.campaignSettings = {
+                chatEnabled: true,
+                diceLogEnabled: true,
+                discordWebhook: '',
+                notifyDiceRolls: false,
+                notifyCriticals: true,
+            };
+        }
+    },
+    
+    /**
+     * Salva configurações da campanha no localStorage
+     */
+    saveCampaignSettings() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_campaign_settings_${this.activeCampaign.id}`;
+        localStorage.setItem(key, JSON.stringify(this.campaignSettings));
+        this.notify('Configurações salvas!', 'success');
+    },
+    
+    /**
+     * Envia notificação para o Discord via webhook
+     * @param {string} content - Mensagem a enviar
+     * @param {string} type - Tipo de mensagem (roll, critical, fumble, chat)
+     */
+    async sendDiscordNotification(content, type = 'roll') {
+        if (!this.campaignSettings.discordWebhook) return;
+        
+        // Verifica se deve notificar baseado no tipo
+        if (type === 'roll' && !this.campaignSettings.notifyDiceRolls) return;
+        if ((type === 'critical' || type === 'fumble') && !this.campaignSettings.notifyCriticals) return;
+        
+        try {
+            // Prepara embed colorido baseado no tipo
+            let color = 0x6366f1; // Roxo padrão
+            let emoji = '🎲';
+            
+            if (type === 'critical') {
+                color = 0x22c55e; // Verde
+                emoji = '💥';
+            } else if (type === 'fumble') {
+                color = 0xef4444; // Vermelho
+                emoji = '💀';
+            } else if (type === 'chat') {
+                color = 0x06b6d4; // Ciano
+                emoji = '💬';
+            }
+            
+            const payload = {
+                embeds: [{
+                    title: `${emoji} ${this.activeCampaign.name}`,
+                    description: content,
+                    color: color,
+                    footer: {
+                        text: 'Zenite NetLink'
+                    },
+                    timestamp: new Date().toISOString()
+                }]
+            };
+            
+            await fetch(this.campaignSettings.discordWebhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao enviar para Discord:', e);
+        }
+    },
+    
+    /**
+     * Testa o webhook do Discord
+     */
+    async testDiscordWebhook() {
+        if (!this.campaignSettings.discordWebhook) {
+            this.notify('Configure o webhook primeiro!', 'error');
+            return;
+        }
+        
+        await this.sendDiscordNotification(
+            '✅ Teste de integração Zenite NetLink funcionando!',
+            'roll'
+        );
+        this.notify('Mensagem de teste enviada!', 'success');
     }
 };
 

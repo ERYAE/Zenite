@@ -23,11 +23,14 @@ function zeniteSystem() {
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
         
-        // Configs
+        // ═══════════════════════════════════════════════════════════════════════
+        // CONFIGURAÇÕES DO USUÁRIO
+        // ═══════════════════════════════════════════════════════════════════════
+        // IMPORTANTE: sfxEnabled começa FALSE por padrão (usuários reclamaram)
         settings: { 
             compactMode: false, 
             crtMode: false, 
-            sfxEnabled: true, 
+            sfxEnabled: false, // Desabilitado por padrão
             themeColor: 'cyan'
         },
         
@@ -56,13 +59,56 @@ function zeniteSystem() {
         autoSaveEnabled: false, // NOVO: Controle manual do auto-save
         lastManualSave: null,
         
-        // Ferramentas
+        // ═══════════════════════════════════════════════════════════════════════
+        // FERRAMENTAS E DADOS
+        // ═══════════════════════════════════════════════════════════════════════
         cropperOpen: false, cropperInstance: null, uploadContext: 'char',
         diceTrayOpen: false, trayDockMode: 'float', 
         // Posição inicial segura - será recalculada ao abrir
         trayPosition: { x: 100, y: 100 },
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // DADOS DO GM (LOCAL ONLY)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Rolagens do GM ficam apenas localmente, não vão para o log da campanha
+        gmLocalDiceLog: [],
+        gmDiceFaces: 20,
+        gmDiceMod: 0,
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // BESTIÁRIO DO MESTRE
+        // ═══════════════════════════════════════════════════════════════════════
+        // NPCs são armazenados no localStorage, organizados por campanha
+        // Cada mestre pode criar seus próprios NPCs customizados
+        bestiary: [],
+        bestiaryModalOpen: false,
+        editingNPC: null, // NPC sendo editado no modal
+        npcTemplate: {
+            id: null,
+            name: '',
+            type: 'enemy', // enemy, ally, neutral
+            pv: { current: 10, max: 10 },
+            pf: { current: 5, max: 5 },
+            pdf: { current: 5, max: 5 },
+            defesa: 10,
+            notes: '',
+            tags: []
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // CONFIGURAÇÕES DA CAMPANHA (POR CAMPANHA)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Cada campanha pode ter configurações específicas
+        campaignSettingsOpen: false,
+        campaignSettings: {
+            chatEnabled: true,       // Se o chat está habilitado
+            diceLogEnabled: true,    // Se os dados ficam no log público
+            discordWebhook: '',      // Webhook do Discord para notificações
+            notifyDiceRolls: true,   // Notificar rolagens no Discord
+            notifyCriticals: true,   // Notificar críticos/fumbles no Discord
+        },
         
         // Histórico - NOVO
         saveHistory: [],

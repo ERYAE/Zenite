@@ -245,9 +245,14 @@
                             <button @click="stopSessionTimer()" class="w-8 h-8 rounded bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors">
                                 <i class="fa-solid fa-stop"></i>
                             </button>
+                            <!-- Configurações -->
+                            <button @click="campaignSettingsOpen = true" 
+                                    class="w-8 h-8 rounded bg-white/5 text-gray-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors ml-2" title="Configurações">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
                             <!-- Deletar Campanha -->
                             <button @click="askConfirm('Deletar Campanha?', 'Esta ação é irreversível e apagará todos os dados.', 'danger', () => deleteCampaign(activeCampaign.id))" 
-                                    class="w-8 h-8 rounded bg-red-900/20 text-red-500 flex items-center justify-center hover:bg-red-900/40 transition-colors ml-2" title="Deletar Campanha">
+                                    class="w-8 h-8 rounded bg-red-900/20 text-red-500 flex items-center justify-center hover:bg-red-900/40 transition-colors" title="Deletar Campanha">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
@@ -255,44 +260,181 @@
                 </div>
             </div>
 
+            <!-- ═══════════════════════════════════════════════════════════════════════
+                 PAINEL DO JOGADOR (NÃO É GM)
+                 ═══════════════════════════════════════════════════════════════════════
+                 Mostra a ficha do jogador na campanha com rolador de dados.
+                 O jogador vê sua cópia da ficha e pode rolar dados que vão para o log.
+            -->
+            <div x-show="!isGMOfActiveCampaign() && getMyMembership()?.char_data" class="glass rounded-2xl p-4 border border-cyan-500/20 mb-6">
+                <div class="flex items-start gap-4">
+                    <!-- Foto e Info -->
+                    <div class="w-20 h-20 rounded-xl bg-cyan-500/20 flex-shrink-0 flex items-center justify-center overflow-hidden border border-white/10">
+                        <img x-show="getMyMembership()?.char_data?.photo" :src="getMyMembership()?.char_data?.photo" class="w-full h-full object-cover">
+                        <i x-show="!getMyMembership()?.char_data?.photo" class="fa-solid fa-user text-cyan-400 text-3xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h2 class="text-lg font-bold text-white font-brand" x-text="getMyMembership()?.char_data?.name || 'Meu Personagem'"></h2>
+                                <p class="text-xs text-gray-500">
+                                    <span x-text="getMyMembership()?.char_data?.class || ''"></span>
+                                    <span x-show="getMyMembership()?.char_data?.level" class="text-cyan-400 ml-2">NVL <span x-text="getMyMembership()?.char_data?.level"></span></span>
+                                </p>
+                            </div>
+                            <button @click="syncCharWithCampaign()" class="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors flex items-center gap-1" title="Sincronizar ficha local com a campanha">
+                                <i class="fa-solid fa-sync"></i> SYNC
+                            </button>
+                        </div>
+                        
+                        <!-- Stats do Jogador -->
+                        <div class="grid grid-cols-3 gap-3 mt-3">
+                            <div class="bg-red-500/10 rounded-lg px-3 py-2 border border-red-500/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[9px] text-red-400 font-bold">PV</span>
+                                    <span class="text-sm text-white font-code font-bold" x-text="(getMyMembership()?.char_data?.stats?.pv?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pv?.max || 0)"></span>
+                                </div>
+                                <div class="w-full h-1.5 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                    <div class="h-full bg-red-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pv?.current || 0) / (getMyMembership()?.char_data?.stats?.pv?.max || 1)) * 100) + '%'"></div>
+                                </div>
+                            </div>
+                            <div class="bg-blue-500/10 rounded-lg px-3 py-2 border border-blue-500/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[9px] text-blue-400 font-bold">PF</span>
+                                    <span class="text-sm text-white font-code font-bold" x-text="(getMyMembership()?.char_data?.stats?.pf?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pf?.max || 0)"></span>
+                                </div>
+                                <div class="w-full h-1.5 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                    <div class="h-full bg-blue-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pf?.current || 0) / (getMyMembership()?.char_data?.stats?.pf?.max || 1)) * 100) + '%'"></div>
+                                </div>
+                            </div>
+                            <div class="bg-purple-500/10 rounded-lg px-3 py-2 border border-purple-500/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[9px] text-purple-400 font-bold">SAN</span>
+                                    <span class="text-sm text-white font-code font-bold" x-text="(getMyMembership()?.char_data?.stats?.pdf?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pdf?.max || 0)"></span>
+                                </div>
+                                <div class="w-full h-1.5 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                    <div class="h-full bg-purple-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pdf?.current || 0) / (getMyMembership()?.char_data?.stats?.pdf?.max || 1)) * 100) + '%'"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rolador de Dados do Jogador -->
+                    <div class="w-48 flex-shrink-0 bg-black/40 rounded-xl p-3 border border-white/10">
+                        <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Rolar Dados</div>
+                        <div class="flex gap-2 mb-2">
+                            <select x-model="lastFaces" class="flex-1 bg-black/60 border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-cyan-500 focus:outline-none">
+                                <option value="4">D4</option>
+                                <option value="6">D6</option>
+                                <option value="8">D8</option>
+                                <option value="10">D10</option>
+                                <option value="12">D12</option>
+                                <option value="20">D20</option>
+                                <option value="100">D100</option>
+                            </select>
+                            <input type="number" x-model.number="diceMod" placeholder="+0" class="w-12 bg-black/60 border border-white/10 rounded px-1 py-1 text-xs text-white text-center focus:border-cyan-500 focus:outline-none">
+                        </div>
+                        <input type="text" x-model="diceReason" placeholder="Motivo (opcional)" class="w-full bg-black/60 border border-white/10 rounded px-2 py-1 text-xs text-white mb-2 focus:border-cyan-500 focus:outline-none">
+                        <button @click="rollForCampaign(parseInt(lastFaces))" class="w-full py-2 bg-cyan-500/20 text-cyan-400 rounded font-bold text-xs hover:bg-cyan-500/30 transition-colors">
+                            <i class="fa-solid fa-dice mr-1"></i> ROLAR
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Coluna Principal -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- Jogadores -->
+                    <!-- ═══════════════════════════════════════════════════════════════════════
+                         LISTA DE JOGADORES DA CAMPANHA
+                         ═══════════════════════════════════════════════════════════════════════
+                         Mostra todos os membros com seus stats principais.
+                         O GM pode clicar para inspecionar/editar.
+                         IMPORTANTE: Se mudar a estrutura de char_data.stats, atualize aqui!
+                    -->
                     <div class="glass rounded-2xl p-4 border border-white/10">
                         <h2 class="text-sm font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-users text-purple-400"></i> Jogadores
-                            <span class="text-[10px] text-gray-600" x-text="'(' + campaignMembers.length + ')'"></span>
+                            <span class="text-[10px] text-gray-600" x-text="'(' + campaignMembers.filter(m => m.char_data).length + '/' + campaignMembers.length + ')'"></span>
                         </h2>
                         
+                        <!-- Mensagem quando não há jogadores -->
                         <div x-show="campaignMembers.length === 0" class="text-center py-8 text-gray-600">
                             <i class="fa-solid fa-user-plus text-2xl mb-2 opacity-30"></i>
                             <p class="text-xs">Nenhum jogador ainda</p>
-                            <p class="text-[10px] mt-1">Compartilhe o código: <span class="text-purple-400 font-code" x-text="activeCampaign.invite_code"></span></p>
+                            <p class="text-[10px] mt-1">Compartilhe o código: <span class="text-purple-400 font-code" x-text="activeCampaign?.invite_code"></span></p>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Grid de jogadores com stats completos -->
+                        <div class="grid grid-cols-1 gap-3">
                             <template x-for="member in campaignMembers" :key="member.id">
-                                <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-purple-500/30 transition-colors"
-                                     :class="isGMOfActiveCampaign() && member.char_data ? 'cursor-pointer hover:bg-white/5' : ''"
+                                <!-- Card do Jogador - Só mostra se tiver char_data ou se for GM vendo -->
+                                <div x-show="member.char_data || isGMOfActiveCampaign()" 
+                                     class="bg-black/40 rounded-xl p-3 border border-white/5 hover:border-purple-500/30 transition-all"
+                                     :class="isGMOfActiveCampaign() && member.char_data ? 'cursor-pointer hover:bg-white/5 hover:scale-[1.01]' : ''"
                                      @click="isGMOfActiveCampaign() && member.char_data ? inspectMember(member) : null">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 overflow-hidden">
-                                            <template x-if="member.char_data?.photo">
-                                                <img :src="member.char_data.photo" class="w-full h-full object-cover">
-                                            </template>
-                                            <template x-if="!member.char_data?.photo">
-                                                <i class="fa-solid" :class="member.role === 'gm' ? 'fa-crown text-yellow-500' : 'fa-user'"></i>
-                                            </template>
+                                    
+                                    <div class="flex items-start gap-4">
+                                        <!-- Foto do personagem -->
+                                        <div class="w-14 h-14 rounded-lg bg-purple-500/20 flex-shrink-0 flex items-center justify-center text-purple-400 overflow-hidden border border-white/10">
+                                            <img x-show="member.char_data?.photo" :src="member.char_data?.photo" class="w-full h-full object-cover">
+                                            <i x-show="!member.char_data?.photo" class="fa-solid text-xl" :class="member.role === 'gm' ? 'fa-crown text-yellow-500' : 'fa-user'"></i>
                                         </div>
+                                        
+                                        <!-- Info e Stats -->
                                         <div class="flex-1 min-w-0">
-                                            <p class="font-bold text-white truncate" x-text="member.char_data?.name || 'Sem personagem'"></p>
-                                            <p class="text-[10px] text-gray-500" x-text="member.char_data?.class || 'Aguardando...'"></p>
+                                            <div class="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <p class="font-bold text-white truncate" x-text="member.char_data?.name || 'Aguardando ficha...'"></p>
+                                                    <p class="text-[10px] text-gray-500 flex items-center gap-2">
+                                                        <span x-text="member.char_data?.class || 'Sem classe'"></span>
+                                                        <span x-show="member.char_data?.level" class="text-yellow-500">NVL <span x-text="member.char_data?.level"></span></span>
+                                                    </p>
+                                                </div>
+                                                <span x-show="member.role === 'gm'" class="text-[9px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded font-bold">GM</span>
+                                            </div>
+                                            
+                                            <!-- Barras de Stats (PV, PF, PDF) - Só mostra se tiver stats -->
+                                            <template x-if="member.char_data?.stats">
+                                                <div class="grid grid-cols-3 gap-2 mt-2">
+                                                    <!-- PV -->
+                                                    <div class="bg-red-500/10 rounded px-2 py-1 border border-red-500/20">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[9px] text-red-400 font-bold">PV</span>
+                                                            <span class="text-xs text-white font-code" x-text="(member.char_data.stats.pv?.current || 0) + '/' + (member.char_data.stats.pv?.max || 0)"></span>
+                                                        </div>
+                                                        <div class="w-full h-1 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                                            <div class="h-full bg-red-500 transition-all" :style="'width: ' + Math.min(100, ((member.char_data.stats.pv?.current || 0) / (member.char_data.stats.pv?.max || 1)) * 100) + '%'"></div>
+                                                        </div>
+                                                    </div>
+                                                    <!-- PF -->
+                                                    <div class="bg-blue-500/10 rounded px-2 py-1 border border-blue-500/20">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[9px] text-blue-400 font-bold">PF</span>
+                                                            <span class="text-xs text-white font-code" x-text="(member.char_data.stats.pf?.current || 0) + '/' + (member.char_data.stats.pf?.max || 0)"></span>
+                                                        </div>
+                                                        <div class="w-full h-1 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                                            <div class="h-full bg-blue-500 transition-all" :style="'width: ' + Math.min(100, ((member.char_data.stats.pf?.current || 0) / (member.char_data.stats.pf?.max || 1)) * 100) + '%'"></div>
+                                                        </div>
+                                                    </div>
+                                                    <!-- PDF (Sanidade) -->
+                                                    <div class="bg-purple-500/10 rounded px-2 py-1 border border-purple-500/20">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[9px] text-purple-400 font-bold">SAN</span>
+                                                            <span class="text-xs text-white font-code" x-text="(member.char_data.stats.pdf?.current || 0) + '/' + (member.char_data.stats.pdf?.max || 0)"></span>
+                                                        </div>
+                                                        <div class="w-full h-1 bg-black/40 rounded-full mt-1 overflow-hidden">
+                                                            <div class="h-full bg-purple-500 transition-all" :style="'width: ' + Math.min(100, ((member.char_data.stats.pdf?.current || 0) / (member.char_data.stats.pdf?.max || 1)) * 100) + '%'"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </div>
-                                        <template x-if="isGMOfActiveCampaign() && member.char_data?.stats">
-                                            <div class="text-right">
-                                                <p class="text-xs text-red-400"><i class="fa-solid fa-heart mr-1"></i><span x-text="member.char_data.stats.pv?.current + '/' + member.char_data.stats.pv?.max"></span></p>
-                                                <p class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Editar</p>
+                                        
+                                        <!-- Botão de Editar (só GM) -->
+                                        <template x-if="isGMOfActiveCampaign() && member.char_data">
+                                            <div class="flex-shrink-0 text-gray-500 hover:text-purple-400 transition-colors">
+                                                <i class="fa-solid fa-pen-to-square"></i>
                                             </div>
                                         </template>
                                     </div>
@@ -309,6 +451,70 @@
                         <textarea x-model="gmNotes" @input="updateGMNotes($event.target.value)"
                                   placeholder="Suas anotações secretas... (auto-save)"
                                   class="w-full h-32 bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white resize-none focus:border-yellow-500/50 focus:outline-none"></textarea>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════════════════════════════════
+                         BESTIÁRIO DO MESTRE
+                         ═══════════════════════════════════════════════════════════════════════
+                         NPCs customizados do GM. Armazenados localmente no localStorage.
+                         Podem ser adicionados à iniciativa com um clique.
+                    -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-rose-500/20">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-sm font-bold text-rose-400 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-dragon"></i> Bestiário
+                                <span class="text-[10px] text-gray-600" x-text="'(' + bestiary.length + ')'"></span>
+                            </h2>
+                            <button @click="openNewNPCModal()" class="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-1 rounded hover:bg-rose-500/30 transition-colors">
+                                <i class="fa-solid fa-plus mr-1"></i>NOVO NPC
+                            </button>
+                        </div>
+                        
+                        <!-- Lista de NPCs -->
+                        <div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                            <template x-for="npc in bestiary" :key="npc.id">
+                                <div class="bg-black/40 rounded-lg p-2 border border-white/5 hover:border-rose-500/30 transition-colors group">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fa-solid text-xs" 
+                                               :class="npc.type === 'enemy' ? 'fa-skull text-red-500' : npc.type === 'ally' ? 'fa-shield text-green-500' : 'fa-circle text-gray-500'"></i>
+                                            <span class="text-sm font-bold text-white" x-text="npc.name"></span>
+                                        </div>
+                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button @click="addNPCToInitiative(npc)" class="w-6 h-6 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 flex items-center justify-center text-[10px]" title="Add à Iniciativa">
+                                                <i class="fa-solid fa-bolt"></i>
+                                            </button>
+                                            <button @click="duplicateNPC(npc)" class="w-6 h-6 rounded bg-white/5 text-gray-400 hover:bg-white/10 flex items-center justify-center text-[10px]" title="Duplicar">
+                                                <i class="fa-solid fa-copy"></i>
+                                            </button>
+                                            <button @click="editNPC(npc)" class="w-6 h-6 rounded bg-white/5 text-gray-400 hover:bg-white/10 flex items-center justify-center text-[10px]" title="Editar">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                            <button @click="deleteNPC(npc.id)" class="w-6 h-6 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center text-[10px]" title="Deletar">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Stats rápidos -->
+                                    <div class="flex items-center gap-3 mt-1.5">
+                                        <div class="flex items-center gap-1">
+                                            <i class="fa-solid fa-heart text-red-500 text-[9px]"></i>
+                                            <div class="flex items-center gap-0.5">
+                                                <button @click="updateNPCHP(npc.id, -1)" class="w-4 h-4 bg-black/40 rounded text-[8px] text-gray-500 hover:text-white">-</button>
+                                                <span class="text-[10px] text-white font-code w-10 text-center" x-text="npc.pv.current + '/' + npc.pv.max"></span>
+                                                <button @click="updateNPCHP(npc.id, 1)" class="w-4 h-4 bg-black/40 rounded text-[8px] text-gray-500 hover:text-white">+</button>
+                                            </div>
+                                        </div>
+                                        <span class="text-[10px] text-gray-600" x-text="'DEF ' + npc.defesa"></span>
+                                        <span x-show="npc.notes" class="text-[10px] text-gray-600 truncate max-w-[100px]" x-text="npc.notes"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="bestiary.length === 0" class="text-center py-4 text-gray-600 text-xs">
+                                <i class="fa-solid fa-dragon text-xl mb-2 opacity-30"></i>
+                                <p>Nenhum NPC criado ainda</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Sistema de Iniciativa -->
@@ -395,6 +601,60 @@
                                 <i class="fa-solid fa-paper-plane"></i>
                             </button>
                         </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════════════════════════════════
+                         ROLADOR DE DADOS DO GM (LOCAL ONLY)
+                         ═══════════════════════════════════════════════════════════════════════
+                         Dados secretos do Mestre - NÃO vão para o log da campanha.
+                         Útil para testes de NPCs, rolagens secretas, etc.
+                    -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-green-500/20">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-sm font-bold text-green-400 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-dice-d20"></i> Dados Secretos
+                            </h2>
+                            <button @click="clearGMDiceLog()" x-show="gmLocalDiceLog.length > 0" class="text-[9px] text-gray-500 hover:text-white">LIMPAR</button>
+                        </div>
+                        
+                        <!-- Seletor de dado e modificador -->
+                        <div class="flex gap-2 mb-3">
+                            <select x-model="gmDiceFaces" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white focus:border-green-500 focus:outline-none">
+                                <option value="4">D4</option>
+                                <option value="6">D6</option>
+                                <option value="8">D8</option>
+                                <option value="10">D10</option>
+                                <option value="12">D12</option>
+                                <option value="20" selected>D20</option>
+                                <option value="100">D100</option>
+                            </select>
+                            <input type="number" x-model.number="gmDiceMod" placeholder="+0" 
+                                   class="w-16 bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-xs text-white text-center focus:border-green-500 focus:outline-none">
+                            <button @click="rollGMLocalDice(parseInt(gmDiceFaces))" 
+                                    class="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg font-bold text-xs hover:bg-green-500/30 transition-colors">
+                                <i class="fa-solid fa-dice mr-1"></i>ROLAR
+                            </button>
+                        </div>
+                        
+                        <!-- Log de rolagens locais -->
+                        <div class="max-h-32 overflow-y-auto space-y-1 custom-scrollbar">
+                            <template x-for="roll in gmLocalDiceLog" :key="roll.id">
+                                <div class="flex justify-between items-center text-[10px] px-2 py-1 rounded"
+                                     :class="roll.isCrit ? 'bg-green-500/20 text-green-400' : roll.isFumble ? 'bg-red-500/20 text-red-400' : 'bg-black/20 text-gray-400'">
+                                    <span class="font-code" x-text="roll.formula"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-600" x-text="'(' + roll.natural + (roll.modifier !== 0 ? (roll.modifier > 0 ? '+' : '') + roll.modifier : '') + ')'"></span>
+                                        <span class="font-bold text-white text-xs" x-text="'= ' + roll.total"></span>
+                                        <span class="text-gray-600" x-text="roll.timestamp"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="gmLocalDiceLog.length === 0" class="text-center text-gray-600 text-[10px] py-2">
+                                Nenhuma rolagem ainda
+                            </div>
+                        </div>
+                        
+                        <p class="text-[9px] text-gray-600 text-center mt-2 italic">* Estas rolagens não são enviadas aos jogadores</p>
                     </div>
 
                     <!-- Calculadora (GM Only) -->
@@ -1207,142 +1467,351 @@
         </div>
     </div>
 
-    <!-- MEMBER INSPECTOR MODAL (GM ONLY) -->
-    <div x-show="memberInspectorOpen" style="display: none" class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
-        <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]" x-data="{ tab: 'stats' }">
-            <!-- Header -->
-            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden border border-white/10">
-                        <template x-if="inspectedMember?.char_data?.photo">
-                            <img :src="inspectedMember.char_data.photo" class="w-full h-full object-cover">
-                        </template>
-                        <template x-if="!inspectedMember?.char_data?.photo">
-                            <i class="fa-solid fa-user text-purple-400 text-xl"></i>
-                        </template>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         MEMBER INSPECTOR MODAL (GM ONLY)
+         ═══════════════════════════════════════════════════════════════════════
+         Modal para o Mestre inspecionar e editar fichas dos jogadores.
+         IMPORTANTE: Todo o conteúdo usa x-if para evitar erros quando inspectedMember é null.
+         Quando a estrutura da ficha (char) mudar, atualize também este modal!
+    -->
+    <template x-if="memberInspectorOpen && inspectedMember && inspectedMember.char_data">
+        <div class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+            <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]" x-data="{ tab: 'stats' }">
+                <!-- Header com foto e nome do personagem -->
+                <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden border border-white/10">
+                            <img x-show="inspectedMember.char_data.photo" :src="inspectedMember.char_data.photo" class="w-full h-full object-cover">
+                            <i x-show="!inspectedMember.char_data.photo" class="fa-solid fa-user text-purple-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white font-brand" x-text="inspectedMember.char_data.name || 'Sem Nome'"></h2>
+                            <p class="text-xs text-purple-400 font-bold uppercase" x-text="(inspectedMember.char_data.class || 'Desconhecido') + ' - NVL ' + (inspectedMember.char_data.level || 1)"></p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-white font-brand" x-text="inspectedMember?.char_data?.name"></h2>
-                        <p class="text-xs text-purple-400 font-bold uppercase" x-text="inspectedMember?.char_data?.class + ' - NVL ' + (inspectedMember?.char_data?.level || 1)"></p>
+                    <div class="flex gap-2">
+                        <button @click="saveInspectedMember()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg hover:bg-green-400 transition-colors text-xs">
+                            <i class="fa-solid fa-save mr-2"></i>SALVAR
+                        </button>
+                        <button @click="closeInspector()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="saveInspectedMember()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg hover:bg-green-400 transition-colors text-xs">
-                        <i class="fa-solid fa-save mr-2"></i>SALVAR
-                    </button>
-                    <button @click="closeInspector()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+
+                <!-- Tabs de navegação -->
+                <div class="flex border-b border-white/10 overflow-x-auto">
+                    <button @click="tab = 'stats'" :class="tab === 'stats' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">STATUS</button>
+                    <button @click="tab = 'attrs'" :class="tab === 'attrs' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">ATRIBUTOS</button>
+                    <button @click="tab = 'powers'" :class="tab === 'powers' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">PODERES</button>
+                    <button @click="tab = 'inv'" :class="tab === 'inv' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">INVENTÁRIO</button>
+                </div>
+
+                <!-- Conteúdo das tabs -->
+                <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    
+                    <!-- TAB: STATUS - PV, PF, PDF e stats derivados -->
+                    <div x-show="tab === 'stats'" class="space-y-6">
+                        <!-- Barras Principais de Recursos -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- PV (Pontos de Vida) - IMPORTANTE: Se mudar estrutura de stats, atualize aqui -->
+                            <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                                <div class="flex justify-between items-end mb-2">
+                                    <label class="text-red-400 font-bold text-xs">PONTOS DE VIDA</label>
+                                    <i class="fa-solid fa-heart text-red-500/50 text-xl"></i>
+                                </div>
+                                <div class="flex gap-2 items-center">
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pv?.current || 0" @input="inspectedMember.char_data.stats.pv.current = +$event.target.value" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-red-500 focus:outline-none">
+                                    <span class="text-gray-500">/</span>
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pv?.max || 0" @input="inspectedMember.char_data.stats.pv.max = +$event.target.value" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-red-500 focus:outline-none">
+                                </div>
+                            </div>
+                            <!-- PF (Pontos de Esforço) -->
+                            <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                                <div class="flex justify-between items-end mb-2">
+                                    <label class="text-blue-400 font-bold text-xs">PONTOS DE ESFORÇO</label>
+                                    <i class="fa-solid fa-bolt text-blue-500/50 text-xl"></i>
+                                </div>
+                                <div class="flex gap-2 items-center">
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pf?.current || 0" @input="inspectedMember.char_data.stats.pf.current = +$event.target.value" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-blue-500 focus:outline-none">
+                                    <span class="text-gray-500">/</span>
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pf?.max || 0" @input="inspectedMember.char_data.stats.pf.max = +$event.target.value" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-blue-500 focus:outline-none">
+                                </div>
+                            </div>
+                            <!-- PDF (Sanidade) -->
+                            <div class="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
+                                <div class="flex justify-between items-end mb-2">
+                                    <label class="text-purple-400 font-bold text-xs">SANIDADE</label>
+                                    <i class="fa-solid fa-brain text-purple-500/50 text-xl"></i>
+                                </div>
+                                <div class="flex gap-2 items-center">
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pdf?.current || 0" @input="inspectedMember.char_data.stats.pdf.current = +$event.target.value" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-purple-500 focus:outline-none">
+                                    <span class="text-gray-500">/</span>
+                                    <input type="number" :value="inspectedMember.char_data.stats?.pdf?.max || 0" @input="inspectedMember.char_data.stats.pdf.max = +$event.target.value" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-purple-500 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Derivados - Defesa, Proteção, etc -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                                <label class="text-[10px] text-gray-500 font-bold block mb-1">DEFESA</label>
+                                <input type="number" :value="inspectedMember.char_data.defesa || 0" @input="inspectedMember.char_data.defesa = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                            </div>
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                                <label class="text-[10px] text-gray-500 font-bold block mb-1">PROTEÇÃO</label>
+                                <input type="number" :value="inspectedMember.char_data.protecao || 0" @input="inspectedMember.char_data.protecao = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                            </div>
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                                <label class="text-[10px] text-gray-500 font-bold block mb-1">DESLOCAMENTO</label>
+                                <input type="number" :value="inspectedMember.char_data.deslocamento || 0" @input="inspectedMember.char_data.deslocamento = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                            </div>
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                                <label class="text-[10px] text-gray-500 font-bold block mb-1">NÍVEL</label>
+                                <input type="number" :value="inspectedMember.char_data.level || 1" @input="inspectedMember.char_data.level = +$event.target.value" class="w-full bg-transparent text-center text-xl text-yellow-500 font-bold border-none focus:ring-0 p-0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB: ATRIBUTOS - FOR, AGI, INT, VON, POD -->
+                    <div x-show="tab === 'attrs'" class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <template x-if="inspectedMember.char_data.attrs">
+                            <template x-for="attrKey in ['for', 'agi', 'int', 'von', 'pod']" :key="attrKey">
+                                <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center relative overflow-hidden">
+                                    <div class="absolute top-0 right-0 text-[40px] font-black text-white/5 uppercase pointer-events-none" x-text="attrKey"></div>
+                                    <label class="text-sm font-bold text-gray-400 uppercase mb-2" x-text="attrKey"></label>
+                                    <input type="number" :value="inspectedMember.char_data.attrs[attrKey] || 0" @input="inspectedMember.char_data.attrs[attrKey] = +$event.target.value" class="w-16 h-16 bg-black/40 border-2 border-white/20 rounded-full text-center text-2xl text-white font-bold focus:border-purple-500 focus:outline-none mb-2">
+                                </div>
+                            </template>
+                        </template>
+                    </div>
+
+                    <!-- TAB: PODERES - Passiva, Ativa, Técnicas -->
+                    <div x-show="tab === 'powers'" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                                <label class="text-xs text-cyan-400 font-bold uppercase block mb-2">Passiva</label>
+                                <textarea :value="inspectedMember.char_data.powers?.passive || ''" @input="inspectedMember.char_data.powers.passive = $event.target.value" class="w-full h-24 bg-black/40 border border-white/10 rounded p-2 text-sm text-white focus:border-purple-500 focus:outline-none resize-none" placeholder="Habilidade passiva..."></textarea>
+                            </div>
+                            <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                                <label class="text-xs text-cyan-400 font-bold uppercase block mb-2">Ativa</label>
+                                <textarea :value="inspectedMember.char_data.powers?.active || ''" @input="inspectedMember.char_data.powers.active = $event.target.value" class="w-full h-24 bg-black/40 border border-white/10 rounded p-2 text-sm text-white focus:border-purple-500 focus:outline-none resize-none" placeholder="Habilidade ativa..."></textarea>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 text-center">* Técnicas e evoluções estão disponíveis na ficha original do jogador.</p>
+                    </div>
+
+                    <!-- TAB: INVENTÁRIO - Itens, notas gerais -->
+                    <div x-show="tab === 'inv'" class="space-y-4">
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                            <label class="text-xs text-amber-400 font-bold uppercase block mb-2">Notas de Inventário</label>
+                            <textarea :value="inspectedMember.char_data.inventory || ''" @input="inspectedMember.char_data.inventory = $event.target.value" class="w-full h-48 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-purple-500 focus:outline-none font-code resize-none" placeholder="Inventário vazio..."></textarea>
+                        </div>
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+                            <label class="text-xs text-gray-400 font-bold uppercase block mb-2">Créditos</label>
+                            <input type="number" :value="inspectedMember.char_data.credits || 0" @input="inspectedMember.char_data.credits = +$event.target.value" class="w-32 bg-black/40 border border-amber-500/30 rounded p-2 text-center text-xl text-amber-400 font-bold focus:border-amber-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         NPC EDITOR MODAL (BESTIÁRIO)
+         ═══════════════════════════════════════════════════════════════════════
+         Modal para criar e editar NPCs do Bestiário do Mestre.
+         Os NPCs são armazenados localmente no localStorage.
+    -->
+    <template x-if="bestiaryModalOpen && editingNPC">
+        <div class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+            <div class="bg-[#0a0a0c] border border-rose-500/30 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-[0_0_60px_rgba(244,63,94,0.15)]">
+                <!-- Header -->
+                <div class="p-4 border-b border-white/10 flex justify-between items-center bg-rose-500/5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-rose-500/20 flex items-center justify-center">
+                            <i class="fa-solid fa-dragon text-rose-400"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white font-brand" x-text="editingNPC.name || 'Novo NPC'"></h2>
+                            <p class="text-[10px] text-gray-500 uppercase">Editor de NPC</p>
+                        </div>
+                    </div>
+                    <button @click="bestiaryModalOpen = false; editingNPC = null" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-            </div>
-
-            <!-- Tabs -->
-            <div class="flex border-b border-white/10 overflow-x-auto">
-                <button @click="tab = 'stats'" :class="tab === 'stats' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">STATUS</button>
-                <button @click="tab = 'attrs'" :class="tab === 'attrs' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">ATRIBUTOS</button>
-                <button @click="tab = 'skills'" :class="tab === 'skills' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">PERÍCIAS</button>
-                <button @click="tab = 'inv'" :class="tab === 'inv' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">INVENTÁRIO</button>
-            </div>
-
-            <!-- Content -->
-            <div class="flex-1 overflow-y-auto p-6 custom-scrollbar" x-show="inspectedMember?.char_data">
                 
-                <!-- TAB: STATS -->
-                <div x-show="tab === 'stats'" class="space-y-6">
-                    <!-- Barras Principais -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Content -->
+                <div class="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    <!-- Nome e Tipo -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-rose-400 font-bold uppercase block mb-1">Nome *</label>
+                            <input type="text" x-model="editingNPC.name" placeholder="Nome do NPC" 
+                                   class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Tipo</label>
+                            <select x-model="editingNPC.type" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
+                                <option value="enemy">Inimigo</option>
+                                <option value="ally">Aliado</option>
+                                <option value="neutral">Neutro</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Principais -->
+                    <div class="grid grid-cols-3 gap-3">
                         <!-- PV -->
-                        <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-                            <div class="flex justify-between items-end mb-2">
-                                <label class="text-red-400 font-bold text-xs">PONTOS DE VIDA</label>
-                                <i class="fa-solid fa-heart text-red-500/50 text-xl"></i>
-                            </div>
-                            <div class="flex gap-2 items-center">
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pv.current" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-red-500 focus:outline-none">
+                        <div class="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+                            <label class="text-[9px] text-red-400 font-bold uppercase block mb-1">PV</label>
+                            <div class="flex gap-1 items-center">
+                                <input type="number" x-model.number="editingNPC.pv.current" class="w-full bg-black/40 border border-red-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
                                 <span class="text-gray-500">/</span>
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pv.max" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-red-500 focus:outline-none">
+                                <input type="number" x-model.number="editingNPC.pv.max" class="w-full bg-black/40 border border-red-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
                             </div>
                         </div>
                         <!-- PF -->
-                        <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-                            <div class="flex justify-between items-end mb-2">
-                                <label class="text-blue-400 font-bold text-xs">PONTOS DE ESFORÇO</label>
-                                <i class="fa-solid fa-bolt text-blue-500/50 text-xl"></i>
-                            </div>
-                            <div class="flex gap-2 items-center">
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pf.current" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-blue-500 focus:outline-none">
+                        <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
+                            <label class="text-[9px] text-blue-400 font-bold uppercase block mb-1">PF</label>
+                            <div class="flex gap-1 items-center">
+                                <input type="number" x-model.number="editingNPC.pf.current" class="w-full bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
                                 <span class="text-gray-500">/</span>
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pf.max" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-blue-500 focus:outline-none">
+                                <input type="number" x-model.number="editingNPC.pf.max" class="w-full bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
                             </div>
                         </div>
                         <!-- PDF -->
-                        <div class="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
-                            <div class="flex justify-between items-end mb-2">
-                                <label class="text-purple-400 font-bold text-xs">SANIDADE</label>
-                                <i class="fa-solid fa-brain text-purple-500/50 text-xl"></i>
-                            </div>
-                            <div class="flex gap-2 items-center">
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pdf.current" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-purple-500 focus:outline-none">
+                        <div class="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
+                            <label class="text-[9px] text-purple-400 font-bold uppercase block mb-1">SAN</label>
+                            <div class="flex gap-1 items-center">
+                                <input type="number" x-model.number="editingNPC.pdf.current" class="w-full bg-black/40 border border-purple-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
                                 <span class="text-gray-500">/</span>
-                                <input type="number" x-model.number="inspectedMember.char_data.stats.pdf.max" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-purple-500 focus:outline-none">
+                                <input type="number" x-model.number="editingNPC.pdf.max" class="w-full bg-black/40 border border-purple-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
                             </div>
                         </div>
                     </div>
-
-                    <!-- Defesas -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                            <label class="text-[10px] text-gray-500 font-bold block mb-1">DEFESA</label>
-                            <input type="number" x-model.number="inspectedMember.char_data.defesa" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
+                    
+                    <!-- Defesa -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Defesa</label>
+                            <input type="number" x-model.number="editingNPC.defesa" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-center text-white font-bold focus:border-rose-500 focus:outline-none">
                         </div>
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                            <label class="text-[10px] text-gray-500 font-bold block mb-1">PROTEÇÃO</label>
-                            <input type="number" x-model.number="inspectedMember.char_data.protecao" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
-                        </div>
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                            <label class="text-[10px] text-gray-500 font-bold block mb-1">DESLOCAMENTO</label>
-                            <input type="number" x-model.number="inspectedMember.char_data.deslocamento" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
-                        </div>
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                            <label class="text-[10px] text-gray-500 font-bold block mb-1">NÍVEL</label>
-                            <input type="number" x-model.number="inspectedMember.char_data.level" class="w-full bg-transparent text-center text-xl text-yellow-500 font-bold border-none focus:ring-0 p-0">
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Tags (separadas por vírgula)</label>
+                            <input type="text" :value="editingNPC.tags?.join(', ') || ''" @input="editingNPC.tags = $event.target.value.split(',').map(t => t.trim()).filter(t => t)" placeholder="boss, undead, etc" 
+                                   class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
                         </div>
                     </div>
-                </div>
-
-                <!-- TAB: ATTRS -->
-                <div x-show="tab === 'attrs'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <template x-for="(value, key) in inspectedMember.char_data.attrs" :key="key">
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center relative overflow-hidden">
-                            <div class="absolute top-0 right-0 text-[40px] font-black text-white/5 uppercase pointer-events-none" x-text="key"></div>
-                            <label class="text-sm font-bold text-gray-400 uppercase mb-2" x-text="key"></label>
-                            <input type="number" x-model.number="inspectedMember.char_data.attrs[key]" class="w-16 h-16 bg-black/40 border-2 border-white/20 rounded-full text-center text-2xl text-white font-bold focus:border-purple-500 focus:outline-none mb-2">
-                        </div>
-                    </template>
-                </div>
-
-                <!-- TAB: SKILLS -->
-                <div x-show="tab === 'skills'" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <template x-for="(skill, key) in inspectedMember.char_data.skills" :key="key">
-                            <div class="bg-white/5 border border-white/10 rounded px-3 py-2 flex justify-between items-center" x-show="skill.trained">
-                                <span class="text-sm font-bold text-gray-300 capitalize" x-text="key.replace(/_/g, ' ')"></span>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs text-purple-400 font-bold" x-text="'+' + skill.bonus"></span>
-                                    <input type="checkbox" x-model="skill.trained" class="accent-purple-500">
-                                </div>
-                            </div>
-                        </template>
+                    
+                    <!-- Notas -->
+                    <div>
+                        <label class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Notas / Habilidades</label>
+                        <textarea x-model="editingNPC.notes" placeholder="Ataques, resistências, comportamento..." 
+                                  class="w-full h-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none resize-none"></textarea>
                     </div>
-                    <p class="text-xs text-gray-500 text-center mt-4">* Mostrando apenas perícias treinadas. Edição avançada requer acesso direto à ficha original.</p>
                 </div>
-
-                <!-- TAB: INVENTÁRIO -->
-                <div x-show="tab === 'inv'" class="space-y-4">
-                    <textarea x-model="inspectedMember.char_data.inventory" class="w-full h-64 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-purple-500 focus:outline-none font-code" placeholder="Inventário vazio..."></textarea>
-                    <p class="text-xs text-gray-500">* O inventário é armazenado como texto livre nesta versão.</p>
+                
+                <!-- Footer -->
+                <div class="p-4 border-t border-white/10 flex justify-end gap-2">
+                    <button @click="bestiaryModalOpen = false; editingNPC = null" class="px-4 py-2 border border-white/20 rounded-lg text-xs font-bold text-gray-400 hover:bg-white/5 transition-colors">
+                        CANCELAR
+                    </button>
+                    <button @click="saveNPC()" class="px-4 py-2 bg-rose-500 text-white rounded-lg text-xs font-bold hover:bg-rose-400 transition-colors">
+                        <i class="fa-solid fa-save mr-2"></i>SALVAR NPC
+                    </button>
                 </div>
+            </div>
+        </div>
+    </template>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         CAMPAIGN SETTINGS MODAL
+         ═══════════════════════════════════════════════════════════════════════
+         Configurações da campanha: chat, Discord webhook, notificações.
+         Armazenado localmente no localStorage.
+    -->
+    <div x-show="campaignSettingsOpen" style="display: none" class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+        <div class="bg-[#0a0a0c] border border-gray-500/30 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-[0_0_60px_rgba(107,114,128,0.15)]">
+            <!-- Header -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
+                        <i class="fa-solid fa-gear text-gray-400"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white font-brand">Configurações</h2>
+                        <p class="text-[10px] text-gray-500 uppercase" x-text="activeCampaign?.name || 'Campanha'"></p>
+                    </div>
+                </div>
+                <button @click="campaignSettingsOpen = false" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <!-- Content -->
+            <div class="p-4 space-y-4">
+                <!-- Opções Gerais -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase">Opções Gerais</h3>
+                    
+                    <label class="flex items-center justify-between bg-black/40 rounded-lg p-3 cursor-pointer hover:bg-black/60 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-comments text-cyan-400"></i>
+                            <span class="text-sm text-white">Chat habilitado</span>
+                        </div>
+                        <input type="checkbox" x-model="campaignSettings.chatEnabled" class="accent-cyan-500 w-4 h-4">
+                    </label>
+                    
+                    <label class="flex items-center justify-between bg-black/40 rounded-lg p-3 cursor-pointer hover:bg-black/60 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-dice text-purple-400"></i>
+                            <span class="text-sm text-white">Log de dados público</span>
+                        </div>
+                        <input type="checkbox" x-model="campaignSettings.diceLogEnabled" class="accent-purple-500 w-4 h-4">
+                    </label>
+                </div>
+                
+                <!-- Discord Integration -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                        <i class="fa-brands fa-discord text-indigo-400"></i> Integração Discord
+                    </h3>
+                    
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Webhook URL</label>
+                        <input type="text" x-model="campaignSettings.discordWebhook" placeholder="https://discord.com/api/webhooks/..." 
+                               class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none font-code">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                            <input type="checkbox" x-model="campaignSettings.notifyDiceRolls" class="accent-indigo-500">
+                            Notificar rolagens
+                        </label>
+                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                            <input type="checkbox" x-model="campaignSettings.notifyCriticals" class="accent-indigo-500">
+                            Notificar críticos
+                        </label>
+                    </div>
+                    
+                    <button @click="testDiscordWebhook()" x-show="campaignSettings.discordWebhook" 
+                            class="w-full py-2 bg-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold hover:bg-indigo-500/30 transition-colors">
+                        <i class="fa-solid fa-paper-plane mr-2"></i>TESTAR WEBHOOK
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="p-4 border-t border-white/10 flex justify-end gap-2">
+                <button @click="campaignSettingsOpen = false" class="px-4 py-2 border border-white/20 rounded-lg text-xs font-bold text-gray-400 hover:bg-white/5 transition-colors">
+                    CANCELAR
+                </button>
+                <button @click="saveCampaignSettings(); campaignSettingsOpen = false" class="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                    <i class="fa-solid fa-save mr-2"></i>SALVAR
+                </button>
             </div>
         </div>
     </div>
