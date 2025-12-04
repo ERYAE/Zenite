@@ -1383,6 +1383,9 @@ export const netlinkLogic = {
         this.chatMessages = [];
         this.gmNotes = '';
         this.netlinkView = 'list';
+        
+        // Troca contexto do log de dados de volta para local
+        this.switchDiceLogContext();
     },
     
     /**
@@ -1404,6 +1407,9 @@ export const netlinkLogic = {
             this.loadBestiary();           // Carrega NPCs do localStorage
             this.loadCampaignSettings();   // Carrega configurações da campanha
         }
+        
+        // Troca contexto do log de dados para esta campanha
+        this.switchDiceLogContext();
         
         // Muda para a view da campanha
         this.currentView = 'campaign';

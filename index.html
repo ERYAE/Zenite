@@ -537,8 +537,8 @@
                         </div>
                     </div>
 
-                    <!-- Sistema de Iniciativa -->
-                    <div class="glass rounded-2xl p-4 border border-orange-500/20">
+                    <!-- Sistema de Iniciativa (GM Only) -->
+                    <div x-show="isGMOfActiveCampaign()" class="glass rounded-2xl p-4 border border-orange-500/20">
                         <div class="flex justify-between items-center mb-3">
                             <h2 class="text-sm font-bold text-orange-400 uppercase flex items-center gap-2">
                                 <i class="fa-solid fa-bolt"></i> Iniciativa
@@ -1195,7 +1195,7 @@
                 
                 <!-- Botões de Dados - Ordem correta: D3 primeiro -->
                 <div class="grid grid-cols-4 gap-2 my-4 flex-shrink-0">
-                    <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="roll(d)" class="h-11 bg-white/5 border border-white/10 rounded-lg hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-sm transition-all active:scale-95 hover:shadow-[0_0_15px_rgba(var(--neon-rgb),0.3)]" x-text="'D'+d"></button></template>
+                    <template x-for="d in [3,4,6,8,10,12,20,100]"><button @click="activeCampaign ? rollForCampaign(d) : roll(d)" class="h-11 bg-white/5 border border-white/10 rounded-lg hover:bg-[var(--neon-core)] hover:text-black hover:border-[var(--neon-core)] font-bold text-sm transition-all active:scale-95 hover:shadow-[0_0_15px_rgba(var(--neon-rgb),0.3)]" x-text="'D'+d"></button></template>
                 </div>
                 
                 <div class="flex flex-col flex-grow overflow-hidden min-h-0 border-t border-white/10 pt-3">

@@ -87,6 +87,17 @@ export const rpgLogic = {
         this.saveDiceHistory();
     },
 
+    /**
+     * Obtém a chave de armazenamento do log de dados
+     * Se estiver em uma campanha, usa chave específica da campanha
+     */
+    getDiceLogStorageKey() {
+        if (this.activeCampaign?.id) {
+            return `zenite_dice_log_campaign_${this.activeCampaign.id}`;
+        }
+        return 'zenite_dice_log_local';
+    },
+
     saveDiceHistory() {
         // Limite visual para não travar a UI
         const maxLogs = this.isMobile ? 20 : 100;
@@ -95,14 +106,16 @@ export const rpgLogic = {
         }
         
         try {
-            localStorage.setItem('zenite_dice_log', JSON.stringify(this.diceLog));
+            const key = this.getDiceLogStorageKey();
+            localStorage.setItem(key, JSON.stringify(this.diceLog));
         } catch(e) {
             console.warn('Erro ao salvar histórico de dados');
         }
     },
 
     loadDiceHistory() {
-        const stored = localStorage.getItem('zenite_dice_log');
+        const key = this.getDiceLogStorageKey();
+        const stored = localStorage.getItem(key);
         if (stored) {
             try {
                 const parsed = JSON.parse(stored);
@@ -129,6 +142,16 @@ export const rpgLogic = {
             } catch(e) {
                 this.diceLog = [];
             }
+        } else {
+            // Limpa o log se não houver dados salvos para este contexto
+            this.diceLog = [];
         }
+    },
+    
+    /**
+     * Troca o contexto do log de dados (chamado ao entrar/sair de campanhas)
+     */
+    switchDiceLogContext() {
+        this.loadDiceHistory();
     }
 };
