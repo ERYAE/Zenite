@@ -44,7 +44,8 @@ function zeniteSystem() {
             crtMode: false, 
             sfxEnabled: true, 
             themeColor: 'cyan',
-            username: '', // Nome de usuário customizável
+            username: '', // Nome de usuário único (14 dias cooldown)
+            displayName: '', // Nome de exibição (alterável a qualquer momento)
             bio: '', // Biografia do usuário
             dashboardView: 'grid', // 'grid', 'list', 'compact'
             dashboardSort: 'recent' // 'recent', 'name', 'class', 'level'

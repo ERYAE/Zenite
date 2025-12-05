@@ -452,7 +452,7 @@
                             <div x-show="isGMOfActiveCampaign()" class="relative ml-2"
                                  x-data="{ musicBtnRect: null }"
                                  x-init="$watch('musicPlaylistOpen', v => { if(v) musicBtnRect = $el.getBoundingClientRect() })">
-                                <button @click="musicPlaylistOpen = !musicPlaylistOpen; musicBtnRect = $el.getBoundingClientRect()" 
+                                <button @click="musicPlaylist && musicPlaylist.length > 0 ? (musicPlaylistOpen = !musicPlaylistOpen, musicBtnRect = $el.getBoundingClientRect()) : openMusicModal()" 
                                         :class="ambientMusic.playing ? 'bg-purple-500/30 text-purple-400' : 'bg-white/5 text-gray-400'"
                                         class="w-8 h-8 rounded flex items-center justify-center hover:bg-purple-500/30 hover:text-purple-400 transition-colors" title="Música Ambiente">
                                     <i class="fa-solid fa-music" :class="ambientMusic.playing && 'animate-pulse'"></i>
@@ -535,6 +535,9 @@
                                 <p class="text-xs text-gray-500">
                                     <span x-text="getMyMembership()?.char_data?.class || ''"></span>
                                     <span x-show="getMyMembership()?.char_data?.level" class="text-cyan-400 ml-2">NVL <span x-text="getMyMembership()?.char_data?.level"></span></span>
+                                </p>
+                                <p class="text-[9px] text-amber-500/80 mt-1 flex items-center gap-1">
+                                    <i class="fa-solid fa-copy"></i> Esta é uma cópia da ficha para a campanha
                                 </p>
                             </div>
                             <div class="flex gap-2">
@@ -1147,7 +1150,10 @@
                         <i class="fa-solid fa-users-viewfinder text-purple-400"></i>
                         <div>
                             <p class="text-sm font-bold text-white">Modo Campanha</p>
-                            <p class="text-[10px] text-gray-400">Editando ficha de jogador - alterações vão para o log</p>
+                            <p class="text-[10px] text-gray-400">Editando ficha de jogador</p>
+                            <p class="text-[9px] text-amber-500/80 flex items-center gap-1 mt-0.5">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Esta é uma cópia - a ficha original não será alterada
+                            </p>
                         </div>
                     </div>
                     
@@ -3145,6 +3151,21 @@
                 </div>
             </div>
             
+            <!-- Display Name (alterável a qualquer momento) -->
+            <div x-show="!viewingProfile" class="bg-black/40 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-[10px] text-gray-500 font-bold uppercase">NOME DE EXIBIÇÃO</label>
+                    <span class="text-[9px] text-green-400 flex items-center gap-1">
+                        <i class="fa-solid fa-unlock"></i> Sem restrições
+                    </span>
+                </div>
+                <input type="text" x-model="settings.displayName" 
+                       placeholder="Como você quer ser chamado?" maxlength="30"
+                       class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none"
+                       @change="saveLocal(); syncCloud(true)">
+                <p class="text-[9px] text-gray-600 mt-1">Esse nome aparece no chat e nas campanhas (pode alterar quando quiser)</p>
+            </div>
+            
             <!-- Bio -->
             <div x-show="!viewingProfile">
                 <label class="text-[10px] text-gray-500 font-bold uppercase block mb-2">Bio</label>
@@ -3178,16 +3199,17 @@
                 </div>
             </div>
             
-            <!-- ID para adicionar -->
-            <div x-show="!viewingProfile" class="bg-black/40 rounded-lg p-3">
-                <p class="text-[10px] text-gray-500 font-bold uppercase mb-1">Seu ID (para amigos)</p>
+            <!-- Seu @username para amigos -->
+            <div x-show="!viewingProfile && settings?.username" class="bg-black/40 rounded-lg p-3">
+                <p class="text-[10px] text-gray-500 font-bold uppercase mb-1">Seu @username</p>
                 <div class="flex items-center gap-2">
-                    <code class="flex-1 bg-black/60 px-2 py-1 rounded text-xs text-[var(--neon-core)] truncate" x-text="user?.id"></code>
-                    <button @click="navigator.clipboard.writeText(user?.id); notify('ID copiado!', 'success')" 
+                    <code class="flex-1 bg-black/60 px-2 py-1 rounded text-xs text-[var(--neon-core)]">@<span x-text="settings?.username"></span></code>
+                    <button @click="navigator.clipboard.writeText(settings?.username); notify('Username copiado!', 'success')" 
                             class="px-2 py-1 bg-white/5 text-gray-400 rounded text-xs hover:bg-white/10 transition-colors">
                         <i class="fa-solid fa-copy"></i>
                     </button>
                 </div>
+                <p class="text-[9px] text-gray-600 mt-1">Compartilhe para que amigos possam te adicionar</p>
             </div>
         </div>
     </div>

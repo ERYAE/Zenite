@@ -823,7 +823,7 @@ export const netlinkLogic = {
                 .insert([{
                     campaign_id: this.activeCampaign.id,
                     user_id: this.user.id,
-                    username: this.char?.name || this.user.email?.split('@')[0] || 'Anônimo',
+                    username: this.char?.name || this.settings?.displayName || this.settings?.username || this.user.email?.split('@')[0] || 'Anônimo',
                     roll_data: {
                         sides,
                         natural,
@@ -1519,7 +1519,7 @@ export const netlinkLogic = {
         if (!this.supabase || !this.activeCampaign || !content.trim()) return;
         
         try {
-            const senderName = this.char?.name || this.settings?.username || this.user?.email?.split('@')[0] || 'Anônimo';
+            const senderName = this.char?.name || this.settings?.displayName || this.settings?.username || this.user?.email?.split('@')[0] || 'Anônimo';
             
             const { error } = await this.supabase
                 .from('campaign_logs')
@@ -1564,7 +1564,7 @@ export const netlinkLogic = {
                       imageUrl.toLowerCase().includes('giphy') || imageUrl.toLowerCase().includes('tenor');
         
         try {
-            const senderName = this.char?.name || this.user?.email?.split('@')[0] || 'Anônimo';
+            const senderName = this.char?.name || this.settings?.displayName || this.settings?.username || this.user?.email?.split('@')[0] || 'Anônimo';
             
             const { error } = await this.supabase
                 .from('campaign_logs')
@@ -1677,7 +1677,7 @@ export const netlinkLogic = {
         if (!this.supabase || !this.activeCampaign) return;
         
         try {
-            const senderName = this.isGMOfActiveCampaign() ? 'GM' : (this.char?.name || 'Jogador');
+            const senderName = this.isGMOfActiveCampaign() ? 'GM' : (this.char?.name || this.settings?.displayName || this.settings?.username || 'Jogador');
             
             const { error } = await this.supabase
                 .from('campaign_logs')
