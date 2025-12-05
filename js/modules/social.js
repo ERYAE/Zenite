@@ -311,11 +311,14 @@ export const socialLogic = {
     achievementsModalOpen: false,
     viewingProfile: null, // Perfil de outro usuário sendo visualizado
     
-    // Username editing
-    editingUsername: false,
-    newUsername: '',
-    usernameCooldownDays: 0,
-    canChangeUsername: true,
+    // Username System
+    usernameInput: '',           // Input do campo de username
+    usernameChecking: false,     // Se está verificando disponibilidade
+    usernameCheckResult: null,   // 'available', 'taken', 'invalid', null
+    usernameCheckMessage: '',    // Mensagem de feedback
+    usernameCooldownDays: 0,     // Dias restantes para poder alterar
+    canChangeUsername: true,     // Se pode alterar agora
+    usernameSaving: false,       // Se está salvando
     
     // ─────────────────────────────────────────────────────────────────────────
     // INICIALIZAÇÃO (carrega do localStorage)
@@ -784,52 +787,6 @@ export const socialLogic = {
         }
     },
     
-    /**
-     * Verifica se pode alterar o username (cooldown de 14 dias)
-     */
-    async canChangeUsername() {
-        if (!this.supabase || !this.user) return false;
-        
-        try {
-            const { data, error } = await this.supabase
-                .rpc('can_change_username', { user_id: this.user.id });
-            
-            if (error) throw error;
-            return data;
-        } catch (e) {
-            console.error('[SOCIAL] Erro ao verificar cooldown:', e);
-            return false;
-        }
-    },
-    
-    /**
-     * Retorna quantos dias faltam para poder alterar o username
-     */
-    async getDaysUntilUsernameChange() {
-        if (!this.supabase || !this.user) return 0;
-        
-        try {
-            const { data: profile } = await this.supabase
-                .from('profiles')
-                .select('username_changed_at')
-                .eq('id', this.user.id)
-                .single();
-            
-            if (!profile?.username_changed_at) return 0;
-            
-            const lastChange = new Date(profile.username_changed_at);
-            const nextChange = new Date(lastChange.getTime() + (14 * 24 * 60 * 60 * 1000));
-            const now = new Date();
-            
-            if (now >= nextChange) return 0;
-            
-            const diffMs = nextChange - now;
-            return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-        } catch (e) {
-            return 0;
-        }
-    },
-    
     async viewProfile(userId) {
         if (!this.supabase) return;
         
@@ -868,10 +825,21 @@ export const socialLogic = {
     async openProfileModal() {
         await this.loadMyProfile();
         await this.loadUsernameCooldown();
+        // Inicializa o input com o username atual
+        this.usernameInput = this.settings?.username || '';
+        this.usernameCheckResult = null;
+        this.usernameCheckMessage = '';
         this.profileModalOpen = true;
-        this.viewingProfile = null; // Mostra meu perfil
+        this.viewingProfile = null;
     },
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // USERNAME SYSTEM - Sistema completo com cooldown de 14 dias
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Carrega o cooldown de alteração de username
+     */
     async loadUsernameCooldown() {
         if (!this.user || !this.supabase) {
             this.usernameCooldownDays = 0;
@@ -881,53 +849,146 @@ export const socialLogic = {
         
         try {
             const { data, error } = await this.supabase
-                .rpc('get_username_cooldown_days');
+                .rpc('get_username_cooldown_days', { user_id: this.user.id });
             
             if (error) {
-                console.error('[SOCIAL] Erro RPC cooldown:', error);
-                this.usernameCooldownDays = 0;
-                this.canChangeUsername = true;
+                console.error('[USERNAME] Erro ao carregar cooldown:', error);
+                // Fallback: busca diretamente do profile
+                const { data: profile } = await this.supabase
+                    .from('profiles')
+                    .select('username_changed_at')
+                    .eq('id', this.user.id)
+                    .single();
+                
+                if (profile?.username_changed_at) {
+                    const lastChange = new Date(profile.username_changed_at);
+                    const cooldownEnd = new Date(lastChange.getTime() + (14 * 24 * 60 * 60 * 1000));
+                    const now = new Date();
+                    
+                    if (now < cooldownEnd) {
+                        this.usernameCooldownDays = Math.ceil((cooldownEnd - now) / (24 * 60 * 60 * 1000));
+                        this.canChangeUsername = false;
+                    } else {
+                        this.usernameCooldownDays = 0;
+                        this.canChangeUsername = true;
+                    }
+                } else {
+                    this.usernameCooldownDays = 0;
+                    this.canChangeUsername = true;
+                }
                 return;
             }
             
-            const cooldownDays = data || 0;
-            this.usernameCooldownDays = cooldownDays;
-            this.canChangeUsername = (cooldownDays === 0);
-            
-            console.log('[SOCIAL] Cooldown carregado:', cooldownDays, 'dias');
+            this.usernameCooldownDays = data || 0;
+            this.canChangeUsername = (this.usernameCooldownDays === 0);
+            console.log('[USERNAME] Cooldown:', this.usernameCooldownDays, 'dias');
         } catch (e) {
-            console.error('[SOCIAL] Erro ao carregar cooldown de username:', e);
+            console.error('[USERNAME] Erro ao carregar cooldown:', e);
             this.usernameCooldownDays = 0;
             this.canChangeUsername = true;
         }
     },
     
-    startEditingUsername() {
-        if (!this.canChangeUsername) {
-            this.notify(`Aguarde ${this.usernameCooldownDays} dias para alterar novamente.`, 'warn');
+    /**
+     * Verifica se um username está disponível (chamado pelo debounce do input)
+     */
+    async checkUsernameAvailable(username) {
+        // Limpa se vazio
+        if (!username || username.trim().length === 0) {
+            this.usernameCheckResult = null;
+            this.usernameCheckMessage = '';
             return;
         }
-        this.newUsername = this.settings?.username || '';
-        this.editingUsername = true;
+        
+        const normalized = username.trim().toLowerCase();
+        
+        // Validação local primeiro
+        if (normalized.length < 2) {
+            this.usernameCheckResult = 'invalid';
+            this.usernameCheckMessage = 'Mínimo 2 caracteres';
+            return;
+        }
+        
+        if (normalized.length > 20) {
+            this.usernameCheckResult = 'invalid';
+            this.usernameCheckMessage = 'Máximo 20 caracteres';
+            return;
+        }
+        
+        if (!/^[a-z0-9_]+$/.test(normalized)) {
+            this.usernameCheckResult = 'invalid';
+            this.usernameCheckMessage = 'Apenas letras, números e _';
+            return;
+        }
+        
+        // Se é o mesmo username atual, não precisa verificar
+        if (normalized === this.settings?.username?.toLowerCase()) {
+            this.usernameCheckResult = null;
+            this.usernameCheckMessage = '';
+            return;
+        }
+        
+        // Verifica no servidor
+        this.usernameChecking = true;
+        
+        try {
+            if (this.supabase && this.user) {
+                const { data, error } = await this.supabase
+                    .rpc('check_username_available', { 
+                        check_username: normalized,
+                        current_user_id: this.user.id 
+                    });
+                
+                if (error) throw error;
+                
+                if (data) {
+                    this.usernameCheckResult = 'available';
+                    this.usernameCheckMessage = 'Disponível!';
+                } else {
+                    this.usernameCheckResult = 'taken';
+                    this.usernameCheckMessage = 'Já está em uso';
+                }
+            } else {
+                // Modo offline - assume disponível
+                this.usernameCheckResult = 'available';
+                this.usernameCheckMessage = 'Disponível (offline)';
+            }
+        } catch (e) {
+            console.error('[USERNAME] Erro ao verificar:', e);
+            this.usernameCheckResult = null;
+            this.usernameCheckMessage = 'Erro ao verificar';
+        } finally {
+            this.usernameChecking = false;
+        }
     },
     
-    cancelEditingUsername() {
-        this.editingUsername = false;
-        this.newUsername = '';
-        this.usernameCheckResult = null;
-    },
-    
+    /**
+     * Salva o novo username
+     */
     async saveUsername() {
-        if (!this.newUsername || this.newUsername.trim().length < 2) {
+        const username = this.usernameInput?.trim();
+        
+        if (!username || username.length < 2) {
             this.notify('Username precisa ter pelo menos 2 caracteres!', 'error');
             playSFX('error');
             return;
         }
         
-        const username = this.newUsername.trim();
+        if (!this.canChangeUsername) {
+            this.notify(`Aguarde ${this.usernameCooldownDays} dias para alterar.`, 'warn');
+            return;
+        }
         
-        if (this.user && this.supabase) {
-            try {
+        if (this.usernameCheckResult === 'taken' || this.usernameCheckResult === 'invalid') {
+            this.notify('Username inválido ou já em uso!', 'error');
+            playSFX('error');
+            return;
+        }
+        
+        this.usernameSaving = true;
+        
+        try {
+            if (this.supabase && this.user) {
                 const { data, error } = await this.supabase
                     .rpc('change_username', { new_username: username });
                 
@@ -939,29 +1000,33 @@ export const socialLogic = {
                     return;
                 }
                 
-                this.settings.username = username;
+                // Sucesso!
+                this.settings.username = data.username || username.toLowerCase();
                 this.saveLocal();
                 
-                this.editingUsername = false;
                 this.notify('Username alterado com sucesso!', 'success');
                 playSFX('save');
                 
-                // Atualiza cooldown
+                // Recarrega cooldown e perfil
                 await this.loadUsernameCooldown();
                 await this.loadMyProfile();
-            } catch (e) {
-                console.error('[SOCIAL] Erro ao alterar username:', e);
-                this.notify('Erro ao alterar username', 'error');
-                playSFX('error');
+                
+                // Reseta estado
+                this.usernameCheckResult = null;
+                this.usernameCheckMessage = '';
+            } else {
+                // Modo offline
+                this.settings.username = username.toLowerCase();
+                this.saveLocal();
+                this.notify('Username alterado!', 'success');
+                playSFX('save');
             }
-        } else {
-            // Modo offline/guest
-            this.settings.username = username;
-            this.saveLocal();
-            
-            this.editingUsername = false;
-            this.notify('Username alterado!', 'success');
-            playSFX('save');
+        } catch (e) {
+            console.error('[USERNAME] Erro ao salvar:', e);
+            this.notify('Erro ao alterar username', 'error');
+            playSFX('error');
+        } finally {
+            this.usernameSaving = false;
         }
     }
 };

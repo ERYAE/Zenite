@@ -124,6 +124,7 @@
  */
 
 import { playSFX } from './audio.js';
+import { router } from './router.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTES E CONFIGURAÇÕES
@@ -169,10 +170,6 @@ export const netlinkLogic = {
     // Campanhas onde o usuário é player
     joinedCampaigns: [],
     
-    // Campanhas públicas/abertas
-    publicCampaigns: [],
-    publicCampaignsLoaded: false,
-    
     // Campanha atualmente ativa
     activeCampaign: null,
     
@@ -191,6 +188,8 @@ export const netlinkLogic = {
     
     // UI State
     netlinkView: 'list', // 'list', 'campaign', 'gm-panel'
+    musicPlaylistOpen: false,
+    musicBtnRect: null,
     netlinkModal: false,
     
     // ─────────────────────────────────────────────────────────────────────────
@@ -369,6 +368,12 @@ export const netlinkLogic = {
     async joinByCode(code) {
         if (!code) return false;
         
+        // Evita re-entrar se já estiver na campanha com o mesmo código
+        if (this.activeCampaign?.invite_code?.toUpperCase() === code.toUpperCase()) {
+            console.log('[NETLINK] Já está na campanha:', code);
+            return true;
+        }
+        
         if (!this.supabase || !this.user) {
             // Salva o código para entrar depois do login
             sessionStorage.setItem('zenite_pending_campaign', code);
@@ -485,54 +490,6 @@ export const netlinkLogic = {
                 
         } catch (e) {
             console.error('[NETLINK] Erro ao carregar campanhas:', e);
-        }
-    },
-    
-    /**
-     * Carrega campanhas públicas/abertas
-     */
-    async loadPublicCampaigns() {
-        if (!this.supabase) return;
-        if (this.publicCampaignsLoaded) return; // Cache
-        
-        try {
-            const { data } = await this.supabase
-                .from('campaigns')
-                .select('id, name, description, image_url, gm_id, created_at')
-                .eq('is_public', true)
-                .order('created_at', { ascending: false })
-                .limit(20);
-            
-            this.publicCampaigns = data || [];
-            this.publicCampaignsLoaded = true;
-        } catch (e) {
-            console.error('[NETLINK] Erro ao carregar campanhas públicas:', e);
-        }
-    },
-    
-    /**
-     * Alterna visibilidade pública da campanha (GM only)
-     */
-    async toggleCampaignPublic() {
-        if (!this.supabase || !this.activeCampaign || !this.isGMOfActiveCampaign()) return;
-        
-        try {
-            const newValue = !this.activeCampaign.is_public;
-            
-            await this.supabase
-                .from('campaigns')
-                .update({ is_public: newValue })
-                .eq('id', this.activeCampaign.id);
-            
-            this.activeCampaign.is_public = newValue;
-            this.notify(newValue ? 'Campanha agora é pública!' : 'Campanha agora é privada.', 'success');
-            playSFX('success');
-            
-            // Invalida cache de campanhas públicas
-            this.publicCampaignsLoaded = false;
-        } catch (e) {
-            console.error('[NETLINK] Erro ao alterar visibilidade:', e);
-            this.notify('Erro ao alterar visibilidade.', 'error');
         }
     },
     
@@ -714,12 +671,18 @@ export const netlinkLogic = {
     async connectToRealtime(campaignId) {
         if (!this.supabase) return;
         
+        // Evita reconectar ao mesmo canal
+        const channelName = `${NETLINK_CONFIG.REALTIME_CHANNEL_PREFIX}${campaignId}`;
+        if (this.realtimeChannel?.topic === channelName) {
+            console.log('[NETLINK] Já conectado ao canal:', channelName);
+            return;
+        }
+        
         // Desconecta do canal anterior se existir
         if (this.realtimeChannel) {
             await this.supabase.removeChannel(this.realtimeChannel);
         }
         
-        const channelName = `${NETLINK_CONFIG.REALTIME_CHANNEL_PREFIX}${campaignId}`;
         console.log('[NETLINK] Conectando ao canal:', channelName);
         
         this.realtimeChannel = this.supabase
@@ -949,6 +912,11 @@ export const netlinkLogic = {
      * Handler para novas rolagens recebidas via realtime
      */
     handleNewDiceLog(log) {
+        // Não processa se não estiver mais na campanha
+        if (!this.activeCampaign || this.currentView !== 'campaign') {
+            return;
+        }
+        
         // Não processa se for rolagem privada e não for GM
         if (log.is_private && this.activeCampaign?.gm_id !== this.user?.id) {
             return;
@@ -984,6 +952,11 @@ export const netlinkLogic = {
      * Handler para novas mensagens de chat recebidas via realtime
      */
     handleNewChatMessage(message) {
+        // Não processa se não estiver mais na campanha
+        if (!this.activeCampaign || this.currentView !== 'campaign') {
+            return;
+        }
+        
         // Não adiciona se já existe (evita duplicação)
         if (this.chatMessages.find(m => m.id === message.id)) {
             return;
@@ -1104,6 +1077,11 @@ export const netlinkLogic = {
      * Handler para updates de iniciativa via realtime
      */
     handleInitiativeUpdate(payload) {
+        // Não processa se não estiver mais na campanha
+        if (!this.activeCampaign || this.currentView !== 'campaign') {
+            return;
+        }
+        
         this.initiativeOrder = payload.payload.order;
         this.currentInitiativeIndex = payload.payload.currentIndex;
     },
@@ -1309,22 +1287,35 @@ export const netlinkLogic = {
     
     /**
      * Remove um membro da campanha (GM only)
+     * Deleta o registro do membro, permitindo que ele entre novamente se convidado
      */
     async kickMember(memberId) {
-        if (!this.supabase || !this.isGMOfActiveCampaign()) return;
+        if (!this.supabase || !this.isGMOfActiveCampaign()) {
+            this.notify('Apenas o Mestre pode remover jogadores.', 'error');
+            return;
+        }
+        
+        // Não pode remover a si mesmo
+        const member = this.campaignMembers.find(m => m.id === memberId);
+        if (member?.user_id === this.user?.id) {
+            this.notify('Você não pode remover a si mesmo.', 'error');
+            return;
+        }
         
         try {
             const { error } = await this.supabase
                 .from('campaign_members')
-                .update({ status: NETLINK_CONFIG.MEMBER_STATUS.KICKED })
+                .delete()
                 .eq('id', memberId);
             
             if (error) throw error;
             
             await this.loadCampaignMembers(this.activeCampaign.id);
-            this.notify('Membro removido.', 'success');
+            playSFX('success');
+            this.notify('Jogador removido da campanha.', 'success');
         } catch (e) {
             console.error('[NETLINK] Erro ao remover membro:', e);
+            this.notify('Erro ao remover jogador.', 'error');
         }
     },
     
@@ -1723,6 +1714,13 @@ export const netlinkLogic = {
         
         console.log('[NETLINK] Saindo da campanha...');
         
+        // Para a música ambiente se estiver tocando
+        if (this.ambientMusic.playing) {
+            this.stopMusicLocally();
+            this.ambientMusic.playing = false;
+            this.ambientMusic.url = '';
+        }
+        
         // Desconecta do realtime
         await this.disconnectRealtime();
         
@@ -1738,7 +1736,7 @@ export const netlinkLogic = {
         this.netlinkView = 'list';
         
         // Volta para dashboard usando router
-        this.navigate('dashboard');
+        router.navigate('dashboard');
         
         // Troca contexto do log de dados de volta para local
         this.switchDiceLogContext();
@@ -1748,6 +1746,12 @@ export const netlinkLogic = {
      * Entra em uma campanha
      */
     async enterCampaign(campaign) {
+        // Evita re-entrar na mesma campanha
+        if (this.activeCampaign?.id === campaign.id && this.currentView === 'campaign') {
+            console.log('[NETLINK] Já está na campanha:', campaign.id);
+            return;
+        }
+        
         this.activeCampaign = campaign;
         
         // Carrega dados da campanha
@@ -1773,8 +1777,9 @@ export const netlinkLogic = {
         this.netlinkView = 'campaign';
         
         // Atualiza a URL para permitir compartilhamento via router
+        // skipProcess=true para evitar loop infinito (enterCampaign -> navigate -> processRoute -> joinByCode -> enterCampaign)
         if (campaign.invite_code) {
-            this.navigate('netlink', campaign.invite_code);
+            router.navigate('netlink', campaign.invite_code, false, true);
         }
         
         playSFX('success');
@@ -2316,6 +2321,11 @@ export const netlinkLogic = {
 
     // Handler para receber comandos de música (jogadores)
     handleMusicCommand(payload) {
+        // Não processa se não estiver mais na campanha
+        if (!this.activeCampaign || this.currentView !== 'campaign') {
+            return;
+        }
+        
         const player = document.getElementById('ambient-music-player');
         if (!player) return;
 

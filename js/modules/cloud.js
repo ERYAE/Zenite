@@ -600,50 +600,7 @@ export const cloudLogic = {
         }
     },
     
-    /**
-     * Verifica se um username está disponível em tempo real
-     */
-    async checkUsernameAvailable(username) {
-        // Limpa resultado se username inválido
-        if (!username || username.length < 2) {
-            this.usernameCheckResult = null;
-            return;
-        }
-        
-        // Normaliza: só letras, números e underscore
-        const normalized = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
-        if (normalized !== username.toLowerCase()) {
-            this.usernameCheckResult = 'invalid';
-            return;
-        }
-        
-        if (!this.supabase) {
-            this.usernameCheckResult = null;
-            return;
-        }
-        
-        this.usernameChecking = true;
-        
-        try {
-            // Busca diretamente na tabela profiles
-            const { data, error } = await this.supabase
-                .from('profiles')
-                .select('id')
-                .ilike('username', username)
-                .neq('id', this.user?.id || '00000000-0000-0000-0000-000000000000')
-                .limit(1);
-            
-            if (error) throw error;
-            
-            this.usernameCheckResult = data.length === 0 ? 'available' : 'taken';
-        } catch (e) {
-            console.error('[CLOUD] Erro ao verificar username:', e);
-            // Em caso de erro, assume disponível para não bloquear
-            this.usernameCheckResult = null;
-        } finally {
-            this.usernameChecking = false;
-        }
-    },
+    // NOTA: checkUsernameAvailable foi movido para social.js
     
     /**
      * Traduz mensagens de erro do Supabase Auth

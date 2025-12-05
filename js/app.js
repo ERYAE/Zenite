@@ -232,23 +232,8 @@ function zeniteSystem() {
             return Object.fromEntries(entries);
         },
         
-        // Verifica se pode mudar username (14 dias desde última mudança)
-        get canChangeUsername() {
-            if (!this.profile?.username_changed_at) return true;
-            const lastChange = new Date(this.profile.username_changed_at);
-            const now = new Date();
-            const daysSince = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
-            return daysSince >= 14;
-        },
-        
-        // Dias restantes para poder mudar username
-        get daysUntilUsernameChange() {
-            if (!this.profile?.username_changed_at) return 0;
-            const lastChange = new Date(this.profile.username_changed_at);
-            const now = new Date();
-            const daysSince = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
-            return Math.max(0, 14 - daysSince);
-        },
+        // NOTA: canChangeUsername e usernameCooldownDays são propriedades 
+        // definidas em social.js e carregadas via loadUsernameCooldown()
 
         // --- INICIALIZAÇÃO ---
         async initSystem() {
@@ -614,6 +599,8 @@ function zeniteSystem() {
 
         // --- KONAMI CODE ---
         handleKeys(e) {
+            // Guarda contra teclas indefinidas (ex: teclas de função, modificadores)
+            if (!e.key) return;
             const key = e.key.toLowerCase();
             const code = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
             this.konamiBuffer.push(key);

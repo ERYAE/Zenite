@@ -31,12 +31,13 @@ export const router = {
     },
     
     /**
-     * Navega para uma rota usando History API
-     * @param {string} route - Nome da rota (dashboard, sheet, netlink)
-     * @param {string} param - Parâmetro opcional (charId, campaignCode)
-     * @param {boolean} replace - Se true, usa replaceState ao invés de pushState
+     * Navega para uma rota
+     * @param {string} route - Nome da rota
+     * @param {string|null} param - Parâmetro opcional (ID de ficha, código de campanha)
+     * @param {boolean} replace - Se true, substitui a entrada atual no histórico
+     * @param {boolean} skipProcess - Se true, apenas atualiza URL sem processar rota
      */
-    navigate(route, param = null, replace = false) {
+    navigate(route, param = null, replace = false, skipProcess = false) {
         let path = '/';
         
         // Dashboard fica com URL limpa
@@ -53,7 +54,11 @@ export const router = {
             window.history.pushState({ route, param }, '', url);
         }
         
-        this.processRoute(route, param);
+        if (!skipProcess) {
+            this.processRoute(route, param);
+        }
+        
+        this.updateTitle();
     },
     
     /**
