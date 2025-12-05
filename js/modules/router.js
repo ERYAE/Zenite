@@ -123,9 +123,11 @@ export const router = {
                     await this.waitForChars();
                     
                     if (this.app.chars && this.app.chars[param]) {
-                        const success = await this.app.loadChar(param);
+                        // Usa loadCharacter (skipPush=true para não duplicar navegação)
+                        const success = this.app.loadCharacter(param, true);
                         if (success) {
-                            this.app.currentView = 'sheet';
+                            // Atualiza URL após carregar
+                            this.updateUrl('sheet', param);
                             this.updateTitle('sheet', this.app.char?.name);
                         } else {
                             this.app.notify('Ficha não encontrada', 'error');

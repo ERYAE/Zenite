@@ -2059,8 +2059,15 @@ export const netlinkLogic = {
         this.ambientMusic.playing = !this.ambientMusic.playing;
         
         if (this.ambientMusic.playing) {
-            // Toca localmente para o GM também
-            this.playMusicLocally(videoId);
+            // Se já tem URL, apenas retoma. Se não, toca nova música
+            const currentVideoId = this.extractYouTubeId(this.ambientMusic.url);
+            if (currentVideoId === videoId && player && player.src) {
+                // Retoma música pausada
+                this.resumeMusicLocally();
+            } else {
+                // Toca nova música
+                this.playMusicLocally(videoId);
+            }
             
             // Broadcast para todos os jogadores
             if (this.realtimeChannel) {
@@ -2076,18 +2083,18 @@ export const netlinkLogic = {
             }
             this.notify('Música ambiente iniciada!', 'success');
         } else {
-            // Para localmente
+            // Pausa localmente (mantém src)
             this.stopMusicLocally();
             
-            // Para a música para todos
+            // Pausa a música para todos
             if (this.realtimeChannel) {
                 this.realtimeChannel.send({
                     type: 'broadcast',
                     event: 'ambient_music',
-                    payload: { action: 'stop' }
+                    payload: { action: 'pause' }
                 });
             }
-            this.notify('Música ambiente parada.', 'info');
+            this.notify('Música ambiente pausada.', 'info');
         }
     },
     
@@ -2100,13 +2107,40 @@ export const netlinkLogic = {
         player.style.display = 'block';
     },
     
-    // Para música localmente
+    // Pausa música localmente (mantém src para poder retomar)
     stopMusicLocally() {
         const player = document.getElementById('ambient-music-player');
-        if (!player) return;
+        if (!player || !player.contentWindow) return;
         
-        player.src = '';
-        player.style.display = 'none';
+        // Pausa via postMessage ao invés de limpar src
+        try {
+            player.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'pauseVideo',
+                args: []
+            }), '*');
+        } catch (e) {
+            console.warn('[MUSIC] Erro ao pausar:', e);
+            // Fallback: esconde o player mas mantém src
+            player.style.display = 'none';
+        }
+    },
+    
+    // Resume música localmente
+    resumeMusicLocally() {
+        const player = document.getElementById('ambient-music-player');
+        if (!player || !player.contentWindow) return;
+        
+        try {
+            player.style.display = 'block';
+            player.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'playVideo',
+                args: []
+            }), '*');
+        } catch (e) {
+            console.warn('[MUSIC] Erro ao retomar:', e);
+        }
     },
     
     // Toca uma música específica (da playlist ou URL)
@@ -2331,11 +2365,23 @@ export const netlinkLogic = {
 
         switch (payload.action) {
             case 'play':
-                // Usa enablejsapi=1 para permitir controle via postMessage
-                player.src = `https://www.youtube.com/embed/${payload.videoId}?autoplay=1&loop=1&playlist=${payload.videoId}&enablejsapi=1`;
-                player.style.display = 'block';
+                // Se já tem a mesma música, apenas retoma
+                const currentVideoId = this.extractYouTubeId(this.ambientMusic.url);
+                if (currentVideoId === payload.videoId && player.src) {
+                    // Retoma música pausada
+                    player.style.display = 'block';
+                    player.contentWindow?.postMessage(JSON.stringify({
+                        event: 'command',
+                        func: 'playVideo',
+                        args: []
+                    }), '*');
+                } else {
+                    // Carrega nova música
+                    player.src = `https://www.youtube.com/embed/${payload.videoId}?autoplay=1&loop=1&playlist=${payload.videoId}&enablejsapi=1`;
+                    player.style.display = 'block';
+                    this.ambientMusic.url = `https://youtube.com/watch?v=${payload.videoId}`;
+                }
                 this.ambientMusic.playing = true;
-                this.ambientMusic.url = `https://youtube.com/watch?v=${payload.videoId}`;
                 
                 // Aplica volume inicial após carregar
                 setTimeout(() => {
@@ -2343,6 +2389,14 @@ export const netlinkLogic = {
                         this.setIframeVolume(player, payload.volume);
                     }
                 }, 1000);
+                break;
+            case 'pause':
+                player.contentWindow?.postMessage(JSON.stringify({
+                    event: 'command',
+                    func: 'pauseVideo',
+                    args: []
+                }), '*');
+                this.ambientMusic.playing = false;
                 break;
             case 'stop':
                 player.src = '';

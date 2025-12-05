@@ -57,10 +57,25 @@ const createReverbImpulse = (duration = 1.5, decay = 2) => {
 };
 
 export const initAudio = () => {
-    if (audioCtx) return;
+    if (audioCtx) {
+        // Se já existe mas está suspended, tenta resumir
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {
+                console.warn("[AUDIO] Não foi possível resumir AudioContext");
+            });
+        }
+        return;
+    }
+    
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContext();
+        
+        // Se estiver suspended, tenta resumir (precisa de user gesture)
+        if (audioCtx.state === 'suspended') {
+            // Não tenta resumir automaticamente - espera user gesture
+            console.log("[AUDIO] AudioContext criado mas suspenso - aguardando user gesture");
+        }
         
         // Compressor para evitar distorção
         compressor = audioCtx.createDynamicsCompressor();
@@ -671,7 +686,16 @@ const playToggle = () => {
 export const playSFX = (type) => {
     if (!audioCtx) initAudio();
     if (!isSfxEnabled || !audioCtx) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    // Tenta resumir se estiver suspended (pode falhar se não houver user gesture)
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {
+            // Silently fail - o usuário precisa interagir primeiro
+            return;
+        });
+        // Se ainda estiver suspended após tentar resumir, não toca
+        if (audioCtx.state === 'suspended') return;
+    }
     
     const isHacker = document.body.classList.contains('theme-hacker');
     

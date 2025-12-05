@@ -215,8 +215,14 @@ export const uiLogic = {
             return this.notify('Erro ao carregar personagem.', 'error');
         }
         
+        // Atualiza URL com hash routing (importa router dinamicamente)
         if (!skipPush) {
-            history.pushState({ view: 'sheet', id: id }, "Ficha", "#sheet");
+            import('./router.js').then(({ router }) => {
+                router.updateUrl('sheet', id);
+            }).catch(() => {
+                // Fallback se router não estiver disponível
+                window.location.hash = `#/sheet/${id}`;
+            });
         }
         
         this.loadingChar = true; 
@@ -241,6 +247,8 @@ export const uiLogic = {
                 }, 300); 
             });
         });
+        
+        return true; // Retorna true para indicar sucesso
     },
     
     askDeleteChar(id) { 

@@ -637,11 +637,17 @@ function zeniteSystem() {
          * Abre uma ficha e atualiza a URL
          */
         async openSheet(charId) {
-            const success = await this.loadChar(charId);
+            const success = this.loadCharacter(charId);
             if (success) {
                 router.navigate('sheet', charId);
-                this.currentView = 'sheet';
             }
+        },
+        
+        /**
+         * Alias para loadCharacter (compatibilidade)
+         */
+        loadChar(id) {
+            return this.loadCharacter(id);
         },
         
         /**

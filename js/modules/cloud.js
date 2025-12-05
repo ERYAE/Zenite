@@ -438,6 +438,28 @@ export const cloudLogic = {
                 this.isGuest = false;
                 localStorage.removeItem('zenite_is_guest');
                 
+                // Tenta criar o perfil manualmente se não existir (fallback para erro 500)
+                try {
+                    const { error: profileError } = await this.supabase
+                        .from('profiles')
+                        .upsert({
+                            id: data.user.id,
+                            username: username || email.split('@')[0],
+                            data: { config: this.settings },
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }, {
+                            onConflict: 'id'
+                        });
+                    
+                    if (profileError) {
+                        console.warn('[CLOUD] Erro ao criar perfil (pode já existir):', profileError);
+                    }
+                } catch (profileErr) {
+                    console.warn('[CLOUD] Erro ao criar perfil:', profileErr);
+                    // Continua mesmo se falhar - o perfil pode ser criado depois
+                }
+                
                 this.authMsg = "Conta criada com sucesso!";
                 this.authMsgType = 'success';
                 this.notify("Bem-vindo ao ZENITE!", "success");
@@ -452,9 +474,17 @@ export const cloudLogic = {
             
         } catch (e) {
             console.error('[CLOUD] Erro no registro:', e);
-            this.authMsg = this.translateAuthError(e.message);
-            this.authMsgType = 'error';
-            this.notify(this.authMsg, "error");
+            
+            // Mensagem mais específica para erro 500
+            if (e.message?.includes('Database error') || e.message?.includes('500')) {
+                this.authMsg = "Erro ao criar perfil. Tente novamente ou entre em contato com suporte.";
+                this.authMsgType = 'error';
+                this.notify("Erro no servidor. Tente novamente.", "error");
+            } else {
+                this.authMsg = this.translateAuthError(e.message);
+                this.authMsgType = 'error';
+                this.notify(this.authMsg, "error");
+            }
         } finally {
             this.authLoading = false;
         }
