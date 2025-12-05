@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "npm run tailwindbuild && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "tailwind": "npx tailwindcss -i ./css/input.css -o ./css/output.css --watch",
     "tailwindbuild": "npx tailwindcss -i ./css/input.css -o ./css/output.css --minify",
