@@ -6,6 +6,7 @@ import { cloudLogic } from './modules/cloud.js';
 import { uiLogic } from './modules/ui.js';
 import { netlinkLogic } from './modules/netlink.js';
 import { socialLogic, ACHIEVEMENTS } from './modules/social.js';
+import { router } from './modules/router.js';
 
 function zeniteSystem() {
     return {
@@ -19,6 +20,12 @@ function zeniteSystem() {
         // Auth
         user: null, isGuest: false, userMenuOpen: false, 
         authLoading: false, authMsg: '', authMsgType: '',
+        authMode: 'login', // 'login', 'register', 'forgot'
+        authEmail: '', authPassword: '', authPasswordConfirm: '', authUsername: '',
+        
+        // Verificação de username
+        usernameChecking: false,
+        usernameCheckResult: null, // 'available', 'taken', null
         
         // Navegação
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
@@ -26,6 +33,7 @@ function zeniteSystem() {
         
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
+        profile: null, // Perfil do Supabase (inclui username_changed_at)
         
         // ═══════════════════════════════════════════════════════════════════════
         // CONFIGURAÇÕES DO USUÁRIO
@@ -67,10 +75,11 @@ function zeniteSystem() {
         // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
-        welcomeModal: false,
+        welcomeModal: false, // Modal de boas-vindas
         historyModal: false,
         usernameModalOpen: false, // Modal para forçar username
         tempUsername: '', // Username temporário para o modal
+        
         netlinkModal: false, // Modal do NetLink
         netlinkCreateMode: false, // Modo de criação de campanha
         netlinkJoinCode: '', // Código de convite para entrar
@@ -93,6 +102,12 @@ function zeniteSystem() {
         tenorSearch: '',
         tenorResults: [],
         tenorLoading: false,
+        
+        // Username
+        usernameCheckStatus: '', // '', 'checking', 'available', 'taken', 'error'
+        usernameCheckMessage: '',
+        canEditUsername: true, // Se passou cooldown de 14 dias
+        daysUntilUsernameChange: 0,
         
         // ═══════════════════════════════════════════════════════════════════════
         // FERRAMENTAS E DADOS
@@ -216,6 +231,24 @@ function zeniteSystem() {
             
             return Object.fromEntries(entries);
         },
+        
+        // Verifica se pode mudar username (14 dias desde última mudança)
+        get canChangeUsername() {
+            if (!this.profile?.username_changed_at) return true;
+            const lastChange = new Date(this.profile.username_changed_at);
+            const now = new Date();
+            const daysSince = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
+            return daysSince >= 14;
+        },
+        
+        // Dias restantes para poder mudar username
+        get daysUntilUsernameChange() {
+            if (!this.profile?.username_changed_at) return 0;
+            const lastChange = new Date(this.profile.username_changed_at);
+            const now = new Date();
+            const daysSince = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
+            return Math.max(0, 14 - daysSince);
+        },
 
         // --- INICIALIZAÇÃO ---
         async initSystem() {
@@ -320,7 +353,11 @@ function zeniteSystem() {
             this.checkUsername();
             
             this.loadingProgress = 100;
-            setTimeout(() => { this.systemLoading = false; }, 500);
+            setTimeout(() => { 
+                this.systemLoading = false;
+                // Inicializa o router após o sistema carregar
+                router.init(this);
+            }, 500);
             
             // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
             setInterval(() => { 
@@ -331,9 +368,8 @@ function zeniteSystem() {
         },
 
         async checkOnboarding() {
-            // Verifica no perfil do Supabase se já viu o welcome
+            // Verifica se já viu o welcome modal
             if (!this.user || !this.supabase) {
-                // Fallback para localStorage se não estiver logado
                 const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
                 if (!hasSeenWelcome) {
                     setTimeout(() => {
@@ -354,7 +390,6 @@ function zeniteSystem() {
                 if (!profile?.has_seen_welcome) {
                     setTimeout(() => {
                         this.welcomeModal = true;
-                        // Marca como visto no Supabase
                         this.supabase.from('profiles')
                             .update({ has_seen_welcome: true })
                             .eq('id', this.user.id)
@@ -414,6 +449,32 @@ function zeniteSystem() {
                     playSFX('click'); 
                 }
             });
+            
+            // YouTube postMessage listener para música ambiente
+            window.addEventListener('message', (event) => {
+                if (event.origin !== 'https://www.youtube.com') return;
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.event === 'infoDelivery' && data.info) {
+                        if (data.info.currentTime !== undefined) {
+                            this.ambientMusic.currentTime = data.info.currentTime;
+                        }
+                        if (data.info.duration !== undefined && data.info.duration > 0) {
+                            this.ambientMusic.duration = data.info.duration;
+                        }
+                    }
+                } catch (e) {
+                    // Ignora mensagens inválidas
+                }
+            });
+            
+            // Atualiza progresso da música ambiente a cada segundo
+            setInterval(() => {
+                if (this.ambientMusic.playing) {
+                    this.updateMusicProgress();
+                }
+            }, 1000);
             
             // ESC key handler
             document.addEventListener('keydown', (e) => {
@@ -504,6 +565,13 @@ function zeniteSystem() {
             this.minigameActive = false;
             const elem = document.documentElement;
             if (elem.requestFullscreen) { elem.requestFullscreen().catch(() => {}); }
+            
+            // Achievement: System Breaker
+            if (this.localStats) {
+                this.localStats.systemFailure = true;
+                this.saveLocalStats();
+                this.checkAchievements();
+            }
         },
         startMinigame() {
             this.minigameActive = true;
@@ -555,7 +623,71 @@ function zeniteSystem() {
                 localStorage.setItem('zenite_hacker_unlocked', 'true');
                 this.toggleHackerMode();
                 this.konamiBuffer = [];
+                
+                // Achievement: Konami Master
+                if (this.localStats) {
+                    this.localStats.konamiActivated = true;
+                    this.saveLocalStats();
+                    this.checkAchievements();
+                }
             }
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // HASH ROUTING - Navegação com URLs compartilháveis
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        /**
+         * Navega para o dashboard e atualiza a URL
+         */
+        goToDashboard() {
+            router.navigate('dashboard');
+            this.currentView = 'dashboard';
+        },
+        
+        /**
+         * Abre uma ficha e atualiza a URL
+         */
+        async openSheet(charId) {
+            const success = await this.loadChar(charId);
+            if (success) {
+                router.navigate('sheet', charId);
+                this.currentView = 'sheet';
+            }
+        },
+        
+        /**
+         * Entra em uma campanha pelo código e atualiza a URL
+         */
+        async openCampaign(code) {
+            router.navigate('netlink', code);
+        },
+        
+        /**
+         * Copia o link da página atual
+         */
+        async copyPageLink() {
+            await router.copyCurrentUrl();
+        },
+        
+        /**
+         * Retorna a URL compartilhável da ficha atual
+         */
+        getSheetShareUrl() {
+            if (this.activeCharId) {
+                return `${window.location.origin}${window.location.pathname}#/sheet/${this.activeCharId}`;
+            }
+            return null;
+        },
+        
+        /**
+         * Retorna a URL compartilhável da campanha atual
+         */
+        getCampaignShareUrl() {
+            if (this.activeCampaign?.invite_code) {
+                return `${window.location.origin}${window.location.pathname}#/netlink/${this.activeCampaign.invite_code}`;
+            }
+            return null;
         }
     };
 }
@@ -563,10 +695,19 @@ function zeniteSystem() {
 window.zeniteSystem = zeniteSystem;
 
 // --- INICIALIZAÇÃO CRÍTICA DO ALPINE ---
-document.addEventListener('DOMContentLoaded', () => {
-    import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js').then((module) => {
-        const Alpine = module.default;
-        Alpine.data('zeniteSystem', zeniteSystem);
-        Alpine.start();
-    });
+document.addEventListener('DOMContentLoaded', async () => {
+    // Carregar Alpine e plugins
+    const [alpineModule, collapseModule] = await Promise.all([
+        import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js'),
+        import('https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/module.esm.js')
+    ]);
+    
+    const Alpine = alpineModule.default;
+    const collapse = collapseModule.default;
+    
+    // Registrar plugins ANTES de iniciar
+    Alpine.plugin(collapse);
+    
+    Alpine.data('zeniteSystem', zeniteSystem);
+    Alpine.start();
 });

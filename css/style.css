@@ -87,16 +87,30 @@ body.theme-hacker {
     font-family: 'JetBrains Mono', monospace !important;
 }
 
-body.theme-hacker * { 
+/* IMPORTANTE: Não aplicar font-family em tudo - quebra os ícones FontAwesome */
+body.theme-hacker *:not(i):not([class*="fa-"]) { 
     font-family: 'JetBrains Mono', monospace !important; 
     letter-spacing: -0.5px; 
 }
 
+/* Preservar família de fontes dos ícones FontAwesome */
+body.theme-hacker i,
+body.theme-hacker [class*="fa-"] {
+    font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+}
+
 body.theme-hacker .text-gray-500, 
-body.theme-hacker .text-gray-400, 
-body.theme-hacker i { 
+body.theme-hacker .text-gray-400 { 
     color: #22c55e !important; 
     text-shadow: 0 0 5px rgba(34, 197, 94, 0.5); 
+}
+
+/* Estilização dos ícones - só cor e glow, não font-family */
+body.theme-hacker i.fa-solid,
+body.theme-hacker i.fa-regular,
+body.theme-hacker i.fa-brands {
+    color: #00ff41 !important;
+    filter: drop-shadow(0 0 3px #00ff41);
 }
 
 body.theme-hacker .glass { 
@@ -114,12 +128,6 @@ body.theme-hacker textarea,
 body.theme-hacker select {
     border-color: #00ff41 !important;
     color: #00ff41 !important;
-}
-
-body.theme-hacker .fa-solid,
-body.theme-hacker .fa-brands {
-    color: #00ff41 !important;
-    filter: drop-shadow(0 0 3px #00ff41);
 }
 
 
@@ -291,6 +299,41 @@ body {
     border-color: var(--neon-core);
     box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2);
     outline: none;
+}
+
+/* Select Customizado - Estilo Cyber */
+select,
+select.input-cyber {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2300ffff'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+select:focus {
+    border-color: var(--neon-core);
+    box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2);
+    outline: none;
+}
+
+/* Estilização das opções do select (browsers modernos) */
+select option {
+    background: #111;
+    color: white;
+    padding: 10px;
+    font-family: 'Rajdhani', sans-serif;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+    background: var(--neon-core);
+    color: black;
 }
 
 /* Skill Dots */
@@ -600,4 +643,157 @@ body.compact-mode button {
         min-height: auto;
         min-width: auto;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENTS STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Achievement Platinum - Efeito Especial */
+.achievement-platinum {
+    background: linear-gradient(135deg, 
+        #e5e5e5 0%, 
+        #a0a0a0 25%, 
+        #ffffff 50%, 
+        #a0a0a0 75%, 
+        #e5e5e5 100%);
+    background-size: 200% 200%;
+    animation: platinum-shine 3s ease infinite;
+    border: 2px solid #c0c0c0;
+    box-shadow: 
+        0 0 20px rgba(255, 255, 255, 0.3),
+        0 0 40px rgba(200, 200, 200, 0.2),
+        inset 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes platinum-shine {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.achievement-platinum .achievement-icon {
+    color: #1a1a1a;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+/* Achievement Rainbow (para alguns secretos) */
+.achievement-rainbow {
+    background: linear-gradient(135deg, 
+        #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+    background-size: 400% 400%;
+    animation: rainbow-shift 5s ease infinite;
+}
+
+@keyframes rainbow-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Achievement Secreto (bloqueado) */
+.achievement-secret {
+    background: #1a1a1a;
+    border: 1px dashed #333;
+}
+
+.achievement-secret .achievement-icon {
+    color: #333;
+}
+
+.achievement-secret::before {
+    content: '?';
+    position: absolute;
+    font-size: 2rem;
+    color: #444;
+    font-weight: bold;
+}
+
+/* Celebração da Platina */
+.platinum-celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.98) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: platinum-fade-in 0.5s ease-out;
+}
+
+.platinum-celebration.fade-out {
+    animation: platinum-fade-out 0.5s ease-out forwards;
+}
+
+@keyframes platinum-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes platinum-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.platinum-content {
+    text-align: center;
+    animation: platinum-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes platinum-pop {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.platinum-trophy {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 30px;
+    background: linear-gradient(135deg, 
+        #e5e5e5 0%, 
+        #a0a0a0 25%, 
+        #ffffff 50%, 
+        #a0a0a0 75%, 
+        #e5e5e5 100%);
+    background-size: 200% 200%;
+    animation: platinum-shine 2s ease infinite;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        0 0 60px rgba(255, 255, 255, 0.4),
+        0 0 100px rgba(200, 200, 200, 0.3),
+        inset 0 0 30px rgba(255, 255, 255, 0.2);
+}
+
+.platinum-trophy i {
+    font-size: 60px;
+    color: #1a1a1a;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+    animation: trophy-bounce 1s ease infinite;
+}
+
+@keyframes trophy-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.platinum-content h2 {
+    font-size: 48px;
+    font-weight: bold;
+    background: linear-gradient(135deg, #c0c0c0, #ffffff, #c0c0c0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+    margin-bottom: 10px;
+    letter-spacing: 10px;
+}
+
+.platinum-content p {
+    color: #888;
+    font-size: 16px;
+    letter-spacing: 2px;
 }

@@ -266,29 +266,68 @@ export const cloudLogic = {
     },
     
     async logout() { 
+        console.log('[CLOUD] Iniciando logout...');
         this.systemLoading = true; 
         
-        // Salva antes de sair
-        if(this.unsavedChanges && !this.isGuest) { 
-            try { 
-                await this.syncCloud(true); 
-            } catch(e) { 
-                console.warn("Erro ao salvar no logout", e); 
+        try {
+            // Salva antes de sair (com timeout para não travar)
+            if(!this.isGuest && this.supabase) { 
+                try { 
+                    await Promise.race([
+                        this.syncCloud(true),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                    ]);
+                    console.log('[CLOUD] Dados salvos antes do logout');
+                } catch(e) { 
+                    console.warn("[CLOUD] Erro ao salvar no logout (continuando mesmo assim):", e); 
+                } 
             } 
-        } 
-        
-        localStorage.removeItem('zenite_cached_db'); 
-        localStorage.removeItem('zenite_is_guest'); 
-        
-        if(this.supabase) { 
-            try { 
-                await this.supabase.auth.signOut(); 
-            } catch(e) { 
-                console.error("Erro no Supabase SignOut", e); 
+            
+            // Salva localmente sempre
+            this.saveLocal(); 
+            
+            // Desconecta realtime se ativo
+            if (this.disconnectRealtime) {
+                try {
+                    await this.disconnectRealtime();
+                } catch(e) {
+                    console.warn('[CLOUD] Erro ao desconectar realtime:', e);
+                }
             }
+            
+            // SignOut do Supabase
+            if(this.supabase) { 
+                try { 
+                    await this.supabase.auth.signOut(); 
+                    console.log('[CLOUD] Deslogado do Supabase');
+                } catch(e) { 
+                    console.error("[CLOUD] Erro no Supabase SignOut (limpando mesmo assim):", e); 
+                }
+            }
+        } finally {
+            // SEMPRE limpa estado, mesmo se houver erro
+            console.log('[CLOUD] Limpando estado...');
+            
+            // Limpa storage
+            localStorage.removeItem('zenite_is_guest');
+            
+            // Limpa estado do app
+            this.user = null; 
+            this.isGuest = false;
+            this.activeCampaign = null;
+            this.campaignMembers = [];
+            this.realtimeChannel = null;
+            
+            // Redireciona para login
+            this.currentView = 'login';
+            window.history.replaceState({ route: 'login' }, '', '/');
+            document.title = 'ZENITE OS // Login';
+            
+            this.systemLoading = false;
+            this.notify('Sessão encerrada.', 'success');
+            
+            console.log('[CLOUD] Logout completo');
         }
-        
-        window.location.reload(); 
     },
     
     askSwitchToOnline() { 
@@ -307,7 +346,319 @@ export const cloudLogic = {
     enterGuest() { 
         this.isGuest = true; 
         localStorage.setItem('zenite_is_guest', 'true'); 
-        this.loadLocal('zenite_guest_db'); 
+        this.loadLocal('zenite_guest_db');
+        
+        // Redireciona para dashboard
+        this.currentView = 'dashboard';
+        window.history.replaceState({ route: 'dashboard' }, '', '/');
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // LOGIN COM EMAIL/SENHA
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Registra novo usuário com email e senha
+     */
+    async signUpWithEmail(email = null, password = null, username = null) {
+        // Usa valores do estado se não forem passados
+        email = email || this.authEmail;
+        password = password || this.authPassword;
+        username = username || this.authUsername;
+        const passwordConfirm = this.authPasswordConfirm;
+        
+        if (!this.supabase) {
+            return this.notify("Erro de conexão com servidor.", "error");
+        }
+        
+        if (!email || !password) {
+            return this.notify("Email e senha são obrigatórios.", "error");
+        }
+        
+        if (password.length < 6) {
+            return this.notify("Senha deve ter pelo menos 6 caracteres.", "error");
+        }
+        
+        if (password !== passwordConfirm) {
+            return this.notify("As senhas não coincidem.", "error");
+        }
+        
+        if (!username || username.length < 2) {
+            return this.notify("Username deve ter pelo menos 2 caracteres.", "error");
+        }
+        
+        // Verifica se email já está em uso com OAuth
+        try {
+            const { data: providerCheck } = await this.supabase
+                .rpc('check_email_oauth_provider', { email_to_check: email });
+            
+            if (providerCheck?.exists) {
+                const provider = providerCheck.provider;
+                if (provider === 'google') {
+                    this.authMsg = "Este email já está cadastrado com Google. Use 'Continuar com Google'.";
+                    this.authMsgType = 'error';
+                    this.notify(this.authMsg, "error");
+                    return;
+                } else if (provider === 'discord') {
+                    this.authMsg = "Este email já está cadastrado com Discord. Use 'Continuar com Discord'.";
+                    this.authMsgType = 'error';
+                    this.notify(this.authMsg, "error");
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[CLOUD] Não foi possível verificar OAuth provider:', e);
+        }
+        
+        this.authLoading = true;
+        this.authMsg = "Criando conta...";
+        this.authMsgType = 'info';
+        
+        try {
+            const { data, error } = await this.supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        username: username || email.split('@')[0]
+                    }
+                }
+            });
+            
+            if (error) throw error;
+            
+            if (data.user && !data.session) {
+                // Email de confirmação enviado
+                this.authMsg = "Verifique seu email para confirmar a conta!";
+                this.authMsgType = 'success';
+                this.notify("Email de confirmação enviado!", "success");
+            } else if (data.session) {
+                // Login automático (se confirmação de email estiver desabilitada)
+                this.user = data.user;
+                this.isGuest = false;
+                localStorage.removeItem('zenite_is_guest');
+                
+                this.authMsg = "Conta criada com sucesso!";
+                this.authMsgType = 'success';
+                this.notify("Bem-vindo ao ZENITE!", "success");
+                
+                // Carrega dados e redireciona
+                await this.fetchCloud();
+                this.checkOnboarding();
+                this.checkUsername();
+                this.currentView = 'dashboard';
+                window.history.replaceState({ route: 'dashboard' }, '', '/');
+            }
+            
+        } catch (e) {
+            console.error('[CLOUD] Erro no registro:', e);
+            this.authMsg = this.translateAuthError(e.message);
+            this.authMsgType = 'error';
+            this.notify(this.authMsg, "error");
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Login com email e senha
+     */
+    async signInWithEmail(email = null, password = null) {
+        // Usa valores do estado se não forem passados
+        email = email || this.authEmail;
+        password = password || this.authPassword;
+        
+        if (!this.supabase) {
+            return this.notify("Erro de conexão com servidor.", "error");
+        }
+        
+        if (!email || !password) {
+            return this.notify("Email e senha são obrigatórios.", "error");
+        }
+        
+        // Verifica se email usa OAuth
+        try {
+            const { data: providerCheck } = await this.supabase
+                .rpc('check_email_oauth_provider', { email_to_check: email });
+            
+            if (providerCheck?.exists && !providerCheck?.can_login_with_password) {
+                const provider = providerCheck.provider;
+                if (provider === 'google') {
+                    this.authMsg = "Este email usa login com Google.";
+                    this.authMsgType = 'error';
+                    this.notify("Use 'Continuar com Google' para entrar.", "error");
+                    return;
+                } else if (provider === 'discord') {
+                    this.authMsg = "Este email usa login com Discord.";
+                    this.authMsgType = 'error';
+                    this.notify("Use 'Continuar com Discord' para entrar.", "error");
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[CLOUD] Não foi possível verificar OAuth provider:', e);
+        }
+        
+        this.authLoading = true;
+        this.authMsg = "Entrando...";
+        this.authMsgType = 'info';
+        
+        try {
+            const { data, error } = await this.supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            
+            if (error) throw error;
+            
+            // Atualiza o usuário imediatamente
+            this.user = data.user;
+            this.isGuest = false;
+            localStorage.removeItem('zenite_is_guest');
+            
+            this.authMsg = "Login realizado!";
+            this.authMsgType = 'success';
+            this.notify("Bem-vindo de volta!", "success");
+            
+            // Carrega dados do cloud
+            await this.fetchCloud();
+            this.checkOnboarding();
+            this.checkUsername();
+            
+            // Redireciona para dashboard
+            this.currentView = 'dashboard';
+            window.history.replaceState({ route: 'dashboard' }, '', '/');
+            
+        } catch (e) {
+            console.error('[CLOUD] Erro no login:', e);
+            this.authMsg = this.translateAuthError(e.message);
+            this.authMsgType = 'error';
+            this.notify(this.authMsg, "error");
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Solicita recuperação de senha
+     */
+    async resetPassword(email = null) {
+        // Usa valor do estado se não for passado
+        email = email || this.authEmail;
+        
+        if (!this.supabase) {
+            return this.notify("Erro de conexão com servidor.", "error");
+        }
+        
+        if (!email) {
+            return this.notify("Digite seu email.", "error");
+        }
+        
+        // Verifica se email usa OAuth
+        try {
+            const { data: providerCheck } = await this.supabase
+                .rpc('check_email_oauth_provider', { email_to_check: email });
+            
+            if (providerCheck?.exists && !providerCheck?.can_login_with_password) {
+                const provider = providerCheck.provider;
+                if (provider === 'google') {
+                    this.authMsg = "Este email usa login com Google. Não é possível recuperar senha.";
+                    this.authMsgType = 'error';
+                    this.notify(this.authMsg, "error");
+                    return;
+                } else if (provider === 'discord') {
+                    this.authMsg = "Este email usa login com Discord. Não é possível recuperar senha.";
+                    this.authMsgType = 'error';
+                    this.notify(this.authMsg, "error");
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[CLOUD] Não foi possível verificar OAuth provider:', e);
+        }
+        
+        this.authLoading = true;
+        this.authMsg = "Enviando email...";
+        
+        try {
+            const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`
+            });
+            
+            if (error) throw error;
+            
+            this.authMsg = "Email de recuperação enviado!";
+            this.authMsgType = 'success';
+            this.notify("Verifique sua caixa de entrada.", "success");
+            
+        } catch (e) {
+            console.error('[CLOUD] Erro ao recuperar senha:', e);
+            this.authMsg = this.translateAuthError(e.message);
+            this.authMsgType = 'error';
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Verifica se um username está disponível em tempo real
+     */
+    async checkUsernameAvailable(username) {
+        // Limpa resultado se username inválido
+        if (!username || username.length < 2) {
+            this.usernameCheckResult = null;
+            return;
+        }
+        
+        // Normaliza: só letras, números e underscore
+        const normalized = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (normalized !== username.toLowerCase()) {
+            this.usernameCheckResult = 'invalid';
+            return;
+        }
+        
+        if (!this.supabase) {
+            this.usernameCheckResult = null;
+            return;
+        }
+        
+        this.usernameChecking = true;
+        
+        try {
+            // Busca diretamente na tabela profiles
+            const { data, error } = await this.supabase
+                .from('profiles')
+                .select('id')
+                .ilike('username', username)
+                .neq('id', this.user?.id || '00000000-0000-0000-0000-000000000000')
+                .limit(1);
+            
+            if (error) throw error;
+            
+            this.usernameCheckResult = data.length === 0 ? 'available' : 'taken';
+        } catch (e) {
+            console.error('[CLOUD] Erro ao verificar username:', e);
+            // Em caso de erro, assume disponível para não bloquear
+            this.usernameCheckResult = null;
+        } finally {
+            this.usernameChecking = false;
+        }
+    },
+    
+    /**
+     * Traduz mensagens de erro do Supabase Auth
+     */
+    translateAuthError(message) {
+        const translations = {
+            'Invalid login credentials': 'Email ou senha incorretos',
+            'Email not confirmed': 'Email não confirmado. Verifique sua caixa de entrada.',
+            'User already registered': 'Este email já está cadastrado',
+            'Password should be at least 6 characters': 'Senha deve ter pelo menos 6 caracteres',
+            'Unable to validate email address: invalid format': 'Formato de email inválido',
+            'Email rate limit exceeded': 'Muitas tentativas. Aguarde alguns minutos.',
+            'For security purposes, you can only request this once every 60 seconds': 'Aguarde 60 segundos para tentar novamente'
+        };
+        return translations[message] || message;
     },
     
     doSocialAuth(provider) { 

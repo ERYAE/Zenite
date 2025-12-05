@@ -154,6 +154,110 @@ export const ACHIEVEMENTS = {
         icon: 'fa-palette',
         color: 'violet',
         check: (stats) => stats.themeChanges >= 3
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACHIEVEMENTS SECRETOS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    konami_master: {
+        id: 'konami_master',
+        name: '???',
+        description: 'Descubra o código secreto',
+        icon: 'fa-gamepad',
+        color: 'rainbow',
+        secret: true,
+        check: (stats) => stats.konamiActivated === true
+    },
+    system_breaker: {
+        id: 'system_breaker',
+        name: '???',
+        description: 'Quebre o sistema',
+        icon: 'fa-bug',
+        color: 'red',
+        secret: true,
+        check: (stats) => stats.systemFailure === true
+    },
+    hacker_elite: {
+        id: 'hacker_elite',
+        name: '???',
+        description: 'Entre no modo hacker',
+        icon: 'fa-terminal',
+        color: 'green',
+        secret: true,
+        check: (stats) => stats.hackerMode === true
+    },
+    perfectionist: {
+        id: 'perfectionist',
+        name: 'Perfeccionista',
+        description: 'Tenha um personagem nível 10',
+        icon: 'fa-star',
+        color: 'gold',
+        check: (stats) => stats.maxLevel >= 10
+    },
+    dice_addict: {
+        id: 'dice_addict',
+        name: 'Viciado em Dados',
+        description: 'Role 1000 dados',
+        icon: 'fa-dice',
+        color: 'rainbow',
+        check: (stats) => stats.totalRolls >= 1000
+    },
+    lucky_seven: {
+        id: 'lucky_seven',
+        name: '???',
+        description: 'Tire 7 críticos seguidos',
+        icon: 'fa-clover',
+        color: 'green',
+        secret: true,
+        check: (stats) => stats.maxConsecutiveCrits >= 7
+    },
+    unlucky: {
+        id: 'unlucky',
+        name: '???',
+        description: 'Tire 5 falhas críticas seguidas',
+        icon: 'fa-face-sad-tear',
+        color: 'gray',
+        secret: true,
+        check: (stats) => stats.maxConsecutiveFumbles >= 5
+    },
+    marathon_player: {
+        id: 'marathon_player',
+        name: 'Maratonista',
+        description: 'Jogue por 5 horas em uma sessão',
+        icon: 'fa-clock',
+        color: 'blue',
+        check: (stats) => stats.longestSession >= 300 // 5h em minutos
+    },
+    early_bird: {
+        id: 'early_bird',
+        name: 'Madrugador',
+        description: 'Jogue entre 5h e 7h da manhã',
+        icon: 'fa-sun',
+        color: 'orange',
+        check: (stats) => stats.earlyBird === true
+    },
+    storyteller: {
+        id: 'storyteller',
+        name: 'Contador de Histórias',
+        description: 'Escreva mais de 500 caracteres no histórico de um personagem',
+        icon: 'fa-book',
+        color: 'amber',
+        check: (stats) => stats.longestHistory >= 500
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // ACHIEVEMENT FINAL - PLATINA
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    platinum: {
+        id: 'platinum',
+        name: 'PLATINA',
+        description: 'Conquiste todos os outros achievements',
+        icon: 'fa-trophy',
+        color: 'platinum',
+        isPlatinum: true,
+        check: (stats, unlockedCount, totalCount) => unlockedCount >= totalCount - 1 // Todos exceto a própria platina
     }
 };
 
@@ -180,13 +284,24 @@ export const socialLogic = {
         totalRolls: 0,
         criticalRolls: 0,
         fumbleRolls: 0,
+        consecutiveCrits: 0,
+        consecutiveFumbles: 0,
+        maxConsecutiveCrits: 0,
+        maxConsecutiveFumbles: 0,
         charsCreated: 0,
+        maxLevel: 1,
+        longestHistory: 0,
         campaignsJoined: 0,
         campaignsMastered: 0,
         messagesSent: 0,
         friendsCount: 0,
         themeChanges: 0,
-        nightOwl: false
+        nightOwl: false,
+        earlyBird: false,
+        longestSession: 0, // minutos
+        konamiActivated: false,
+        systemFailure: false,
+        hackerMode: false
     },
     
     // Perfil
@@ -195,6 +310,12 @@ export const socialLogic = {
     friendsModalOpen: false,
     achievementsModalOpen: false,
     viewingProfile: null, // Perfil de outro usuário sendo visualizado
+    
+    // Username editing
+    editingUsername: false,
+    newUsername: '',
+    usernameCooldownDays: 0,
+    canChangeUsername: true,
     
     // ─────────────────────────────────────────────────────────────────────────
     // INICIALIZAÇÃO (carrega do localStorage)
@@ -216,15 +337,47 @@ export const socialLogic = {
         // Atualiza contagem de personagens
         this.localStats.charsCreated = Object.keys(this.chars || {}).length;
         
-        // Verifica se é coruja noturna
+        // Verifica se é coruja noturna ou madrugador
         const hour = new Date().getHours();
         if (hour >= 0 && hour < 4) {
             this.localStats.nightOwl = true;
             this.saveLocalStats();
         }
+        if (hour >= 5 && hour < 7) {
+            this.localStats.earlyBird = true;
+            this.saveLocalStats();
+        }
+        
+        // Atualiza stats de personagens
+        this.updateCharStats();
         
         // Verifica achievements
         this.checkAchievements();
+    },
+    
+    // Atualiza stats baseadas nos personagens
+    updateCharStats() {
+        if (!this.chars) return;
+        
+        const chars = Object.values(this.chars);
+        this.localStats.charsCreated = chars.length;
+        
+        // Encontra maior nível
+        let maxLevel = 1;
+        let longestHistory = 0;
+        
+        chars.forEach(char => {
+            if (char.level && char.level > maxLevel) {
+                maxLevel = char.level;
+            }
+            if (char.history && char.history.length > longestHistory) {
+                longestHistory = char.history.length;
+            }
+        });
+        
+        this.localStats.maxLevel = maxLevel;
+        this.localStats.longestHistory = longestHistory;
+        this.saveLocalStats();
     },
     
     saveLocalStats() {
@@ -237,10 +390,20 @@ export const socialLogic = {
     
     checkAchievements() {
         let newUnlocks = [];
+        const achievements = Object.values(ACHIEVEMENTS);
+        const totalCount = achievements.filter(a => !a.isPlatinum).length; // Exclui platina da contagem
+        const currentUnlocked = this.unlockedAchievements.filter(id => id !== 'platinum').length;
         
-        Object.values(ACHIEVEMENTS).forEach(achievement => {
+        achievements.forEach(achievement => {
             const isUnlocked = this.unlockedAchievements.includes(achievement.id);
-            const shouldUnlock = achievement.check(this.localStats);
+            
+            // Platina usa lógica especial
+            let shouldUnlock;
+            if (achievement.isPlatinum) {
+                shouldUnlock = achievement.check(this.localStats, currentUnlocked, totalCount);
+            } else {
+                shouldUnlock = achievement.check(this.localStats);
+            }
             
             if (!isUnlocked && shouldUnlock) {
                 this.unlockedAchievements.push(achievement.id);
@@ -261,7 +424,43 @@ export const socialLogic = {
     
     showAchievementUnlock(achievement) {
         playSFX('success');
-        this.notify(`🏆 Achievement: ${achievement.name}!`, 'success');
+        
+        // Efeito especial para Platina
+        if (achievement.isPlatinum) {
+            // Notificação especial
+            this.notify(`🏆✨ PLATINA CONQUISTADA! ✨🏆`, 'success');
+            
+            // Efeito visual de confete/celebração
+            this.triggerPlatinumEffect();
+        } else if (achievement.secret) {
+            // Achievement secreto - revela o nome
+            this.notify(`🔓 Achievement Secreto: ${achievement.name}!`, 'success');
+        } else {
+            this.notify(`🏆 Achievement: ${achievement.name}!`, 'success');
+        }
+    },
+    
+    // Efeito especial quando ganha a Platina
+    triggerPlatinumEffect() {
+        // Cria overlay de celebração
+        const overlay = document.createElement('div');
+        overlay.className = 'platinum-celebration';
+        overlay.innerHTML = `
+            <div class="platinum-content">
+                <div class="platinum-trophy">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h2>PLATINA</h2>
+                <p>Todos os achievements conquistados!</p>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        
+        // Remove após 4 segundos
+        setTimeout(() => {
+            overlay.classList.add('fade-out');
+            setTimeout(() => overlay.remove(), 500);
+        }, 4000);
     },
     
     // Incrementa stats (chamado de outros módulos)
@@ -520,10 +719,23 @@ export const socialLogic = {
         if (!this.supabase || !this.user) return;
         
         try {
+            // Se estiver alterando o username, usa a função especial com validação
+            if (updates.username && updates.username !== this.publicProfile?.username) {
+                const { data: usernameResult, error: usernameError } = await this.supabase
+                    .rpc('change_username', { new_username: updates.username });
+                
+                if (usernameError) throw usernameError;
+                
+                if (!usernameResult?.success) {
+                    this.notify(usernameResult?.error || 'Erro ao alterar username', 'error');
+                    return;
+                }
+            }
+            
+            // Atualiza outros campos do perfil
             const { error } = await this.supabase
                 .from('profiles')
                 .update({
-                    username: updates.username,
                     bio: updates.bio,
                     is_public: updates.isPublic,
                     updated_at: new Date().toISOString()
@@ -542,6 +754,79 @@ export const socialLogic = {
         } catch (e) {
             console.error('[SOCIAL] Erro ao atualizar perfil:', e);
             this.notify('Erro ao atualizar perfil.', 'error');
+        }
+    },
+    
+    /**
+     * Verifica se o username está disponível
+     */
+    async checkUsernameAvailable(username) {
+        if (!this.supabase || !username || username.length < 3) {
+            return { available: false, reason: 'Mínimo 3 caracteres' };
+        }
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('is_username_available', { 
+                    new_username: username,
+                    current_user_id: this.user?.id || null
+                });
+            
+            if (error) throw error;
+            
+            return { 
+                available: data, 
+                reason: data ? 'Disponível!' : 'Username já em uso' 
+            };
+        } catch (e) {
+            console.error('[SOCIAL] Erro ao verificar username:', e);
+            return { available: false, reason: 'Erro ao verificar' };
+        }
+    },
+    
+    /**
+     * Verifica se pode alterar o username (cooldown de 14 dias)
+     */
+    async canChangeUsername() {
+        if (!this.supabase || !this.user) return false;
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('can_change_username', { user_id: this.user.id });
+            
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.error('[SOCIAL] Erro ao verificar cooldown:', e);
+            return false;
+        }
+    },
+    
+    /**
+     * Retorna quantos dias faltam para poder alterar o username
+     */
+    async getDaysUntilUsernameChange() {
+        if (!this.supabase || !this.user) return 0;
+        
+        try {
+            const { data: profile } = await this.supabase
+                .from('profiles')
+                .select('username_changed_at')
+                .eq('id', this.user.id)
+                .single();
+            
+            if (!profile?.username_changed_at) return 0;
+            
+            const lastChange = new Date(profile.username_changed_at);
+            const nextChange = new Date(lastChange.getTime() + (14 * 24 * 60 * 60 * 1000));
+            const now = new Date();
+            
+            if (now >= nextChange) return 0;
+            
+            const diffMs = nextChange - now;
+            return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        } catch (e) {
+            return 0;
         }
     },
     
@@ -580,9 +865,103 @@ export const socialLogic = {
         this.achievementsModalOpen = true;
     },
     
-    openProfileModal() {
-        this.loadMyProfile();
+    async openProfileModal() {
+        await this.loadMyProfile();
+        await this.loadUsernameCooldown();
         this.profileModalOpen = true;
         this.viewingProfile = null; // Mostra meu perfil
+    },
+    
+    async loadUsernameCooldown() {
+        if (!this.user || !this.supabase) {
+            this.usernameCooldownDays = 0;
+            this.canChangeUsername = true;
+            return;
+        }
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('get_username_cooldown_days');
+            
+            if (error) {
+                console.error('[SOCIAL] Erro RPC cooldown:', error);
+                this.usernameCooldownDays = 0;
+                this.canChangeUsername = true;
+                return;
+            }
+            
+            const cooldownDays = data || 0;
+            this.usernameCooldownDays = cooldownDays;
+            this.canChangeUsername = (cooldownDays === 0);
+            
+            console.log('[SOCIAL] Cooldown carregado:', cooldownDays, 'dias');
+        } catch (e) {
+            console.error('[SOCIAL] Erro ao carregar cooldown de username:', e);
+            this.usernameCooldownDays = 0;
+            this.canChangeUsername = true;
+        }
+    },
+    
+    startEditingUsername() {
+        if (!this.canChangeUsername) {
+            this.notify(`Aguarde ${this.usernameCooldownDays} dias para alterar novamente.`, 'warn');
+            return;
+        }
+        this.newUsername = this.settings?.username || '';
+        this.editingUsername = true;
+    },
+    
+    cancelEditingUsername() {
+        this.editingUsername = false;
+        this.newUsername = '';
+        this.usernameCheckResult = null;
+    },
+    
+    async saveUsername() {
+        if (!this.newUsername || this.newUsername.trim().length < 2) {
+            this.notify('Username precisa ter pelo menos 2 caracteres!', 'error');
+            playSFX('error');
+            return;
+        }
+        
+        const username = this.newUsername.trim();
+        
+        if (this.user && this.supabase) {
+            try {
+                const { data, error } = await this.supabase
+                    .rpc('change_username', { new_username: username });
+                
+                if (error) throw error;
+                
+                if (!data?.success) {
+                    this.notify(data?.error || 'Erro ao alterar username', 'error');
+                    playSFX('error');
+                    return;
+                }
+                
+                this.settings.username = username;
+                this.saveLocal();
+                
+                this.editingUsername = false;
+                this.notify('Username alterado com sucesso!', 'success');
+                playSFX('save');
+                
+                // Atualiza cooldown
+                await this.loadUsernameCooldown();
+                await this.loadMyProfile();
+            } catch (e) {
+                console.error('[SOCIAL] Erro ao alterar username:', e);
+                this.notify('Erro ao alterar username', 'error');
+                playSFX('error');
+            }
+        } else {
+            // Modo offline/guest
+            this.settings.username = username;
+            this.saveLocal();
+            
+            this.editingUsername = false;
+            this.notify('Username alterado!', 'success');
+            playSFX('save');
+        }
     }
 };

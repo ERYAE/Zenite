@@ -605,6 +605,13 @@ export const uiLogic = {
             localStorage.setItem('zenite_hacker_mode', 'true');
             playSFX('success');
             this.notify(">>> HACKER MODE ACTIVATED <<<", "success");
+            
+            // Achievement: Hacker Elite
+            if (this.localStats) {
+                this.localStats.hackerMode = true;
+                this.saveLocalStats();
+                this.checkAchievements();
+            }
         } else {
             document.body.classList.remove('theme-hacker');
             localStorage.removeItem('zenite_hacker_mode');
@@ -910,16 +917,42 @@ export const uiLogic = {
             return;
         }
         
-        this.settings.username = this.tempUsername.trim();
-        this.saveLocal();
+        const username = this.tempUsername.trim();
         
+        // Se estiver no Supabase, usa a função RPC que valida e aplica cooldown
         if (this.user && this.supabase) {
-            await this.syncCloud(true);
+            try {
+                const { data, error } = await this.supabase
+                    .rpc('change_username', { new_username: username });
+                
+                if (error) throw error;
+                
+                if (!data?.success) {
+                    this.notify(data?.error || 'Erro ao definir username', 'error');
+                    playSFX('error');
+                    return;
+                }
+                
+                this.settings.username = username;
+                this.saveLocal();
+                
+                this.usernameModalOpen = false;
+                this.notify('Username definido!', 'success');
+                playSFX('save');
+            } catch (e) {
+                console.error('[UI] Erro ao definir username:', e);
+                this.notify('Erro ao definir username', 'error');
+                playSFX('error');
+            }
+        } else {
+            // Modo offline/guest
+            this.settings.username = username;
+            this.saveLocal();
+            
+            this.usernameModalOpen = false;
+            this.notify('Username definido!', 'success');
+            playSFX('save');
         }
-        
-        this.usernameModalOpen = false;
-        this.notify('Username definido!', 'success');
-        playSFX('save');
     },
     
     // ═══════════════════════════════════════════════════════════════════════

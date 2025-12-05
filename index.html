@@ -100,7 +100,102 @@
                     <div x-show="!authLoading" class="flex items-center gap-2"><i class="fa-brands fa-discord"></i> DISCORD</div>
                     <div x-show="authLoading" class="flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> ...</div>
                 </button>
-                <div class="border-t border-white/10 pt-6 mt-6">
+                
+                <!-- Divisor -->
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 h-px bg-white/10"></div>
+                    <span class="text-gray-600 text-[10px] font-bold">OU</span>
+                    <div class="flex-1 h-px bg-white/10"></div>
+                </div>
+                
+                <!-- Login com Email -->
+                <div class="space-y-3">
+                    <!-- Toggle Login/Register -->
+                    <div class="flex gap-1 p-1 bg-black/50 rounded-lg">
+                        <button @click="authMode = 'login'" 
+                                class="flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all"
+                                :class="authMode === 'login' ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:text-white'">
+                            ENTRAR
+                        </button>
+                        <button @click="authMode = 'register'" 
+                                class="flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all"
+                                :class="authMode === 'register' ? 'bg-[var(--neon-core)] text-black' : 'text-gray-500 hover:text-white'">
+                            CRIAR CONTA
+                        </button>
+                    </div>
+                    
+                    <!-- Forgot Password Link -->
+                    <template x-if="authMode === 'forgot'">
+                        <div class="space-y-3">
+                            <input type="email" x-model="authEmail" placeholder="Seu email..."
+                                   class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                            <button @click="resetPassword()" :disabled="authLoading || !authEmail"
+                                    class="w-full py-2.5 bg-[var(--neon-core)] text-black font-bold rounded-lg text-sm hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:scale-100">
+                                <span x-show="!authLoading">ENVIAR LINK</span>
+                                <span x-show="authLoading"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                            </button>
+                            <button @click="authMode = 'login'" class="text-[10px] text-gray-500 hover:text-[var(--neon-core)]">
+                                <i class="fa-solid fa-arrow-left mr-1"></i> Voltar ao login
+                            </button>
+                        </div>
+                    </template>
+                    
+                    <!-- Login/Register Form -->
+                    <template x-if="authMode !== 'forgot'">
+                        <form @submit.prevent="authMode === 'login' ? signInWithEmail() : signUpWithEmail()">
+                            <!-- Email -->
+                            <div class="mb-3">
+                                <input type="email" x-model="authEmail" placeholder="Email..." autocomplete="email"
+                                       class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                            </div>
+                            <!-- Username (só no registro) -->
+                            <div x-show="authMode === 'register'" class="relative mb-3">
+                                <input type="text" x-model="authUsername" 
+                                       @input.debounce.500ms="checkUsernameAvailable(authUsername)"
+                                       placeholder="Username (único)..." autocomplete="username"
+                                       class="w-full px-4 py-2.5 bg-black/60 border rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
+                                       :class="usernameCheckResult === 'available' ? 'border-green-500' : usernameCheckResult === 'taken' ? 'border-red-500' : 'border-white/10 focus:border-[var(--neon-core)]'">
+                                
+                                <!-- Feedback visual -->
+                                <div x-show="authUsername && authUsername.length >= 2" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <i x-show="usernameChecking" class="fa-solid fa-spinner fa-spin text-gray-500"></i>
+                                    <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check text-green-500"></i>
+                                    <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-xmark text-red-500"></i>
+                                </div>
+                            </div>
+                            <!-- Senha -->
+                            <div class="mb-3">
+                                <input type="password" x-model="authPassword" placeholder="Senha..." 
+                                       autocomplete="current-password"
+                                       class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                            </div>
+                            <!-- Confirmar Senha (só no registro) -->
+                            <div x-show="authMode === 'register'" class="mb-3">
+                                <input type="password" x-model="authPasswordConfirm" placeholder="Confirmar senha..."
+                                       @keydown.enter="signUpWithEmail()"
+                                       class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                            </div>
+                            <input x-show="authMode === 'register'" type="password" x-model="authPasswordConfirm" placeholder="Confirmar senha..."
+                                   @keydown.enter="signUpWithEmail()"
+                                   class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                            
+                            <!-- Botão de Ação -->
+                            <button @click="authMode === 'login' ? signInWithEmail() : signUpWithEmail()" 
+                                    :disabled="authLoading || !authEmail || !authPassword || (authMode === 'register' && (!authUsername || authPassword !== authPasswordConfirm))"
+                                    class="w-full py-2.5 bg-[var(--neon-core)] text-black font-bold rounded-lg text-sm hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:scale-100">
+                                <span x-show="!authLoading" x-text="authMode === 'login' ? 'ENTRAR' : 'CRIAR CONTA'"></span>
+                                <span x-show="authLoading"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                            </button>
+                            
+                            <!-- Esqueceu a senha -->
+                            <button x-show="authMode === 'login'" @click="authMode = 'forgot'" class="text-[10px] text-gray-500 hover:text-[var(--neon-core)] block w-full text-center">
+                                Esqueceu a senha?
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                
+                <div class="border-t border-white/10 pt-4 mt-4">
                     <button @click="enterGuest()" class="w-full py-2 border border-dashed border-gray-700 text-gray-500 text-[10px] font-bold hover:text-white hover:border-white/30 rounded-lg uppercase tracking-wider group transition-colors">
                         ENTRAR OFFLINE
                     </button>
@@ -132,7 +227,7 @@
                 <!-- Dropdown teleportado para fora de qualquer stacking context -->
                 <template x-teleport="body">
                     <div x-show="userMenuOpen" 
-                         @click.outside="userMenuOpen = false"
+                         @mousedown.outside="userMenuOpen = false"
                          x-transition:enter="transition ease-out duration-150"
                          x-transition:enter-start="opacity-0 scale-95"
                          x-transition:enter-end="opacity-100 scale-100"
@@ -206,7 +301,7 @@
                             <span x-text="{'recent': 'Recentes', 'name': 'Nome A-Z', 'class': 'Classe', 'level': 'Nível ↓'}[settings.dashboardSort]"></span>
                             <i class="fa-solid fa-chevron-down text-[10px] transition-transform" :class="sortOpen && 'rotate-180'"></i>
                         </button>
-                        <div x-show="sortOpen" @click.outside="sortOpen = false" x-transition
+                        <div x-show="sortOpen" @mousedown.outside="sortOpen = false" x-transition
                              class="absolute top-full left-0 mt-1 w-40 bg-[#0a0a0c] border border-white/10 rounded-xl overflow-hidden shadow-xl z-[9999]">
                             <button @click="settings.dashboardSort = 'recent'; saveLocal(); sortOpen = false" 
                                     :class="settings.dashboardSort === 'recent' ? 'bg-[var(--neon-core)]/20 text-[var(--neon-core)]' : 'text-gray-400 hover:bg-white/5 hover:text-white'"
@@ -356,11 +451,46 @@
                                 <i class="fa-solid fa-stop"></i>
                             </button>
                             <!-- Música Ambiente (GM Only) -->
-                            <button x-show="isGMOfActiveCampaign()" @click="openMusicModal()" 
-                                    :class="ambientMusic.playing ? 'bg-purple-500/30 text-purple-400' : 'bg-white/5 text-gray-400'"
-                                    class="w-8 h-8 rounded flex items-center justify-center hover:bg-purple-500/30 hover:text-purple-400 transition-colors ml-2" title="Música Ambiente">
-                                <i class="fa-solid fa-music" :class="ambientMusic.playing && 'animate-pulse'"></i>
-                            </button>
+                            <div x-show="isGMOfActiveCampaign()" class="relative ml-2" x-data="{ playlistHover: false }">
+                                <button @click="openMusicModal()" 
+                                        @mouseenter="playlistHover = true" 
+                                        @mouseleave="playlistHover = false"
+                                        :class="ambientMusic.playing ? 'bg-purple-500/30 text-purple-400' : 'bg-white/5 text-gray-400'"
+                                        class="w-8 h-8 rounded flex items-center justify-center hover:bg-purple-500/30 hover:text-purple-400 transition-colors" title="Música Ambiente">
+                                    <i class="fa-solid fa-music" :class="ambientMusic.playing && 'animate-pulse'"></i>
+                                </button>
+                                
+                                <!-- Playlist Dropdown on Hover -->
+                                <div x-show="playlistHover && musicPlaylist.length > 0" 
+                                     @mouseenter="playlistHover = true" 
+                                     @mouseleave="playlistHover = false"
+                                     x-transition
+                                     class="absolute top-full right-0 mt-2 w-64 glass rounded-lg border border-purple-500/30 shadow-xl overflow-hidden z-[1000]">
+                                    <div class="p-2 bg-purple-500/20 border-b border-purple-500/30">
+                                        <p class="text-[10px] text-purple-400 font-bold uppercase">Playlist</p>
+                                    </div>
+                                    <div class="max-h-64 overflow-y-auto">
+                                        <template x-for="(music, index) in musicPlaylist" :key="index">
+                                            <button @click="quickPlayMusic(music.url); playlistHover = false" 
+                                                    class="w-full text-left px-3 py-2 hover:bg-purple-500/20 transition-colors flex items-center gap-2 group">
+                                                <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(music.url) + '/default.jpg'" 
+                                                     class="w-10 h-7 rounded object-cover">
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-xs text-white truncate" x-text="music.title || 'Música ' + (index + 1)"></p>
+                                                    <p class="text-[9px] text-gray-500">Clique para tocar</p>
+                                                </div>
+                                                <i class="fa-solid fa-play text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <div class="p-2 bg-black/40 border-t border-white/10">
+                                        <button @click="openMusicModal(); playlistHover = false" 
+                                                class="w-full py-1.5 text-[10px] text-purple-400 hover:text-purple-300 font-bold transition-colors">
+                                            <i class="fa-solid fa-plus mr-1"></i> GERENCIAR PLAYLIST
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             <!-- Configurações (GM Only) -->
                             <button x-show="isGMOfActiveCampaign()" @click="campaignSettingsOpen = true" 
                                     class="w-8 h-8 rounded bg-white/5 text-gray-400 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors" title="Configurações">
@@ -383,9 +513,10 @@
                  O jogador vê sua cópia da ficha e pode rolar dados que vão para o log.
             -->
             <div x-show="!isGMOfActiveCampaign() && getMyMembership()?.char_data" class="glass rounded-2xl p-4 border border-cyan-500/20 mb-6">
-                <div class="flex items-start gap-4">
+                <!-- Layout responsivo: vertical no mobile, horizontal no desktop -->
+                <div class="flex flex-col lg:flex-row items-start gap-4">
                     <!-- Foto e Info -->
-                    <div class="w-20 h-20 rounded-xl bg-cyan-500/20 flex-shrink-0 flex items-center justify-center overflow-hidden border border-white/10">
+                    <div class="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-cyan-500/20 flex-shrink-0 flex items-center justify-center overflow-hidden border border-white/10">
                         <img x-show="getMyMembership()?.char_data?.photo" :src="getMyMembership()?.char_data?.photo" class="w-full h-full object-cover">
                         <i x-show="!getMyMembership()?.char_data?.photo" class="fa-solid fa-user text-cyan-400 text-3xl"></i>
                     </div>
@@ -399,11 +530,11 @@
                                 </p>
                             </div>
                             <div class="flex gap-2">
-                                <button @click="playerSheetOpen = true" class="text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1 bg-cyan-500/10 px-2 py-1 rounded" title="Ver ficha completa">
-                                    <i class="fa-solid fa-id-card"></i> FICHA
+                                <button @click="openMySheet()" class="text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1 bg-cyan-500/10 px-2 py-1 rounded" title="Editar minha ficha">
+                                    <i class="fa-solid fa-pen-to-square"></i> EDITAR
                                 </button>
-                                <button @click="syncCharWithCampaign()" class="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors flex items-center gap-1" title="Sincronizar ficha local com a campanha">
-                                    <i class="fa-solid fa-sync"></i> SYNC
+                                <button @click="playerSheetOpen = true" class="text-[10px] text-gray-500 hover:text-gray-400 transition-colors flex items-center gap-1" title="Ver ficha completa (somente leitura)">
+                                    <i class="fa-solid fa-eye"></i> VER
                                 </button>
                                 <button @click="askConfirm('Sair da Campanha?', 'Você perderá sua ficha nesta campanha.', 'danger', () => leaveCampaignAsMember())" 
                                         class="text-[10px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1" title="Abandonar campanha">
@@ -445,7 +576,7 @@
                     </div>
                     
                     <!-- Rolador de Dados do Jogador (customizável) -->
-                    <div class="w-64 flex-shrink-0 bg-black/40 rounded-xl p-3 border border-white/10">
+                    <div class="w-full lg:w-64 flex-shrink-0 bg-black/40 rounded-xl p-3 border border-white/10">
                         <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Rolar Dados</div>
                         
                         <!-- Display do resultado (aparece após rolar) -->
@@ -985,22 +1116,41 @@
 
     <template x-if="currentView === 'sheet' && char">
         <main class="relative z-10 max-w-7xl mx-auto p-4 pb-48" x-transition.opacity>
-            <!-- Banner de modo campanha -->
-            <div x-show="campaignCharMode" class="mb-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <i class="fa-solid fa-users-viewfinder text-purple-400"></i>
-                    <div>
-                        <p class="text-sm font-bold text-white">Modo Campanha</p>
-                        <p class="text-[10px] text-gray-400">Editando ficha de jogador - alterações são em tempo real</p>
+            <!-- Banner de modo campanha com rolador de dados -->
+            <div x-show="campaignCharMode" class="mb-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-3">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-users-viewfinder text-purple-400"></i>
+                        <div>
+                            <p class="text-sm font-bold text-white">Modo Campanha</p>
+                            <p class="text-[10px] text-gray-400">Editando ficha de jogador - alterações vão para o log</p>
+                        </div>
                     </div>
-                </div>
-                <div class="flex gap-2">
-                    <button @click="saveCampaignSheet()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg text-xs hover:bg-green-400 transition-colors">
-                        <i class="fa-solid fa-save mr-1"></i> SALVAR
-                    </button>
-                    <button @click="closeCampaignSheet()" class="px-4 py-2 bg-white/10 text-white font-bold rounded-lg text-xs hover:bg-white/20 transition-colors">
-                        <i class="fa-solid fa-arrow-left mr-1"></i> VOLTAR
-                    </button>
+                    
+                    <!-- Mini rolador de dados para campanha -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex items-center gap-1 bg-black/40 rounded-lg px-2 py-1">
+                            <span class="text-purple-400 font-bold text-xs">D</span>
+                            <input type="number" x-model.number="lastFaces" min="2" max="100" 
+                                   class="w-10 bg-transparent text-xs text-white text-center focus:outline-none">
+                            <span class="text-gray-500 text-xs">±</span>
+                            <input type="number" x-model.number="diceMod" 
+                                   class="w-8 bg-transparent text-xs text-white text-center focus:outline-none">
+                        </div>
+                        <button @click="rollForCampaign(lastFaces || 20)" 
+                                class="px-3 py-1.5 bg-purple-500/30 text-purple-300 rounded-lg font-bold text-xs hover:bg-purple-500/50 transition-colors">
+                            <i class="fa-solid fa-dice mr-1"></i> ROLAR
+                        </button>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button @click="saveCampaignSheet()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg text-xs hover:bg-green-400 transition-colors">
+                            <i class="fa-solid fa-save mr-1"></i> SALVAR
+                        </button>
+                        <button @click="closeCampaignSheet()" class="px-4 py-2 bg-white/10 text-white font-bold rounded-lg text-xs hover:bg-white/20 transition-colors">
+                            <i class="fa-solid fa-arrow-left mr-1"></i> VOLTAR
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -1015,12 +1165,12 @@
                     <button @click="activeTab='profile'" :class="activeTab==='profile'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Perfil</button>
                     <button @click="activeTab='powers'" :class="activeTab==='powers'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Poderes</button>
                     <button @click="activeTab='logistics'" :class="activeTab==='logistics'?'bg-[var(--neon-core)] text-black shadow-lg':'text-gray-500 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Logística</button>
-                    <button @click="historyModal = true" 
+                    <button x-show="!campaignCharMode" @click="historyModal = true" 
                     class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all text-gray-500 hover:text-white border border-white/10 hover:border-[var(--neon-core)]">
                     <i class="fa-solid fa-clock-rotate-left mr-1"></i>
                     <span class="hidden sm:inline">HISTÓRICO</span>
                     </button>
-                    <button @click="exportCharAsImage()" 
+                    <button x-show="!campaignCharMode" @click="exportCharAsImage()" 
                     class="px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all text-gray-500 hover:text-white border border-white/10 hover:border-emerald-500 hover:text-emerald-400"
                     title="Exportar ficha como imagem PNG">
                     <i class="fa-solid fa-image"></i>
@@ -1266,33 +1416,37 @@
             </div>
             
             <div x-show="activeTab === 'powers'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="glass p-4 rounded-lg">
-                        <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4>
-                        <textarea name="power_passive" x-model="char.powers.passive" aria-label="Passiva" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
+                <template x-if="char && char.powers">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="glass p-4 rounded-lg">
+                            <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4>
+                            <textarea name="power_passive" x-model="char.powers.passive" aria-label="Passiva" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
+                        </div>
+                        <div class="glass p-4 rounded-lg">
+                            <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4>
+                            <textarea name="power_active" x-model="char.powers.active" aria-label="Ativa" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
+                        </div>
                     </div>
-                    <div class="glass p-4 rounded-lg">
-                        <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4>
-                        <textarea name="power_active" x-model="char.powers.active" aria-label="Ativa" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
-                    </div>
-                </div>
-                <div class="glass p-6 rounded-2xl border-l-2 border-emerald-500">
-                    <div class="flex justify-between mb-4 items-center">
-                        <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas</h3>
-                        <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
-                    </div>
-                    <div class="space-y-3">
-                        <template x-for="(t, idx) in char.powers.techniques" :key="idx">
-                            <div class="bg-black/40 p-3 rounded-lg">
-                                <div class="flex justify-between mb-2">
-                                    <input :name="'tech_name_' + idx" x-model="t.name" aria-label="Nome Técnica" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome">
-                                    <button @click="deleteTechnique(idx)" class="text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                </template>
+                <template x-if="char && char.powers && char.powers.techniques">
+                    <div class="glass p-6 rounded-2xl border-l-2 border-emerald-500">
+                        <div class="flex justify-between mb-4 items-center">
+                            <h3 class="text-xs font-bold text-emerald-500 uppercase">Técnicas</h3>
+                            <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="(t, idx) in char.powers.techniques" :key="idx">
+                                <div class="bg-black/40 p-3 rounded-lg">
+                                    <div class="flex justify-between mb-2">
+                                        <input :name="'tech_name_' + idx" x-model="t.name" aria-label="Nome Técnica" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome">
+                                        <button @click="deleteTechnique(idx)" class="text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <textarea :name="'tech_desc_' + idx" x-model="t.desc" aria-label="Descrição Técnica" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Efeito..."></textarea>
                                 </div>
-                                <textarea :name="'tech_desc_' + idx" x-model="t.desc" aria-label="Descrição Técnica" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Efeito..."></textarea>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
                     </div>
-                </div>
+                </template>
                 <!-- Evolução: usa x-if para evitar avaliação de x-model quando char é null -->
                 <template x-if="char && char.powers">
                     <div class="glass p-6 rounded-2xl">
@@ -1411,8 +1565,8 @@
     </div>
     </template>
 
-    <!-- DICE TRAY BUTTON -->
-    <div x-show="!diceTrayOpen && currentView === 'sheet'" class="fixed bottom-6 right-6 z-[8000]">
+    <!-- DICE TRAY BUTTON - Esconde no modo campanha (já tem rolador no banner) -->
+    <div x-show="!diceTrayOpen && currentView === 'sheet' && !campaignCharMode" class="fixed bottom-6 right-6 z-[8000]">
         <div x-show="showDiceTip" class="absolute bottom-16 right-0 w-48 bg-[var(--neon-core)] text-black p-3 rounded-lg shadow-xl text-center animate-bounce z-[60]" x-transition>
             <div class="text-xs font-bold">Abra a bandeja aqui!</div>
             <div class="w-3 h-3 bg-[var(--neon-core)] rotate-45 absolute -bottom-1 right-6"></div>
@@ -1420,7 +1574,7 @@
         <button @click="toggleDiceTray()" class="w-14 h-14 bg-black border border-[var(--neon-core)] rounded-full text-[var(--neon-core)] shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] hover:scale-110 transition-transform flex items-center justify-center text-2xl glass"><i class="fa-solid fa-dice-d20"></i></button>
     </div>
 
-    <div x-show="unsavedChanges && !isGuest" class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9500] flex justify-center pointer-events-none" x-transition.opacity>
+    <div x-show="unsavedChanges && !isGuest && !campaignCharMode" class="fixed bottom-32 md:bottom-12 left-0 right-0 z-[9500] flex justify-center pointer-events-none" x-transition.opacity>
     <div class="glass bg-black/90 backdrop-blur-xl border border-[var(--neon-core)] rounded-full px-2 py-2 flex items-center shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto transform transition-all duration-300" 
          :class="{'pr-6 pl-6 gap-4 bg-red-900/40 border-red-500': revertConfirmMode, 'pr-2 pl-6 gap-4': !revertConfirmMode, 'shake-anim': shakeAlert}">
         
@@ -1467,9 +1621,14 @@
     </div>
 </div>
 
+    <!-- Welcome Modal (sem username - já tem usernameModal separado) -->
     <div x-show="welcomeModal" style="display: none" 
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4 py-6"
-         x-transition.opacity>
+         x-transition.opacity
+         x-data="{ modalMouseDown: false }"
+         @mousedown.self="modalMouseDown = true"
+         @mouseup.self="if(modalMouseDown) welcomeModal = false; modalMouseDown = false"
+         @mouseleave="modalMouseDown = false">
         
         <div class="glass rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh] overflow-hidden">
             
@@ -1495,19 +1654,6 @@
                             Crie personagens, controle atributos, role dados e sincronize seus dados na nuvem.
                         </p>
                     </div>
-                    
-                    <div class="bg-black/40 p-4 rounded-xl border border-white/10">
-                        <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3 uppercase">
-                            <i class="fa-solid fa-user-tag mr-2"></i>Identidade
-                        </h3>
-                        <div>
-                            <label class="text-[10px] text-gray-500 font-bold mb-2 block uppercase">Nome de Usuário (Público)</label>
-                            <input type="text" x-model="settings.username" placeholder="Como você quer ser chamado?"
-                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none"
-                                   @change="saveLocal()">
-                            <p class="text-[9px] text-gray-600 mt-1">Este nome será usado no chat e nas campanhas.</p>
-                        </div>
-                    </div>
 
                     <div class="bg-black/40 p-4 rounded-xl border border-white/10">
                         <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3 uppercase">
@@ -1516,30 +1662,15 @@
                         <div class="space-y-4">
                             <div>
                                 <p class="text-[10px] text-gray-500 font-bold mb-3 uppercase">Cor de Destaque</p>
-                                <!-- PC: Listras com hover zoom | Mobile: Grid de quadrados -->
-                                <div class="hidden md:flex gap-1 h-10 rounded-xl overflow-hidden border border-white/10">
+                                <div class="grid grid-cols-7 gap-2">
                                     <template x-for="color in getThemeColors()" :key="color.id">
                                         <button @click="toggleSetting('themeColor', color.id)" 
                                                 :style="'background-color: ' + color.hex"
                                                 :title="color.name"
-                                                class="flex-1 h-full transition-all duration-200 hover:flex-[2] relative group"
-                                                :class="settings.themeColor === color.id ? 'flex-[2] ring-2 ring-white ring-inset' : ''">
+                                                class="w-full aspect-square rounded-xl relative transition-transform active:scale-95 hover:scale-105"
+                                                :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-110' : ''">
                                             <div x-show="settings.themeColor === color.id" class="absolute inset-0 flex items-center justify-center">
                                                 <i class="fa-solid fa-check text-white text-sm drop-shadow-lg"></i>
-                                            </div>
-                                        </button>
-                                    </template>
-                                </div>
-                                <!-- Mobile: Grid de quadrados arredondados -->
-                                <div class="grid grid-cols-7 gap-2 md:hidden">
-                                    <template x-for="color in getThemeColors()" :key="color.id">
-                                        <button @click="toggleSetting('themeColor', color.id)" 
-                                                :style="'background-color: ' + color.hex"
-                                                :title="color.name"
-                                                class="w-full aspect-square rounded-xl relative active:scale-95 transition-transform"
-                                                :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''">
-                                            <div x-show="settings.themeColor === color.id" class="absolute inset-0 flex items-center justify-center">
-                                                <i class="fa-solid fa-check text-white text-xs drop-shadow-lg"></i>
                                             </div>
                                         </button>
                                     </template>
@@ -1569,7 +1700,7 @@
                             <li>• Respeite os players e o mestre</li>
                             <li>• Use o botão SALVAR para confirmar alterações</li>
                             <li>• Arraste a bandeja de dados para reposicioná-la</li>
-                            <li>• Seja feliz! </li>
+                            <li>• Seja feliz!</li>
                         </ul>
                     </div>
                     
@@ -1582,19 +1713,41 @@
         </div>
     </div>
 
-    <div x-show="configModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4">
+    <div x-show="configModal" style="display: none" 
+         x-data="{ modalMouseDown: false }"
+         class="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center px-4"
+         @mousedown.self="modalMouseDown = true"
+         @mouseup.self="if(modalMouseDown) configModal = false; modalMouseDown = false"
+         @mouseleave="modalMouseDown = false">
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-brand text-white">CONFIGURAÇÕES</h3>
                 <button @click="configModal=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
-                <!-- Username -->
+                <!-- Username com verificação -->
                 <div>
                     <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">NOME DE USUÁRIO</p>
-                    <input type="text" x-model="settings.username" @change="saveLocal(); if(!isGuest && user) syncCloud(true)"
-                           placeholder="Seu nome no Zenite..."
-                           class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none">
+                    <div class="relative">
+                        <input type="text" x-model="settings.username" 
+                               @input.debounce.500ms="checkUsernameAvailable(settings.username)"
+                               :disabled="!canChangeUsername"
+                               placeholder="Seu nome no Zenite..."
+                               class="w-full bg-black/60 border rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition-colors pr-10"
+                               :class="!canChangeUsername ? 'opacity-50 cursor-not-allowed border-white/5' : usernameCheckResult === 'available' ? 'border-green-500' : usernameCheckResult === 'taken' ? 'border-red-500' : 'border-white/10 focus:border-[var(--neon-core)]'">
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                            <i x-show="usernameChecking" class="fa-solid fa-circle-notch fa-spin text-gray-500 text-xs"></i>
+                            <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check text-green-500 text-xs"></i>
+                            <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-xmark text-red-500 text-xs"></i>
+                        </div>
+                    </div>
+                    <p x-show="usernameCheckResult === 'taken'" class="text-[10px] text-red-400 mt-1">Username já em uso</p>
+                    <p x-show="!canChangeUsername" class="text-[10px] text-amber-400 mt-1">
+                        <i class="fa-solid fa-lock mr-1"></i> Você poderá alterar em <span x-text="daysUntilUsernameChange"></span> dias
+                    </p>
+                    <p x-show="canChangeUsername && usernameCheckResult !== 'taken'" class="text-[10px] text-gray-500 mt-1">
+                        Após alterar, aguarde 14 dias para mudar novamente
+                    </p>
                 </div>
                 
                 <div class="border-t border-white/10"></div>
@@ -1602,32 +1755,16 @@
                 <!-- Grid de Cores Expandido -->
                 <div>
                     <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
-                    <!-- PC: Listras com hover zoom -->
-                    <div class="hidden md:flex gap-1 h-12 rounded-xl overflow-hidden border border-white/10">
+                    <div class="grid grid-cols-7 gap-2">
                         <template x-for="color in getThemeColors()" :key="color.id">
                             <button @click="toggleSetting('themeColor', color.id)" 
                                     :style="'background-color: ' + color.hex"
                                     :title="color.name"
-                                    class="flex-1 h-full transition-all duration-200 hover:flex-[2] relative"
-                                    :class="settings.themeColor === color.id ? 'flex-[2] ring-2 ring-white ring-inset' : ''">
+                                    class="aspect-square rounded-xl relative transition-transform active:scale-95 hover:scale-105"
+                                    :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-110' : ''">
                                 <span x-show="settings.themeColor === color.id" 
                                       class="absolute inset-0 flex items-center justify-center text-white text-sm">
                                     <i class="fa-solid fa-check drop-shadow-lg"></i>
-                                </span>
-                            </button>
-                        </template>
-                    </div>
-                    <!-- Mobile: Grid de quadrados -->
-                    <div class="grid grid-cols-7 gap-2 md:hidden">
-                        <template x-for="color in getThemeColors()" :key="color.id">
-                            <button @click="toggleSetting('themeColor', color.id)" 
-                                    :style="'background-color: ' + color.hex"
-                                    :title="color.name"
-                                    class="aspect-square rounded-xl relative active:scale-95 transition-transform"
-                                    :class="settings.themeColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''">
-                                <span x-show="settings.themeColor === color.id" 
-                                      class="absolute inset-0 flex items-center justify-center text-white text-xs">
-                                    <i class="fa-solid fa-check"></i>
                                 </span>
                             </button>
                         </template>
@@ -1665,7 +1802,12 @@
         </div>
     </div>
 
-    <div x-show="wizardOpen" style="display: none" class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4">
+    <div x-show="wizardOpen" style="display: none" 
+         x-data="{ modalMouseDown: false }"
+         class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+         @mousedown.self="modalMouseDown = true"
+         @mouseup.self="if(modalMouseDown) wizardOpen = false; modalMouseDown = false"
+         @mouseleave="modalMouseDown = false">
         <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl modal-enter">
             <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
                 <div>
@@ -1770,7 +1912,12 @@
         </div>
     </div>
 
-    <div x-show="cropperOpen" style="display: none" class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4">
+    <div x-show="cropperOpen" style="display: none" 
+         x-data="{ modalMouseDown: false }"
+         class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4"
+         @mousedown.self="modalMouseDown = true"
+         @mouseup.self="if(modalMouseDown) cropperOpen = false; modalMouseDown = false"
+         @mouseleave="modalMouseDown = false">
         <div class="w-full max-w-lg h-[70vh] flex flex-col">
             <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
                 <img id="crop-target" class="block max-w-full">
@@ -2050,8 +2197,9 @@
          Configurações da campanha: chat, Discord webhook, notificações.
          Armazenado localmente no localStorage.
     -->
-    <div x-show="campaignSettingsOpen" style="display: none" class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
-        <div class="bg-[#0a0a0c] border border-gray-500/30 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-[0_0_60px_rgba(107,114,128,0.15)]">
+    <div x-show="campaignSettingsOpen" style="display: none" class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity
+         @click.self="campaignSettingsOpen = false">
+        <div class="bg-[#0a0a0c] border border-gray-500/30 rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(107,114,128,0.15)]">
             <!-- Header -->
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
                 <div class="flex items-center gap-3">
@@ -2069,7 +2217,7 @@
             </div>
             
             <!-- Content -->
-            <div class="p-4 space-y-4">
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                 <!-- Opções Gerais -->
                 <div class="space-y-3">
                     <h3 class="text-xs font-bold text-gray-400 uppercase">Opções Gerais</h3>
@@ -2118,7 +2266,13 @@
     </div>
 
     <!-- NETLINK MODAL -->
-    <div x-show="netlinkModal" style="display: none" class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
+    <div x-show="netlinkModal" style="display: none" 
+         x-data="{ modalMouseDown: false }"
+         class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4" 
+         x-transition.opacity
+         @mousedown.self="modalMouseDown = true"
+         @mouseup.self="if(modalMouseDown) { netlinkModal = false; netlinkCreateMode = false; } modalMouseDown = false"
+         @mouseleave="modalMouseDown = false">
         <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]">
             <!-- Header -->
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
@@ -2364,7 +2518,8 @@
     <!-- Modal: Ficha do Jogador na Campanha -->
     <div x-show="playerSheetOpen && getMyMembership()?.char_data" style="display: none" 
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-         x-transition.opacity @keydown.escape.window="playerSheetOpen = false">
+         x-transition.opacity @keydown.escape.window="playerSheetOpen = false"
+         @click.self="playerSheetOpen = false">
         <div class="glass rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-cyan-500/30 shadow-2xl modal-enter overflow-hidden">
             <!-- Header -->
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-cyan-500/5 flex-shrink-0">
@@ -2501,8 +2656,9 @@
 
     <div x-show="historyModal" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity>
-    <div class="glass p-6 rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col relative border border-white/10 shadow-2xl modal-enter">
+     x-transition.opacity
+     @click.self="historyModal = false">
+    <div class="glass p-6 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-white/10 shadow-2xl modal-enter">
         <div class="flex justify-between items-start mb-4">
             <div>
                 <h2 class="text-xl font-brand text-white">HISTÓRICO DE VERSÕES</h2>
@@ -2568,7 +2724,7 @@
         <span class="text-xs text-gray-400">Música Ambiente</span>
         <i class="fa-solid fa-chevron-up text-[10px] text-gray-500 transition-transform" :class="expanded && 'rotate-180'"></i>
     </div>
-    <div x-show="expanded" x-collapse class="border-t border-white/10">
+    <div x-show="expanded" x-transition class="border-t border-white/10">
         <iframe id="ambient-music-player" 
                 class="w-72 aspect-video"
                 allow="autoplay; encrypted-media" 
@@ -2580,7 +2736,8 @@
 <!-- Modal: Música Ambiente (GM) - Redesenhado -->
 <div x-show="musicModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="musicModalOpen = false">
+     x-transition.opacity @keydown.escape.window="musicModalOpen = false"
+     @click.self="musicModalOpen = false">
     <div class="glass rounded-2xl w-full max-w-lg border border-purple-500/30 shadow-2xl modal-enter overflow-hidden max-h-[90vh] flex flex-col">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5 flex-shrink-0">
@@ -2597,9 +2754,10 @@
             <!-- Player Principal -->
             <div class="bg-black/40 rounded-xl border border-purple-500/20 overflow-hidden">
                 <!-- Thumbnail / Video Preview -->
-                <div x-show="ambientMusic.url && extractYouTubeId(ambientMusic.url)" class="relative">
-                    <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(ambientMusic.url) + '/mqdefault.jpg'" 
-                         class="w-full aspect-video object-cover" :class="ambientMusic.playing ? 'opacity-100' : 'opacity-50'">
+                <template x-if="ambientMusic.url && extractYouTubeId(ambientMusic.url)">
+                    <div class="relative">
+                        <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(ambientMusic.url) + '/mqdefault.jpg'" 
+                             class="w-full aspect-video object-cover" :class="ambientMusic.playing ? 'opacity-100' : 'opacity-50'">
                     <div class="absolute inset-0 flex items-center justify-center bg-black/30">
                         <button @click="toggleMusic()" 
                                 class="w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110"
@@ -2610,7 +2768,7 @@
                     <div x-show="ambientMusic.playing" class="absolute bottom-2 left-2 px-2 py-1 bg-red-500 rounded text-[10px] text-white font-bold flex items-center gap-1">
                         <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> TOCANDO
                     </div>
-                </div>
+                </template>
                 
                 <!-- Empty State -->
                 <div x-show="!ambientMusic.url || !extractYouTubeId(ambientMusic.url)" class="p-8 text-center">
@@ -2621,9 +2779,39 @@
                 
                 <!-- Controls -->
                 <div class="p-4 space-y-3">
+                    <!-- Timeline / Seek Bar -->
+                    <div class="space-y-1" x-show="ambientMusic.playing">
+                        <div class="flex items-center justify-between text-[10px] text-gray-500 font-code">
+                            <span x-text="formatMusicTime(ambientMusic.currentTime || 0)">0:00</span>
+                            <span x-text="formatMusicTime(ambientMusic.duration || 0)">0:00</span>
+                        </div>
+                        <div class="relative h-2 bg-white/10 rounded-full overflow-hidden group cursor-pointer" 
+                             @click="seekMusic($event)">
+                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all"
+                                 :style="'width: ' + ((ambientMusic.currentTime || 0) / (ambientMusic.duration || 1) * 100) + '%'"></div>
+                            <div class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                 :style="'left: calc(' + ((ambientMusic.currentTime || 0) / (ambientMusic.duration || 1) * 100) + '% - 6px)'"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Playback Controls -->
+                    <div class="flex items-center justify-center gap-2" x-show="ambientMusic.playing">
+                        <button @click="seekRelative(-10)" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center" title="-10s">
+                            <i class="fa-solid fa-backward text-xs"></i>
+                        </button>
+                        <button @click="toggleMusic()" 
+                                class="w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                                :class="ambientMusic.playing ? 'bg-purple-500 hover:bg-purple-400 text-white' : 'bg-white/10 hover:bg-white/20 text-gray-400'">
+                            <i class="fa-solid" :class="ambientMusic.playing ? 'fa-pause' : 'fa-play ml-0.5'"></i>
+                        </button>
+                        <button @click="seekRelative(10)" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center" title="+10s">
+                            <i class="fa-solid fa-forward text-xs"></i>
+                        </button>
+                    </div>
+                    
                     <!-- Volume Slider Estilizado -->
                     <div class="flex items-center gap-3">
-                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50" class="text-gray-400 hover:text-white transition-colors">
+                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50; updateMusicVolume()" class="text-gray-400 hover:text-white transition-colors">
                             <i class="fa-solid" :class="ambientMusic.volume == 0 ? 'fa-volume-xmark text-red-400' : (ambientMusic.volume < 50 ? 'fa-volume-low' : 'fa-volume-high')"></i>
                         </button>
                         <div class="flex-1 relative h-2 bg-white/10 rounded-full overflow-hidden">
@@ -2639,7 +2827,7 @@
                     <!-- Info -->
                     <p class="text-[9px] text-gray-600 text-center">
                         <i class="fa-solid fa-info-circle mr-1"></i>
-                        O volume controla apenas o player dos jogadores. Use os controles do YouTube para seu áudio local.
+                        Volume e timeline controlam o player para todos (incluindo você)
                     </p>
                 </div>
             </div>
@@ -2709,7 +2897,8 @@
 <!-- Modal: Achievements -->
 <div x-show="achievementsModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="achievementsModalOpen = false">
+     x-transition.opacity @keydown.escape.window="achievementsModalOpen = false"
+     @click.self="achievementsModalOpen = false">
     <div class="glass rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-yellow-500/30 shadow-2xl modal-enter overflow-hidden">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center bg-yellow-500/5 flex-shrink-0">
@@ -2770,7 +2959,8 @@
 <!-- Modal: Amigos -->
 <div x-show="friendsModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="friendsModalOpen = false">
+     x-transition.opacity @keydown.escape.window="friendsModalOpen = false"
+     @click.self="friendsModalOpen = false">
     <div class="glass rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col border border-pink-500/30 shadow-2xl modal-enter overflow-hidden">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center bg-pink-500/5 flex-shrink-0">
@@ -2876,7 +3066,8 @@
 <!-- Modal: Meu Perfil -->
 <div x-show="profileModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="profileModalOpen = false">
+     x-transition.opacity @keydown.escape.window="profileModalOpen = false"
+     @click.self="profileModalOpen = false; viewingProfile = null">
     <div class="glass rounded-2xl w-full max-w-md border border-[var(--neon-core)]/30 shadow-2xl modal-enter overflow-hidden">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center">
@@ -2974,18 +3165,41 @@
                 <i class="fa-solid fa-user-pen text-[var(--neon-core)] text-2xl"></i>
             </div>
             <h2 class="text-xl font-bold text-white mb-2">Bem-vindo ao Zenite!</h2>
-            <p class="text-sm text-gray-400 mb-6">Defina seu nome de usuário para continuar. Este nome será visível para outros jogadores.</p>
+            <p class="text-sm text-gray-400 mb-4">Defina seu nome de usuário para continuar. Este nome será visível para outros jogadores.</p>
             
-            <input type="text" x-model="tempUsername" 
-                   placeholder="Seu nome de usuário..."
-                   maxlength="30"
-                   @keydown.enter="confirmUsername()"
-                   class="w-full bg-black/60 border-2 border-white/10 rounded-lg px-4 py-3 text-center text-lg text-white focus:border-[var(--neon-core)] focus:outline-none mb-4">
+            <!-- Campo com verificação em tempo real -->
+            <div class="relative mb-2">
+                <input type="text" x-model="tempUsername" 
+                       @input.debounce.500ms="checkUsernameAvailable(tempUsername)"
+                       placeholder="Seu nome de usuário..."
+                       maxlength="30"
+                       @keydown.enter="confirmUsername()"
+                       class="w-full bg-black/60 border-2 rounded-lg px-4 py-3 text-center text-lg text-white focus:outline-none transition-colors"
+                       :class="usernameCheckResult === 'available' ? 'border-green-500' : usernameCheckResult === 'taken' ? 'border-red-500' : 'border-white/10 focus:border-[var(--neon-core)]'">
+                <!-- Indicador de Status -->
+                <div class="absolute right-4 top-1/2 -translate-y-1/2">
+                    <i x-show="usernameChecking" class="fa-solid fa-circle-notch fa-spin text-gray-500"></i>
+                    <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check text-green-500"></i>
+                    <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-xmark text-red-500"></i>
+                </div>
+            </div>
             
-            <p class="text-[10px] text-gray-500 mb-4">Mínimo 2 caracteres</p>
+            <!-- Status do username -->
+            <p x-show="usernameCheckResult === 'taken'" class="text-[11px] text-red-400 mb-2">Este username já está em uso</p>
+            <p x-show="usernameCheckResult === 'available'" class="text-[11px] text-green-400 mb-2">Username disponível!</p>
+            <p x-show="!usernameCheckResult" class="text-[10px] text-gray-500 mb-2">Mínimo 2 caracteres</p>
+            
+            <!-- Aviso sobre 14 dias -->
+            <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+                <p class="text-[10px] text-amber-400">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                    Após definir, você só poderá alterar novamente em <strong>14 dias</strong>.
+                </p>
+            </div>
             
             <button @click="confirmUsername()" 
-                    class="w-full py-3 bg-[var(--neon-core)] text-black font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                    :disabled="usernameCheckResult === 'taken' || usernameChecking || !tempUsername || tempUsername.length < 2"
+                    class="w-full py-3 bg-[var(--neon-core)] text-black font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <i class="fa-solid fa-check"></i> CONFIRMAR
             </button>
         </div>
@@ -2995,8 +3209,9 @@
 <!-- Modal: Buscar GIFs (Giphy) -->
 <div x-show="gifModalOpen" style="display: none" 
      class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="gifModalOpen = false">
-    <div class="glass rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col border border-purple-500/30 shadow-2xl modal-enter overflow-hidden">
+     x-transition.opacity @keydown.escape.window="gifModalOpen = false"
+     @click.self="gifModalOpen = false; tenorSearch = ''; tenorResults = []">
+    <div class="glass rounded-2xl w-full max-w-lg max-h-[70vh] flex flex-col border border-purple-500/30 shadow-2xl modal-enter overflow-hidden">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5 flex-shrink-0">
             <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
@@ -3062,7 +3277,8 @@
 <!-- Modal: Macros de Dados -->
 <div x-show="macrosModalOpen" style="display: none" 
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="macrosModalOpen = false">
+     x-transition.opacity @keydown.escape.window="macrosModalOpen = false"
+     @click.self="macrosModalOpen = false">
     <div class="glass rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col border border-[var(--neon-core)]/30 shadow-2xl modal-enter overflow-hidden">
         <!-- Header -->
         <div class="p-4 border-b border-white/10 flex justify-between items-center flex-shrink-0">
@@ -3076,42 +3292,44 @@
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-            <!-- Form de edição -->
-            <div x-show="editingMacro" class="bg-black/40 rounded-xl p-4 border border-[var(--neon-core)]/20 mb-4">
-                <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3" x-text="editingMacro?.id ? 'Editar Macro' : 'Nova Macro'"></h3>
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Nome *</label>
-                        <input type="text" x-model="editingMacro.name" placeholder="Ex: Ataque Espada"
-                               class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
+            <!-- Form de edição - usa x-if para evitar erros quando null -->
+            <template x-if="editingMacro">
+                <div class="bg-black/40 rounded-xl p-4 border border-[var(--neon-core)]/20 mb-4">
+                    <h3 class="text-sm font-bold text-[var(--neon-core)] mb-3" x-text="editingMacro.id ? 'Editar Macro' : 'Nova Macro'"></h3>
+                    <div class="space-y-3">
                         <div>
-                            <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Dados *</label>
-                            <input type="text" x-model="editingMacro.dice" placeholder="Ex: 2d6+3"
-                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-code focus:border-[var(--neon-core)] focus:outline-none">
+                            <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Nome *</label>
+                            <input type="text" x-model="editingMacro.name" placeholder="Ex: Ataque Espada"
+                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Dados *</label>
+                                <input type="text" x-model="editingMacro.dice" placeholder="Ex: 2d6+3"
+                                       class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-code focus:border-[var(--neon-core)] focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Modificador Extra</label>
+                                <input type="number" x-model.number="editingMacro.modifier" placeholder="0"
+                                       class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-code focus:border-[var(--neon-core)] focus:outline-none">
+                            </div>
                         </div>
                         <div>
-                            <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Modificador Extra</label>
-                            <input type="number" x-model.number="editingMacro.modifier" placeholder="0"
-                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-code focus:border-[var(--neon-core)] focus:outline-none">
+                            <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Descrição (opcional)</label>
+                            <input type="text" x-model="editingMacro.description" placeholder="Ex: Dano base da espada longa"
+                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none">
                         </div>
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-gray-500 font-bold uppercase block mb-1">Descrição (opcional)</label>
-                        <input type="text" x-model="editingMacro.description" placeholder="Ex: Dano base da espada longa"
-                               class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none">
-                    </div>
-                    <div class="flex gap-2 pt-2">
-                        <button @click="saveMacro()" class="flex-1 py-2 bg-[var(--neon-core)] text-black rounded-lg font-bold text-xs hover:opacity-90 transition-opacity">
-                            <i class="fa-solid fa-check mr-1"></i> SALVAR
-                        </button>
-                        <button @click="editingMacro = null" class="px-4 py-2 bg-white/5 text-gray-400 rounded-lg font-bold text-xs hover:bg-white/10 transition-colors">
-                            CANCELAR
-                        </button>
+                        <div class="flex gap-2 pt-2">
+                            <button @click="saveMacro()" class="flex-1 py-2 bg-[var(--neon-core)] text-black rounded-lg font-bold text-xs hover:opacity-90 transition-opacity">
+                                <i class="fa-solid fa-check mr-1"></i> SALVAR
+                            </button>
+                            <button @click="editingMacro = null" class="px-4 py-2 bg-white/5 text-gray-400 rounded-lg font-bold text-xs hover:bg-white/10 transition-colors">
+                                CANCELAR
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </template>
             
             <!-- Lista de macros -->
             <div x-show="!editingMacro">

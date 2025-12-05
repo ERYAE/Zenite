@@ -362,6 +362,62 @@ export const netlinkLogic = {
     },
     
     /**
+     * Entra em uma campanha diretamente pelo código (usado pelo router)
+     * Se já for membro, apenas entra. Se não for, mostra modal de seleção de personagem.
+     * @param {string} code - Código de convite
+     */
+    async joinByCode(code) {
+        if (!code) return false;
+        
+        if (!this.supabase || !this.user) {
+            // Salva o código para entrar depois do login
+            sessionStorage.setItem('zenite_pending_campaign', code);
+            this.notify('Faça login para entrar na campanha.', 'warn');
+            return false;
+        }
+        
+        try {
+            // Busca a campanha pelo código
+            const { data: campaign, error } = await this.supabase
+                .from('campaigns')
+                .select('*')
+                .eq('invite_code', code.toUpperCase())
+                .single();
+            
+            if (error || !campaign) {
+                this.notify('Campanha não encontrada.', 'error');
+                return false;
+            }
+            
+            // Verifica se já é membro
+            const { data: member } = await this.supabase
+                .from('campaign_members')
+                .select('*')
+                .eq('campaign_id', campaign.id)
+                .eq('user_id', this.user.id)
+                .single();
+            
+            if (member) {
+                // Já é membro, entra direto
+                await this.enterCampaign(campaign);
+                return true;
+            }
+            
+            // Não é membro, mostra modal para selecionar personagem
+            this.pendingCampaignCode = code;
+            this.netlinkModal = true;
+            this.netlinkView = 'join';
+            this.notify('Selecione um personagem para entrar na campanha.', 'info');
+            return true;
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao buscar campanha:', e);
+            this.notify('Erro ao buscar campanha.', 'error');
+            return false;
+        }
+    },
+    
+    /**
      * Jogador sai da campanha (não é GM)
      * Remove o membro e seus dados da campanha
      */
@@ -524,27 +580,57 @@ export const netlinkLogic = {
     },
     
     /**
+     * Abre a própria ficha do jogador para edição na campanha
+     * Funciona igual ao openMemberSheet mas para o próprio jogador
+     */
+    openMySheet() {
+        const myMembership = this.getMyMembership();
+        if (!myMembership?.char_data) {
+            this.notify('Você não possui uma ficha nesta campanha.', 'warn');
+            return;
+        }
+        
+        // Usa a mesma lógica do GM para editar ficha
+        this.openMemberSheet(myMembership);
+    },
+    
+    /**
      * Salva alterações e fecha o modo de ficha de campanha
      */
     async saveCampaignSheet() {
-        if (!this.campaignCharMode || !this.campaignMemberId) return;
+        if (!this.campaignCharMode || !this.campaignMemberId) {
+            console.warn('[NETLINK] saveCampaignSheet: modo inválido ou sem memberId');
+            return;
+        }
+        
+        if (!this.char) {
+            console.error('[NETLINK] saveCampaignSheet: char é null');
+            this.notify('Erro: dados da ficha não encontrados.', 'error');
+            return;
+        }
+        
+        console.log('[NETLINK] Salvando ficha do membro:', this.campaignMemberId);
         
         try {
             // Salva as alterações no banco
-            const { error } = await this.supabase
+            const { data, error } = await this.supabase
                 .from('campaign_members')
                 .update({ char_data: this.char })
-                .eq('id', this.campaignMemberId);
+                .eq('id', this.campaignMemberId)
+                .select();
             
             if (error) throw error;
             
+            console.log('[NETLINK] Ficha salva com sucesso:', data);
+            
             // Broadcast para atualizar outros clientes
             if (this.realtimeChannel) {
-                this.realtimeChannel.send({
+                await this.realtimeChannel.send({
                     type: 'broadcast',
                     event: 'member_update',
                     payload: { memberId: this.campaignMemberId }
                 });
+                console.log('[NETLINK] Broadcast enviado');
             }
             
             this.notify('Ficha atualizada!', 'success');
@@ -555,7 +641,7 @@ export const netlinkLogic = {
             
         } catch (e) {
             console.error('[NETLINK] Erro ao salvar ficha:', e);
-            this.notify('Erro ao salvar ficha.', 'error');
+            this.notify('Erro ao salvar ficha: ' + e.message, 'error');
         }
     },
     
@@ -565,8 +651,13 @@ export const netlinkLogic = {
     closeCampaignSheet() {
         if (!this.campaignCharMode) return;
         
-        // Restaura a ficha original do usuário
-        this.char = this.campaignCharBackup;
+        // Restaura a ficha original do usuário (só se tiver backup)
+        if (this.campaignCharBackup) {
+            this.char = this.campaignCharBackup;
+        }
+        // Se não tinha backup, mantém char como está mas limpa para evitar confusão
+        // O char será recarregado quando o usuário abrir uma ficha
+        
         this.campaignCharBackup = null;
         this.campaignMemberId = null;
         this.campaignCharMode = false;
@@ -680,9 +771,15 @@ export const netlinkLogic = {
             .subscribe((status) => {
                 console.log('[NETLINK] Status da conexão:', status);
                 if (status === 'SUBSCRIBED') {
+                    console.log('✅ [NETLINK] Conectado ao realtime com sucesso!');
                     // Força recarga inicial para garantir sincronia
                     this.loadChatHistory();
                     this.loadCampaignMembers(campaignId);
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    console.error('❌ [NETLINK] Erro na conexão realtime:', status);
+                    this.notify('Erro ao conectar tempo real. Chat pode não funcionar.', 'warn');
+                } else if (status === 'CLOSED') {
+                    console.warn('⚠️ [NETLINK] Conexão realtime fechada');
                 }
             });
     },
@@ -1624,6 +1721,8 @@ export const netlinkLogic = {
     async leaveCampaign() {
         if (!this.activeCampaign) return;
         
+        console.log('[NETLINK] Saindo da campanha...');
+        
         // Desconecta do realtime
         await this.disconnectRealtime();
         
@@ -1637,6 +1736,9 @@ export const netlinkLogic = {
         this.chatMessages = [];
         this.gmNotes = '';
         this.netlinkView = 'list';
+        
+        // Volta para dashboard usando router
+        this.navigate('dashboard');
         
         // Troca contexto do log de dados de volta para local
         this.switchDiceLogContext();
@@ -1669,6 +1771,12 @@ export const netlinkLogic = {
         // Muda para a view da campanha
         this.currentView = 'campaign';
         this.netlinkView = 'campaign';
+        
+        // Atualiza a URL para permitir compartilhamento via router
+        if (campaign.invite_code) {
+            this.navigate('netlink', campaign.invite_code);
+        }
+        
         playSFX('success');
     },
     
@@ -1684,6 +1792,22 @@ export const netlinkLogic = {
             this.notify('Código copiado!', 'success');
         } catch (e) {
             this.notify('Erro ao copiar código', 'error');
+        }
+    },
+    
+    /**
+     * Copia link de convite completo para clipboard
+     */
+    async copyInviteLink() {
+        if (!this.activeCampaign?.invite_code) return;
+        
+        try {
+            const url = `${window.location.origin}${window.location.pathname}#/netlink/${this.activeCampaign.invite_code}`;
+            await navigator.clipboard.writeText(url);
+            playSFX('success');
+            this.notify('Link copiado!', 'success');
+        } catch (e) {
+            this.notify('Erro ao copiar link', 'error');
         }
     },
     
@@ -2009,9 +2133,23 @@ export const netlinkLogic = {
         
         this.notify('Tocando música!', 'success');
     },
+    
+    // Alias para uso rápido da playlist (hover button)
+    quickPlayMusic(url) {
+        this.playMusicFromUrl(url);
+    },
 
-    // Atualiza o volume
+    // Atualiza o volume (afeta todos incluindo o mestre)
     updateMusicVolume() {
+        console.log('[MUSIC] Atualizando volume para:', this.ambientMusic.volume);
+        
+        // Atualiza iframe player local via postMessage
+        const iframe = document.getElementById('ambient-music-player');
+        if (iframe && iframe.contentWindow) {
+            this.setIframeVolume(iframe, this.ambientMusic.volume);
+        }
+        
+        // Broadcast para todos os jogadores
         if (this.realtimeChannel && this.ambientMusic.playing) {
             this.realtimeChannel.send({
                 type: 'broadcast',
@@ -2021,6 +2159,102 @@ export const netlinkLogic = {
                     volume: this.ambientMusic.volume
                 }
             });
+            console.log('[MUSIC] Volume sincronizado via realtime');
+        }
+    },
+    
+    // Formata tempo em minutos:segundos
+    formatMusicTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    },
+    
+    // Seek para posição específica (clique na timeline)
+    seekMusic(event) {
+        if (!this.ambientMusic.playing) {
+            console.warn('[MUSIC] Música não está tocando');
+            return;
+        }
+        
+        const bar = event.currentTarget;
+        const rect = bar.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        
+        console.log('[MUSIC] Seeking para:', Math.round(percent * 100), '%');
+        
+        // Seek no iframe via postMessage
+        const iframe = document.getElementById('ambient-music-player');
+        if (iframe && iframe.contentWindow) {
+            const seekTime = percent * (this.ambientMusic.duration || 1);
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'seekTo',
+                args: [seekTime, true]
+            }), '*');
+            this.ambientMusic.currentTime = seekTime;
+        }
+        
+        // Broadcast para todos
+        if (this.realtimeChannel) {
+            this.realtimeChannel.send({
+                type: 'broadcast',
+                event: 'ambient_music',
+                payload: { 
+                    action: 'seek',
+                    time: seekTime
+                }
+            });
+        }
+    },
+    
+    // Seek relativo (+/- segundos)
+    seekRelative(seconds) {
+        if (!this.ambientMusic.playing) return;
+        
+        const currentTime = this.ambientMusic.currentTime || 0;
+        const newTime = Math.max(0, Math.min(currentTime + seconds, this.ambientMusic.duration || 0));
+        
+        // Seek no iframe via postMessage
+        const iframe = document.getElementById('ambient-music-player');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'seekTo',
+                args: [newTime, true]
+            }), '*');
+            this.ambientMusic.currentTime = newTime;
+        }
+        
+        // Broadcast para todos
+        if (this.realtimeChannel) {
+            this.realtimeChannel.send({
+                type: 'broadcast',
+                event: 'ambient_music',
+                payload: { 
+                    action: 'seek',
+                    time: newTime
+                }
+            });
+        }
+    },
+    
+    // Atualiza o tempo atual (chamado periodicamente pelo player)
+    updateMusicProgress() {
+        if (!this.ambientMusic.playing) return;
+        
+        // Solicita info do iframe via postMessage
+        const iframe = document.getElementById('ambient-music-player');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'listening',
+                func: 'getCurrentTime'
+            }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'listening',
+                func: 'getDuration'
+            }), '*');
         }
     },
     
@@ -2087,9 +2321,18 @@ export const netlinkLogic = {
 
         switch (payload.action) {
             case 'play':
-                player.src = `https://www.youtube.com/embed/${payload.videoId}?autoplay=1&loop=1&playlist=${payload.videoId}`;
+                // Usa enablejsapi=1 para permitir controle via postMessage
+                player.src = `https://www.youtube.com/embed/${payload.videoId}?autoplay=1&loop=1&playlist=${payload.videoId}&enablejsapi=1`;
                 player.style.display = 'block';
                 this.ambientMusic.playing = true;
+                this.ambientMusic.url = `https://youtube.com/watch?v=${payload.videoId}`;
+                
+                // Aplica volume inicial após carregar
+                setTimeout(() => {
+                    if (payload.volume !== undefined) {
+                        this.setIframeVolume(player, payload.volume);
+                    }
+                }, 1000);
                 break;
             case 'stop':
                 player.src = '';
@@ -2097,9 +2340,39 @@ export const netlinkLogic = {
                 this.ambientMusic.playing = false;
                 break;
             case 'volume':
-                // Volume controlado pelo iframe não é facilmente acessível, 
-                // mas o usuário pode ajustar no próprio player
+                this.setIframeVolume(player, payload.volume);
                 break;
+            case 'seek':
+                this.setIframeSeek(player, payload.time);
+                break;
+        }
+    },
+    
+    // Envia comando de volume para o iframe via postMessage
+    setIframeVolume(iframe, volume) {
+        if (!iframe || !iframe.contentWindow) return;
+        try {
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'setVolume',
+                args: [volume]
+            }), '*');
+        } catch (e) {
+            console.warn('[MUSIC] Erro ao definir volume:', e);
+        }
+    },
+    
+    // Envia comando de seek para o iframe via postMessage
+    setIframeSeek(iframe, time) {
+        if (!iframe || !iframe.contentWindow) return;
+        try {
+            iframe.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'seekTo',
+                args: [time, true]
+            }), '*');
+        } catch (e) {
+            console.warn('[MUSIC] Erro ao fazer seek:', e);
         }
     }
 };
