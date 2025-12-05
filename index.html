@@ -186,10 +186,10 @@
                             </button>
                             
                             <!-- Esqueceu a senha -->
-                            <button x-show="authMode === 'login'" @click="authMode = 'forgot'" class="text-[10px] text-gray-500 hover:text-[var(--neon-core)] block w-full text-center">
+                            <button type="button" x-show="authMode === 'login'" @click="authMode = 'forgot'" class="text-[10px] text-gray-500 hover:text-[var(--neon-core)] block w-full text-center">
                                 Esqueceu a senha?
                             </button>
-                        </div>
+                        </form>
                     </template>
                 </div>
                 
@@ -2739,6 +2739,7 @@
                     <div x-show="ambientMusic.playing" class="absolute bottom-2 left-2 px-2 py-1 bg-red-500 rounded text-[10px] text-white font-bold flex items-center gap-1">
                         <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> TOCANDO
                     </div>
+                </div>
                 </template>
                 
                 <!-- Empty State -->

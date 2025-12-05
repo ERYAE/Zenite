@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "tailwind": "tailwindcss -i ./css/input.css -o ./css/output.css --watch",
     "tailwindbuild": "tailwindcss -i ./css/input.css -o ./css/output.css --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -23,7 +26,8 @@
   "dependencies": {
     "@tailwindcss/cli": "^4.1.17",
     "tailwindcss": "^4.1.17"
-
-
+  },
+  "devDependencies": {
+    "vite": "^7.2.6"
   }
 }
