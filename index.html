@@ -4,25 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#050507">
+    <meta name="description" content="ZENITE OS - Sistema de Fichas de RPG com campanhas multiplayer em tempo real">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>ZENITE OS</title>
     
-    <link rel="icon" href="images/favicon-black.svg" media="(prefers-color-scheme: light)">
-    <link rel="icon" href="images/favicon-white.svg" media="(prefers-color-scheme: dark)">
-    
+    <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    
+    <!-- Icons -->
+    <link rel="icon" href="images/favicon-black.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="images/favicon-white.svg" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="images/favicon-white.svg">
+    
+    <!-- Critical CSS inline -->
+    <style>
+        /* Critical above-the-fold styles */
+        [x-cloak] { display: none !important; }
+        body { background: #050507; color: #e2e8f0; font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; }
+        .loading-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 99999; background: #050507; }
+    </style>
+    
+    <!-- Fonts - swap to prevent FOIT -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;600;700&display=swap" rel="stylesheet">
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Defer non-critical scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <!-- Stylesheets -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="css/output.css" rel="stylesheet">
-
     <link rel="stylesheet" href="css/style.css" media="print" onload="this.media='all'">
-
     <noscript><link rel="stylesheet" href="css/style.css"></noscript>
     <script type="module" src="js/app.js"></script>
 </head>
@@ -468,33 +487,76 @@
                                      x-transition:leave="transition ease-in duration-100"
                                      x-transition:leave-start="opacity-100 scale-100"
                                      x-transition:leave-end="opacity-0 scale-95"
-                                     class="fixed w-64 z-[10001] rounded-xl overflow-hidden border border-purple-500/30 shadow-2xl"
+                                     class="fixed w-72 z-[10001] rounded-xl overflow-hidden border border-purple-500/30 shadow-2xl backdrop-blur-xl"
                                      :style="musicBtnRect ? `top: ${musicBtnRect.bottom + 8}px; right: ${window.innerWidth - musicBtnRect.right}px` : 'top: 100px; right: 16px'"
-                                     style="background: #0a0a0c;"
+                                     style="background: rgba(10,10,12,0.95);"
                                      x-cloak>
+                                    <!-- Header com Volume Global -->
                                     <div class="p-3 bg-purple-500/20 border-b border-purple-500/30">
-                                        <p class="text-xs text-purple-400 font-bold uppercase flex items-center gap-2">
-                                            <i class="fa-solid fa-music"></i> Playlist
-                                        </p>
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-xs text-purple-400 font-bold uppercase flex items-center gap-2">
+                                                <i class="fa-solid fa-music"></i> Playlist
+                                            </p>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fa-solid fa-volume-high text-[10px] text-purple-400/60"></i>
+                                                <input type="range" min="0" max="100" x-model="ambientMusic.volume" 
+                                                       @input="updateMusicVolume()"
+                                                       class="w-14 h-1 accent-purple-500 cursor-pointer">
+                                                <span class="text-[9px] text-purple-400 w-6 text-right" x-text="ambientMusic.volume + '%'"></span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="max-h-64 overflow-y-auto">
+                                    
+                                    <!-- Lista de Músicas -->
+                                    <div class="max-h-64 overflow-y-auto custom-scrollbar">
                                         <template x-for="(music, index) in musicPlaylist" :key="music.id || index">
-                                            <button @click="quickPlayMusic(music.url); musicPlaylistOpen = false" 
-                                                    class="w-full text-left px-3 py-2.5 hover:bg-purple-500/20 transition-colors flex items-center gap-2 group border-b border-white/5">
-                                                <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(music.url) + '/default.jpg'" 
-                                                     class="w-10 h-7 rounded object-cover flex-shrink-0"
-                                                     onerror="this.style.display='none'">
-                                                <div class="flex-1 min-w-0">
-                                                    <p class="text-xs text-white truncate" x-text="music.title || 'Música ' + (index + 1)"></p>
-                                                </div>
-                                                <i class="fa-solid fa-play text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                            </button>
+                                            <div class="group border-b border-white/5 hover:bg-purple-500/10 transition-colors"
+                                                 :class="ambientMusic.url === music.url && ambientMusic.playing ? 'bg-purple-500/20' : ''">
+                                                <button @click="quickPlayMusic(music.url)" 
+                                                        class="w-full text-left px-3 py-2 flex items-center gap-2">
+                                                    <!-- Thumbnail com indicador de playing -->
+                                                    <div class="relative w-10 h-7 rounded overflow-hidden flex-shrink-0">
+                                                        <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(music.url) + '/default.jpg'" 
+                                                             class="w-full h-full object-cover"
+                                                             onerror="this.style.display='none'">
+                                                        <div x-show="ambientMusic.url === music.url && ambientMusic.playing" 
+                                                             class="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                            <div class="flex gap-0.5 items-end h-3">
+                                                                <div class="w-0.5 bg-purple-400 animate-pulse" style="height: 40%; animation-delay: 0ms"></div>
+                                                                <div class="w-0.5 bg-purple-400 animate-pulse" style="height: 80%; animation-delay: 150ms"></div>
+                                                                <div class="w-0.5 bg-purple-400 animate-pulse" style="height: 60%; animation-delay: 300ms"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <p class="text-xs text-white truncate" x-text="music.title || 'Música ' + (index + 1)"></p>
+                                                        <!-- Timeline Mini quando tocando -->
+                                                        <div x-show="ambientMusic.url === music.url && ambientMusic.playing" 
+                                                             class="mt-1 flex items-center gap-1.5">
+                                                            <span class="text-[8px] text-purple-400 font-code" x-text="formatMusicTime(ambientMusic.currentTime || 0)">0:00</span>
+                                                            <div class="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
+                                                                <div class="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all"
+                                                                     :style="'width: ' + ((ambientMusic.currentTime || 0) / (ambientMusic.duration || 1) * 100) + '%'"></div>
+                                                            </div>
+                                                            <span class="text-[8px] text-gray-500 font-code" x-text="formatMusicTime(ambientMusic.duration || 0)">0:00</span>
+                                                        </div>
+                                                    </div>
+                                                    <i x-show="!(ambientMusic.url === music.url && ambientMusic.playing)" 
+                                                       class="fa-solid fa-play text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs"></i>
+                                                </button>
+                                            </div>
                                         </template>
                                     </div>
-                                    <div class="p-2 bg-black/60 border-t border-white/10">
+                                    
+                                    <!-- Footer -->
+                                    <div class="p-2 bg-black/60 border-t border-white/10 flex gap-2">
+                                        <button x-show="ambientMusic.playing" @click="toggleMusic()" 
+                                                class="flex-1 py-1.5 text-[10px] text-red-400 hover:text-red-300 font-bold transition-colors hover:bg-red-500/10 rounded flex items-center justify-center gap-1">
+                                            <i class="fa-solid fa-stop"></i> PARAR
+                                        </button>
                                         <button @click="openMusicModal(); musicPlaylistOpen = false" 
-                                                class="w-full py-2 text-xs text-purple-400 hover:text-purple-300 font-bold transition-colors hover:bg-purple-500/10 rounded">
-                                            <i class="fa-solid fa-cog mr-1"></i> GERENCIAR PLAYLIST
+                                                class="flex-1 py-1.5 text-[10px] text-purple-400 hover:text-purple-300 font-bold transition-colors hover:bg-purple-500/10 rounded flex items-center justify-center gap-1">
+                                            <i class="fa-solid fa-plus"></i> ADICIONAR
                                         </button>
                                     </div>
                                 </div>

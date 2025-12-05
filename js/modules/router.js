@@ -1,13 +1,19 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ZENITE ROUTER
+// ZENITE ROUTER v2.0
 // ═══════════════════════════════════════════════════════════════════════════
-// URLs compartilháveis com hash routing limpo:
-// - / (dashboard - URL limpa)
-// - /sheet/abc123
-// - /netlink/XY7ABC
+// URLs compartilháveis com hash routing (compatível com qualquer host):
+// - /#/dashboard
+// - /#/sheet/abc123
+// - /#/netlink/XY7ABC
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const router = {
+    // Referência ao app
+    app: null,
+    
+    // Rota pendente após login
+    pendingRoute: null,
+    
     // Rotas disponíveis
     routes: {
         dashboard: { view: 'dashboard', title: 'Dashboard' },
@@ -23,8 +29,8 @@ export const router = {
     init(app) {
         this.app = app;
         
-        // Escuta mudanças de navegação
-        window.addEventListener('popstate', () => this.handleRoute());
+        // Escuta mudanças de hash
+        window.addEventListener('hashchange', () => this.handleRoute());
         
         // Processa rota inicial
         this.handleRoute();
@@ -38,49 +44,55 @@ export const router = {
      * @param {boolean} skipProcess - Se true, apenas atualiza URL sem processar rota
      */
     navigate(route, param = null, replace = false, skipProcess = false) {
-        let path = '/';
+        // Constrói o hash
+        let hash = '#/' + route;
+        if (param) hash += '/' + param;
         
-        // Dashboard fica com URL limpa
-        if (route !== 'dashboard') {
-            path = `/${route}`;
-            if (param) path += `/${param}`;
+        // Dashboard pode ficar limpo ou com hash
+        if (route === 'dashboard') {
+            hash = '#/dashboard';
         }
         
-        const url = window.location.origin + path;
+        const currentHash = window.location.hash;
+        
+        // Evita navegação para a mesma rota
+        if (currentHash === hash && !replace) {
+            return;
+        }
         
         if (replace) {
+            // Substitui sem adicionar ao histórico
+            const url = window.location.pathname + window.location.search + hash;
             window.history.replaceState({ route, param }, '', url);
         } else {
-            window.history.pushState({ route, param }, '', url);
+            window.location.hash = hash;
         }
         
         if (!skipProcess) {
             this.processRoute(route, param);
         }
         
-        this.updateTitle();
+        this.updateTitle(route, param);
     },
     
     /**
-     * Processa a rota atual
+     * Processa a rota atual baseada no hash
      */
     handleRoute() {
-        const path = window.location.pathname;
-        const parts = path.split('/').filter(p => p);
+        const hash = window.location.hash;
         
-        // Se tiver hash antigo, migra para o novo formato
-        if (window.location.hash.startsWith('#/')) {
-            const hashParts = window.location.hash.slice(2).split('/').filter(p => p);
-            const route = hashParts[0] || 'dashboard';
-            const param = hashParts[1] || null;
-            this.navigate(route, param, true);
+        // Se não tem hash, vai para dashboard
+        if (!hash || hash === '#' || hash === '#/') {
+            this.navigate('dashboard', null, true);
             return;
         }
         
+        // Parse do hash: #/route/param
+        const parts = hash.slice(2).split('/').filter(p => p); // Remove #/
         const routeName = parts[0] || 'dashboard';
         const param = parts[1] || null;
         
-        console.log('[ROUTER] HandleRoute -', routeName, param, 'State:', window.history.state);
+        console.log('[ROUTER] HandleRoute -', routeName, param);
         
         this.processRoute(routeName, param);
     },
@@ -88,41 +100,41 @@ export const router = {
     /**
      * Processa uma rota específica
      */
-    processRoute(routeName, param) {
-        console.log('[ROUTER] Navegando para:', routeName, param);
+    async processRoute(routeName, param) {
+        console.log('[ROUTER] Processando:', routeName, param);
         
         // Se não estiver autenticado e tentar acessar algo diferente de login
         if (!this.app.user && !this.app.isGuest && routeName !== 'login') {
             // Salva a rota pretendida para redirecionar após login
             this.pendingRoute = { route: routeName, param };
-            this.updateTitle('Login');
+            this.updateTitle('login');
             return; // Fica na tela de login
         }
         
         switch (routeName) {
             case 'dashboard':
                 this.app.currentView = 'dashboard';
-                this.updateTitle('Dashboard');
+                this.updateTitle('dashboard');
                 break;
                 
             case 'sheet':
                 if (param) {
                     // Aguarda chars carregarem se necessário
-                    const tryLoad = () => {
-                        if (this.app.chars && Object.keys(this.app.chars).length > 0) {
-                            this.app.loadChar(param).then(success => {
-                                if (success) {
-                                    this.app.currentView = 'sheet';
-                                    this.updateTitle(this.app.char?.name || 'Ficha');
-                                } else {
-                                    this.navigate('dashboard', null, true);
-                                }
-                            });
+                    await this.waitForChars();
+                    
+                    if (this.app.chars && this.app.chars[param]) {
+                        const success = await this.app.loadChar(param);
+                        if (success) {
+                            this.app.currentView = 'sheet';
+                            this.updateTitle('sheet', this.app.char?.name);
                         } else {
-                            setTimeout(tryLoad, 200);
+                            this.app.notify('Ficha não encontrada', 'error');
+                            this.navigate('dashboard', null, true);
                         }
-                    };
-                    tryLoad();
+                    } else {
+                        this.app.notify('Ficha não encontrada', 'error');
+                        this.navigate('dashboard', null, true);
+                    }
                 } else {
                     this.navigate('dashboard', null, true);
                 }
@@ -130,16 +142,15 @@ export const router = {
                 
             case 'netlink':
                 if (param && this.app.netlinkEnabled) {
-                    // Tenta entrar na campanha pelo código
-                    if (this.app.joinByCode) {
-                        this.app.joinByCode(param).then(success => {
-                            if (success) {
-                                this.updateTitle(this.app.activeCampaign?.name || 'NetLink');
-                            }
-                        }).catch(() => {
-                            this.app.notify('Campanha não encontrada', 'error');
-                            this.navigate('dashboard', null, true);
-                        });
+                    try {
+                        const success = await this.app.joinByCode(param);
+                        if (success) {
+                            this.updateTitle('netlink', this.app.activeCampaign?.name);
+                        }
+                    } catch (e) {
+                        console.error('[ROUTER] Erro ao entrar na campanha:', e);
+                        this.app.notify('Campanha não encontrada', 'error');
+                        this.navigate('dashboard', null, true);
                     }
                 } else {
                     this.navigate('dashboard', null, true);
@@ -159,22 +170,31 @@ export const router = {
     },
     
     /**
+     * Aguarda os chars carregarem
+     */
+    waitForChars() {
+        return new Promise((resolve) => {
+            const check = () => {
+                if (this.app.chars && !this.app.systemLoading) {
+                    resolve();
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
+    },
+    
+    /**
      * Redireciona para rota pendente após login
-     * Usa replaceState para impedir que o botão voltar leve à tela de login
      */
     redirectAfterLogin() {
-        // IMPORTANTE: Substituir a entrada atual no histórico para impedir
-        // que o usuário volte para a tela de login com o botão voltar
         if (this.pendingRoute) {
             const { route, param } = this.pendingRoute;
             this.pendingRoute = null;
-            // Primeiro limpa a entrada de login
-            window.history.replaceState({ route, param }, '', '/');
-            this.processRoute(route, param);
+            this.navigate(route, param, true);
         } else {
-            // Substitui a entrada de login por dashboard
-            window.history.replaceState({ route: 'dashboard' }, '', '/');
-            this.processRoute('dashboard', null);
+            this.navigate('dashboard', null, true);
         }
     },
     
@@ -196,33 +216,28 @@ export const router = {
     },
     
     /**
-     * Atualiza a URL sem navegar (para quando o estado muda internamente)
+     * Atualiza a URL sem disparar navegação
      */
     updateUrl(route, param = null) {
-        let path = '/';
-        if (route !== 'dashboard') {
-            path = `/${route}`;
-            if (param) path += `/${param}`;
-        }
-        window.history.replaceState({ route, param }, '', path);
+        let hash = '#/' + route;
+        if (param) hash += '/' + param;
+        
+        const url = window.location.pathname + window.location.search + hash;
+        window.history.replaceState({ route, param }, '', url);
     },
     
     /**
      * Atualiza o título da aba do navegador
-     * @param {string} title - Título da página (sem prefixo "ZENITE OS //")
      */
-    updateTitle(title) {
-        const fullTitle = title ? `ZENITE OS // ${title}` : 'ZENITE OS';
-        document.title = fullTitle;
-        console.log('[ROUTER] Título atualizado:', fullTitle);
+    updateTitle(route, subtitle = null) {
+        const routeConfig = this.routes[route];
+        let title = routeConfig?.title || 'ZENITE OS';
         
-        // Força atualização (alguns navegadores precisam de delay)
-        setTimeout(() => {
-            if (document.title !== fullTitle) {
-                document.title = fullTitle;
-                console.log('[ROUTER] Título forçado novamente');
-            }
-        }, 100);
+        if (subtitle) {
+            title = subtitle;
+        }
+        
+        document.title = `ZENITE OS // ${title}`;
     }
 };
 

@@ -320,7 +320,7 @@ export const cloudLogic = {
             
             // Redireciona para login
             this.currentView = 'login';
-            window.history.replaceState({ route: 'login' }, '', '/');
+            window.location.hash = '#/login';
             document.title = 'ZENITE OS // Login';
             
             this.systemLoading = false;
@@ -350,7 +350,7 @@ export const cloudLogic = {
         
         // Redireciona para dashboard
         this.currentView = 'dashboard';
-        window.history.replaceState({ route: 'dashboard' }, '', '/');
+        window.location.hash = '#/dashboard';
     },
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -447,7 +447,7 @@ export const cloudLogic = {
                 this.checkOnboarding();
                 this.checkUsername();
                 this.currentView = 'dashboard';
-                window.history.replaceState({ route: 'dashboard' }, '', '/');
+                window.location.hash = '#/dashboard';
             }
             
         } catch (e) {
@@ -527,7 +527,7 @@ export const cloudLogic = {
             
             // Redireciona para dashboard
             this.currentView = 'dashboard';
-            window.history.replaceState({ route: 'dashboard' }, '', '/');
+            window.location.hash = '#/dashboard';
             
         } catch (e) {
             console.error('[CLOUD] Erro no login:', e);
