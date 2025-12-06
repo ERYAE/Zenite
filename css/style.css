@@ -21,15 +21,29 @@
     transform: translateZ(0);
 }
 
-/* Transições suaves universais */
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANSIÇÕES SUAVES - Aplicadas universalmente
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Timing function padrão para todas as transições */
 * {
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-button,
-a,
-[role="button"] {
-    transition: all 0.15s ease;
+/* Elementos interativos - transição suave */
+button:not(.no-transition),
+a:not(.no-transition),
+[role="button"]:not(.no-transition),
+input:not(.no-transition),
+select:not(.no-transition),
+textarea:not(.no-transition) {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Cards e containers */
+[class*="rounded"]:not(.no-transition),
+[class*="border"]:not(.no-transition) {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 /* Desabilitar animações para usuários que preferem movimento reduzido */
@@ -929,17 +943,53 @@ textarea:disabled {
    LOADING ANIMATIONS - Suaves e performáticas
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Spinner rotation suave */
+/* KEYFRAMES - Definições base */
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(-25%);
+        animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+}
+
+/* ANIMAÇÕES - Forçar com !important para sobrescrever Tailwind */
 .fa-spin,
 .animate-spin {
-    animation: spin 1s linear infinite;
+    animation: spin 1s linear infinite !important;
     will-change: transform;
     transform-origin: center center;
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+.animate-bounce {
+    animation: bounce 1s infinite !important;
+}
+
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite !important;
 }
 
 /* Loading bar smooth */
@@ -950,26 +1000,6 @@ textarea:disabled {
 
 .loading-bar {
     animation: loadingBar 1.5s ease-in-out infinite;
-}
-
-/* Pulse suave */
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Bounce suave */
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-
-.animate-bounce {
-    animation: bounce 1s ease-in-out infinite;
 }
 
 /* Skeleton loading */
@@ -1194,9 +1224,10 @@ img[loading="lazy"].loaded {
     100% { background-position: -200% 0; }
 }
 
-/* D20 spinner for loading */
+/* D20 spinner for loading - FORÇAR */
 .animate-d20-spin {
-    animation: d20Spin 1s linear infinite;
+    animation: d20Spin 2s ease-in-out infinite !important;
+    will-change: transform;
 }
 
 @keyframes d20Spin {
@@ -1385,7 +1416,7 @@ img {
    MODALS - Entrada suave estilo macOS
    ═══════════════════════════════════════════════════════════════════════════ */
 .modal-enter {
-    animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes modalEnter {
@@ -1401,14 +1432,14 @@ img {
 
 /* Backdrop fade suave */
 [x-show] {
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease !important;
 }
 
 /* Glass effect suave */
 .glass {
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    transition: backdrop-filter 0.3s ease;
+    backdrop-filter: blur(12px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+    transition: backdrop-filter 0.3s ease !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1422,18 +1453,6 @@ img {
     background: rgba(var(--neon-rgb), 0.6);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   LOADING STATES - D20 Spinner
-   ═══════════════════════════════════════════════════════════════════════════ */
-@keyframes d20Spin {
-    0% { transform: rotateY(0deg) rotateX(10deg); }
-    50% { transform: rotateY(180deg) rotateX(-10deg); }
-    100% { transform: rotateY(360deg) rotateX(10deg); }
-}
-
-.animate-d20-spin {
-    animation: d20Spin 2s ease-in-out infinite;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NOTIFICATIONS - Slide suave
@@ -1894,16 +1913,19 @@ select:hover {
     border-color: rgba(var(--neon-rgb), 0.3) !important;
 }
 
-/* Stagger animation para listas */
+/* Stagger animation para listas - FORÇAR */
 [x-for] > * {
-    animation: listItemEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation: listItemEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards !important;
 }
 
-[x-for] > *:nth-child(1) { animation-delay: 0.05s; }
-[x-for] > *:nth-child(2) { animation-delay: 0.1s; }
-[x-for] > *:nth-child(3) { animation-delay: 0.15s; }
-[x-for] > *:nth-child(4) { animation-delay: 0.2s; }
-[x-for] > *:nth-child(5) { animation-delay: 0.25s; }
+[x-for] > *:nth-child(1) { animation-delay: 0.05s !important; }
+[x-for] > *:nth-child(2) { animation-delay: 0.1s !important; }
+[x-for] > *:nth-child(3) { animation-delay: 0.15s !important; }
+[x-for] > *:nth-child(4) { animation-delay: 0.2s !important; }
+[x-for] > *:nth-child(5) { animation-delay: 0.25s !important; }
+[x-for] > *:nth-child(6) { animation-delay: 0.3s !important; }
+[x-for] > *:nth-child(7) { animation-delay: 0.35s !important; }
+[x-for] > *:nth-child(8) { animation-delay: 0.4s !important; }
 
 @keyframes listItemEnter {
     from {
@@ -1937,11 +1959,19 @@ button:active:not(:disabled),
     transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Hover effects universais */
+/* Hover effects universais - FORÇAR */
 button:not(:disabled):hover,
-[role="button"]:not(:disabled):hover {
-    transform: translateY(-1px);
-    filter: brightness(1.1);
+[role="button"]:not(:disabled):hover,
+a:hover {
+    transform: translateY(-1px) !important;
+    filter: brightness(1.1) !important;
+}
+
+/* Hover para cards */
+[class*="rounded-xl"]:hover,
+[class*="rounded-lg"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* Focus visible suave */
