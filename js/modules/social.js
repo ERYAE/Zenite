@@ -275,6 +275,7 @@ export const socialLogic = {
     friends: [],
     friendRequests: [],
     friendsLoaded: false,
+    friendsRealtimeChannel: null, // Canal realtime para pedidos de amizade
     
     // Achievements (calculado localmente)
     unlockedAchievements: [],
@@ -631,6 +632,68 @@ export const socialLogic = {
             
         } catch (e) {
             console.error('[SOCIAL] Erro ao carregar amigos:', e);
+        }
+    },
+    
+    /**
+     * Configura subscription realtime para pedidos de amizade
+     */
+    async setupFriendsRealtime() {
+        if (!this.supabase || !this.user) return;
+        
+        // Remove canal anterior se existir
+        if (this.friendsRealtimeChannel) {
+            await this.supabase.removeChannel(this.friendsRealtimeChannel);
+        }
+        
+        console.log('[SOCIAL] Configurando realtime de amizades...');
+        
+        this.friendsRealtimeChannel = this.supabase
+            .channel(`friendships:${this.user.id}`)
+            .on('postgres_changes', 
+                { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'friendships',
+                    filter: `friend_id=eq.${this.user.id}`
+                },
+                (payload) => {
+                    console.log('[SOCIAL] Novo pedido de amizade recebido:', payload);
+                    // Recarrega lista de amigos
+                    this.loadFriends(true);
+                    // Notifica o usuário
+                    this.notify('Você recebeu um pedido de amizade!', 'info');
+                    playSFX('notification');
+                }
+            )
+            .on('postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'friendships',
+                    filter: `user_id=eq.${this.user.id}`
+                },
+                (payload) => {
+                    console.log('[SOCIAL] Amizade atualizada:', payload);
+                    if (payload.new?.status === 'accepted') {
+                        this.notify('Seu pedido de amizade foi aceito!', 'success');
+                        playSFX('success');
+                    }
+                    this.loadFriends(true);
+                }
+            )
+            .subscribe((status) => {
+                console.log('[SOCIAL] Status do canal de amizades:', status);
+            });
+    },
+    
+    /**
+     * Desconecta do canal realtime de amizades
+     */
+    async disconnectFriendsRealtime() {
+        if (this.friendsRealtimeChannel && this.supabase) {
+            await this.supabase.removeChannel(this.friendsRealtimeChannel);
+            this.friendsRealtimeChannel = null;
         }
     },
     

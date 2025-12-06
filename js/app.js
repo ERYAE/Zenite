@@ -119,6 +119,17 @@ function zeniteSystem() {
         selectedCharForCampaign: null,
         pendingCampaign: null,
         
+        // Emotes
+        emotesModalOpen: false,
+        emoteCategories: [
+            { id: 'faces', name: 'Rostos', emotes: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'] },
+            { id: 'emotions', name: 'Emoções', emotes: ['😤', '😠', '😡', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '🙈', '🙉', '🙊'] },
+            { id: 'gestures', name: 'Gestos', emotes: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿'] },
+            { id: 'rpg', name: 'RPG', emotes: ['⚔️', '🗡️', '🛡️', '🏹', '🪓', '🔮', '📜', '📖', '🎲', '🎯', '💎', '👑', '🏰', '🐉', '🧙', '🧝', '🧛', '🧟', '🧞', '🧜', '🦹', '🦸', '🧚', '🔥', '❄️', '⚡', '💫', '✨', '💥', '💢', '💦', '💨', '🌟', '⭐', '🌙', '☀️'] },
+            { id: 'objects', name: 'Objetos', emotes: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '🎁', '🎉', '🎊', '🎈', '🏆', '🥇', '🥈', '🥉', '🎮', '🕹️', '🎰', '🎭', '🎨', '🎬', '🎤', '🎧', '🎵', '🎶', '🎼'] }
+        ],
+        selectedEmoteCategory: 'faces',
+        
         // Username
         usernameCheckStatus: '', // '', 'checking', 'available', 'taken', 'error'
         usernameCheckMessage: '',
@@ -299,6 +310,8 @@ function zeniteSystem() {
                             this.loadingText = 'SYNC CLOUD';
                             await this.fetchCloud();
                             this.checkOnboarding();
+                            // Configura realtime de amizades
+                            this.setupFriendsRealtime();
                         }
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             console.log('[AUTH] Event:', event);
@@ -319,11 +332,15 @@ function zeniteSystem() {
                                 localStorage.removeItem('zenite_is_guest');
                                 await this.fetchCloud();
                                 this.checkOnboarding();
+                                // Configura realtime de amizades
+                                this.setupFriendsRealtime();
                             } else if (event === 'SIGNED_OUT') {
                                 this.user = null;
                                 this.chars = {};
                                 this.currentView = 'dashboard';
                                 this.recoverMode = false;
+                                // Desconecta realtime de amizades
+                                this.disconnectFriendsRealtime();
                             }
                         });
                     } catch(e) {
