@@ -119,12 +119,6 @@ function zeniteSystem() {
         selectedCharForCampaign: null,
         pendingCampaign: null,
         
-        // GIF/Tenor
-        gifModalOpen: false,
-        tenorSearch: '',
-        tenorResults: [],
-        tenorLoading: false,
-        
         // Username
         usernameCheckStatus: '', // '', 'checking', 'available', 'taken', 'error'
         usernameCheckMessage: '',
@@ -199,6 +193,8 @@ function zeniteSystem() {
         
         // Auxiliares
         isMobile: window.innerWidth < 768,
+        mobileWarningDismissed: false,
+        modalClickStartedOutside: false, // Para controle de fechamento de modais
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
         

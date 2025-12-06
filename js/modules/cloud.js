@@ -28,6 +28,15 @@ const friendlySignupError = (error) => {
     if (message.toLowerCase().includes('password')) {
         return 'Senha inválida. Use pelo menos 6 caracteres.';
     }
+    if (message.includes('already been registered') || message.includes('already registered')) {
+        return 'Este email já está registrado. Tente fazer login.';
+    }
+    if (message.includes('Invalid login credentials')) {
+        return 'Email ou senha incorretos.';
+    }
+    if (message.includes('Email not confirmed')) {
+        return 'Email não confirmado. Verifique sua caixa de entrada.';
+    }
     return message;
 };
 

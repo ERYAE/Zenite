@@ -47,6 +47,23 @@
 <body x-data="zeniteSystem" x-init="initSystem()" @keydown.window="handleKeys($event)" class="text-gray-300 selection:bg-cyan-500 selection:text-black">
     <div class="bg-grid"></div>
 
+    <!-- Mobile Warning Banner -->
+    <div x-show="isMobile && !mobileWarningDismissed && !systemLoading" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 -translate-y-full"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-amber-600/95 to-orange-600/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between gap-3 shadow-lg">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+            <i class="fa-solid fa-mobile-screen-button text-white/90 text-lg flex-shrink-0"></i>
+            <p class="text-white text-xs font-medium leading-tight">
+                Este site pode ter alguns problemas no celular. Para uma melhor experiência, use um computador.
+            </p>
+        </div>
+        <button @click="mobileWarningDismissed = true" class="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors">
+            <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+    </div>
+
     <div id="system-failure" x-show="systemFailure" class="fixed inset-0 z-[11000] bg-blue-900 flex items-center justify-center p-10 font-mono text-white text-center select-none" x-transition.opacity>
         <div x-show="!minigameActive" class="max-w-2xl relative z-10">
             <span class="bg-white text-blue-900 px-2 mb-4 inline-block font-bold">ZENITE_OS KERNEL PANIC // SYSTEM HALT</span>
@@ -2040,7 +2057,9 @@
     <div x-show="welcomeModal && !systemLoading"  
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4 py-6"
          x-transition.opacity
-                  @click.self="welcomeModal = false">
+         @mousedown.self="modalClickStartedOutside = true"
+         @mouseup.self="if(modalClickStartedOutside) welcomeModal = false; modalClickStartedOutside = false"
+         @mouseup="modalClickStartedOutside = false">
         
         <div class="glass rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh] overflow-hidden">
             
@@ -3939,74 +3958,6 @@
                     class="w-full py-3 bg-[var(--neon-core)] text-black font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <i class="fa-solid fa-check"></i> CONFIRMAR
             </button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Buscar GIFs (Giphy) -->
-<div x-show="gifModalOpen"  
-     class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="gifModalOpen = false"
-     @click.self="gifModalOpen = false; tenorSearch = ''; tenorResults = []">
-    <div class="glass rounded-2xl w-full max-w-lg max-h-[70vh] flex flex-col border border-purple-500/30 shadow-2xl modal-enter overflow-hidden">
-        <!-- Header -->
-        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5 flex-shrink-0">
-            <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
-                <i class="fa-solid fa-face-laugh-beam text-purple-400"></i> BUSCAR GIF
-            </h2>
-            <button @click="gifModalOpen = false; tenorSearch = ''; tenorResults = []" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        
-        <!-- Search -->
-        <div class="p-4 border-b border-white/5 flex-shrink-0">
-            <div class="relative">
-                <input type="text" x-model="tenorSearch" 
-                       @input.debounce.400ms="searchTenorGifs(tenorSearch)"
-                       placeholder="Buscar GIFs... (ex: happy, sad, dance)"
-                       class="w-full bg-black/60 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white focus:border-purple-500 focus:outline-none">
-                <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                <div x-show="tenorLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
-                    <i class="fa-solid fa-spinner animate-spin text-purple-400"></i>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Results Grid -->
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-            <div x-show="tenorResults.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                <template x-for="gif in tenorResults" :key="gif.id">
-                    <button @click="selectTenorGif(gif)" 
-                            class="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all hover:scale-105 bg-black/40">
-                        <img :src="gif.preview" :alt="gif.title" class="w-full h-full object-cover" loading="lazy">
-                    </button>
-                </template>
-            </div>
-            
-            <!-- Empty state -->
-            <div x-show="tenorResults.length === 0 && !tenorLoading && tenorSearch.length < 2" class="text-center py-12 text-gray-500">
-                <i class="fa-solid fa-magnifying-glass text-4xl mb-4 opacity-50"></i>
-                <p class="text-sm">Digite algo para buscar GIFs</p>
-                <div class="mt-4 flex flex-wrap gap-2 justify-center">
-                    <button @click="tenorSearch = 'happy'; searchTenorGifs('happy')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">happy</button>
-                    <button @click="tenorSearch = 'sad'; searchTenorGifs('sad')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">sad</button>
-                    <button @click="tenorSearch = 'laugh'; searchTenorGifs('laugh')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">laugh</button>
-                    <button @click="tenorSearch = 'dance'; searchTenorGifs('dance')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">dance</button>
-                    <button @click="tenorSearch = 'anime'; searchTenorGifs('anime')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">anime</button>
-                    <button @click="tenorSearch = 'rpg'; searchTenorGifs('rpg')" class="px-3 py-1 bg-purple-500/10 text-purple-400 rounded-full text-xs hover:bg-purple-500/20">rpg</button>
-                </div>
-            </div>
-            
-            <div x-show="tenorResults.length === 0 && !tenorLoading && tenorSearch.length >= 2" class="text-center py-12 text-gray-500">
-                <i class="fa-solid fa-face-sad-tear text-4xl mb-4 opacity-50"></i>
-                <p class="text-sm">Nenhum GIF encontrado</p>
-            </div>
-        </div>
-        
-        <!-- Footer -->
-        <div class="p-2 border-t border-white/5 text-center flex-shrink-0">
-            <span class="text-[9px] text-gray-600">Powered by <span class="text-purple-400">GIPHY</span></span>
         </div>
     </div>
 </div>

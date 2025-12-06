@@ -1231,49 +1231,40 @@ img[loading="lazy"].loaded {
 /* ═══════════════════════════════════════════════════════════════════════════
    GLOBAL PERFORMANCE OPTIMIZATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
-/* GPU acceleration apenas em elementos que precisam */
-.glass, button, [role="button"], img, .modal-enter {
-    will-change: transform;
-    transform: translateZ(0);
+/* Desabilita animações brutas - apenas transições suaves */
+@media (prefers-reduced-motion: no-preference) {
+    * {
+        /* Curva de animação ultra-suave estilo Apple */
+        --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GLASS PANELS - Hover suave estilo macOS
    ═══════════════════════════════════════════════════════════════════════════ */
 .glass {
-    transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                box-shadow 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                border-color 0.25s ease;
-    will-change: transform, box-shadow;
+    transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.3s ease;
 }
 
 .glass:hover {
-    transform: translateY(-1px);
-    box-shadow: 
-        0 10px 40px rgba(0, 0, 0, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    BUTTONS - Feedback tátil suave
    ═══════════════════════════════════════════════════════════════════════════ */
 button, [role="button"], .btn {
-    transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                background-color 0.15s ease,
-                opacity 0.15s ease,
-                box-shadow 0.2s ease;
-    will-change: transform;
-}
-
-button:hover:not(:disabled), 
-[role="button"]:hover:not(:disabled) {
-    transform: translateY(-1px);
+    transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.2s ease,
+                box-shadow 0.3s ease;
 }
 
 button:active:not(:disabled), 
 [role="button"]:active:not(:disabled) {
-    transform: scale(0.97);
-    transition-duration: 0.05s;
+    opacity: 0.8;
+    transition-duration: 0.1s;
 }
 
 /* Glow sutil em botões coloridos */
@@ -1318,12 +1309,7 @@ input:focus, textarea:focus, select:focus {
    ICONS - Transições suaves
    ═══════════════════════════════════════════════════════════════════════════ */
 i.fa-solid, i.fa-regular, i.fa-brands {
-    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                color 0.15s ease;
-}
-
-button:hover i, a:hover i, [role="button"]:hover i {
-    transform: scale(1.08);
+    transition: color 0.2s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1337,28 +1323,24 @@ button:hover i, a:hover i, [role="button"]:hover i {
    AVATARS & PHOTOS - Hover suave
    ═══════════════════════════════════════════════════════════════════════════ */
 img {
-    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-.rounded-full:hover img, .rounded-lg:hover img {
-    transform: scale(1.03);
+    transition: opacity 0.3s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MODALS - Entrada suave estilo iOS
    ═══════════════════════════════════════════════════════════════════════════ */
 .modal-enter {
-    animation: modalEnter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    animation: modalEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes modalEnter {
     0% {
         opacity: 0;
-        transform: scale(0.95) translateY(10px);
+        transform: scale(0.98);
     }
     100% {
         opacity: 1;
-        transform: scale(1) translateY(0);
+        transform: scale(1);
     }
 }
 
