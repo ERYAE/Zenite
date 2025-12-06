@@ -120,6 +120,49 @@ export const CHANGELOG = [
                 ]
             },
             {
+                title: 'UX & Correções',
+                icon: 'fa-wrench',
+                color: 'green',
+                items: [
+                    {
+                        title: 'Modais Centralizados',
+                        details: [
+                            'Modal de configurações centralizado corretamente',
+                            'Altura máxima ajustada (65vh)',
+                            'Scroll interno suave',
+                            'Previne cortes de conteúdo'
+                        ]
+                    },
+                    {
+                        title: 'Inputs Melhorados',
+                        details: [
+                            'Padding adequado (10px 14px)',
+                            'Altura mínima 42px',
+                            'Placeholder com transição suave',
+                            'Focus glow premium'
+                        ]
+                    },
+                    {
+                        title: 'Dropdowns Premium',
+                        details: [
+                            'Animação de entrada suave',
+                            'Ripple effect em menu items',
+                            'Ícones com movimento no hover',
+                            'Transições 0.15s ease-out-expo'
+                        ]
+                    },
+                    {
+                        title: 'Tooltips Melhorados',
+                        details: [
+                            'Estilo premium com border neon',
+                            'Animação de entrada suave',
+                            'Box-shadow profundo',
+                            'Z-index correto (10000)'
+                        ]
+                    }
+                ]
+            },
+            {
                 title: 'Performance',
                 icon: 'fa-bolt',
                 color: 'yellow',
