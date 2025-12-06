@@ -15,7 +15,7 @@
 // SANITIZERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const VALID_ROUTES = ['dashboard', 'sheet', 'netlink', 'login'];
+const VALID_ROUTES = ['dashboard', 'sheet', 'netlink', 'login', 'recover'];
 
 const sanitizeRouteName = (raw) => {
     if (!raw) return 'dashboard';
@@ -56,7 +56,8 @@ export const router = {
         dashboard: { view: 'dashboard', title: 'Dashboard' },
         sheet: { view: 'sheet', title: 'Ficha', param: 'charId' },
         netlink: { view: 'campaign', title: 'NetLink', param: 'code' },
-        login: { view: 'login', title: 'Login' }
+        login: { view: 'login', title: 'Login' },
+        recover: { view: 'recover', title: 'Redefinir Senha' }
     },
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -227,8 +228,8 @@ export const router = {
     async processRoute(routeName, param, fromPopState = false) {
         console.log('[ROUTER] Processing:', routeName, param, fromPopState ? '(popstate)' : '');
 
-        // GUARD: Require authentication for protected routes
-        if (!this.app.user && !this.app.isGuest && routeName !== 'login') {
+        // GUARD: Require authentication for protected routes (login and recover are public)
+        if (!this.app.user && !this.app.isGuest && routeName !== 'login' && routeName !== 'recover') {
             console.log('[ROUTER] Not authenticated, saving pending route and redirecting to login');
             this.pendingRoute = { route: routeName, param };
             
@@ -258,6 +259,10 @@ export const router = {
                 this._processLogin(fromPopState);
                 break;
 
+            case 'recover':
+                this._processRecover(fromPopState);
+                break;
+
             default:
                 console.warn('[ROUTER] Unknown route:', routeName);
                 this.navigate('dashboard', null, true);
@@ -276,6 +281,15 @@ export const router = {
             } catch (e) {
                 console.error('[ROUTER] Error saving char before exit:', e);
             }
+        }
+        
+        // Disconnect realtime if leaving campaign
+        if (this.app.activeCampaign) {
+            console.log('[ROUTER] Leaving campaign, disconnecting realtime...');
+            await this.app.disconnectRealtime?.();
+            this.app.activeCampaign = null;
+            this.app.campaignMembers = [];
+            this.app.sessionDiceLog = [];
         }
         
         // Clear sheet state
@@ -301,6 +315,15 @@ export const router = {
         if (!param) {
             this.navigate('dashboard', null, true);
             return;
+        }
+
+        // Disconnect realtime if leaving campaign
+        if (this.app.activeCampaign) {
+            console.log('[ROUTER] Leaving campaign for sheet, disconnecting realtime...');
+            await this.app.disconnectRealtime?.();
+            this.app.activeCampaign = null;
+            this.app.campaignMembers = [];
+            this.app.sessionDiceLog = [];
         }
 
         // Wait for characters to load
@@ -365,6 +388,27 @@ export const router = {
         
         if (!fromPopState) {
             this.updateUrl('login');
+        }
+    },
+
+    /**
+     * Process recover (password reset) route
+     */
+    _processRecover(fromPopState) {
+        // Se já estiver logado, mostra opção de mudar senha nas configurações
+        if (this.app.user) {
+            this.app.currentView = 'recover';
+            this.app.recoverMode = true;
+        } else {
+            // Se não logado, mostra tela de redefinição
+            this.app.currentView = 'recover';
+            this.app.recoverMode = true;
+        }
+        
+        this.updateTitle('recover');
+        
+        if (!fromPopState) {
+            this.updateUrl('recover');
         }
     },
 

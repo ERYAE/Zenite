@@ -646,7 +646,7 @@ export const cloudLogic = {
 
         try {
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`
+                redirectTo: 'https://zeniteos.vercel.app/recover'
             });
 
             if (error) throw error;
@@ -698,5 +698,244 @@ export const cloudLogic = {
                     this.authLoading = false;
                 }
             });
+    },
+
+    /**
+     * Update password for logged-in user (from recover link ONLY)
+     * This is called when user clicks the password reset link from email
+     * @param {string} newPassword - The new password
+     */
+    async updatePassword(newPassword) {
+        if (!this.supabase) {
+            this.notify('Erro de conexão com servidor.', 'error');
+            return false;
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            this.notify('Senha deve ter pelo menos 6 caracteres.', 'error');
+            return false;
+        }
+
+        this.authLoading = true;
+        this.authMsg = '';
+
+        try {
+            const { error } = await this.supabase.auth.updateUser({
+                password: newPassword
+            });
+
+            if (error) throw error;
+
+            this.notify('Senha alterada com sucesso!', 'success');
+            this.authMsg = 'Senha alterada! Redirecionando...';
+            this.authMsgType = 'success';
+            
+            // Reset recover mode
+            this.recoverMode = false;
+            this.newPassword = '';
+            this.newPasswordConfirm = '';
+            
+            // Redirect to dashboard after short delay
+            setTimeout(() => {
+                window.location.hash = '#/dashboard';
+            }, 1500);
+            
+            return true;
+        } catch (e) {
+            console.error('[CLOUD] Erro ao alterar senha:', e);
+            this.authMsg = this.translateAuthError(e.message);
+            this.authMsgType = 'error';
+            this.notify('Erro ao alterar senha: ' + e.message, 'error');
+            return false;
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Change password from account settings (requires current password verification)
+     * More secure than updatePassword - verifies identity first
+     * @param {string} currentPassword - Current password for verification
+     * @param {string} newPassword - New password to set
+     */
+    async changePasswordSecure(currentPassword, newPassword) {
+        if (!this.supabase || !this.user) {
+            this.notify('Você precisa estar logado.', 'error');
+            return false;
+        }
+        
+        if (!currentPassword) {
+            this.notify('Digite sua senha atual.', 'error');
+            return false;
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            this.notify('Nova senha deve ter pelo menos 6 caracteres.', 'error');
+            return false;
+        }
+        
+        if (currentPassword === newPassword) {
+            this.notify('A nova senha deve ser diferente da atual.', 'error');
+            return false;
+        }
+
+        this.authLoading = true;
+        this.authMsg = 'Verificando senha atual...';
+        this.authMsgType = 'info';
+
+        try {
+            // Step 1: Verify current password by attempting to sign in
+            const { error: verifyError } = await this.supabase.auth.signInWithPassword({
+                email: this.user.email,
+                password: currentPassword
+            });
+            
+            if (verifyError) {
+                this.authMsg = 'Senha atual incorreta.';
+                this.authMsgType = 'error';
+                this.notify('Senha atual incorreta.', 'error');
+                return false;
+            }
+            
+            // Step 2: Update to new password
+            this.authMsg = 'Alterando senha...';
+            
+            const { error: updateError } = await this.supabase.auth.updateUser({
+                password: newPassword
+            });
+
+            if (updateError) throw updateError;
+
+            this.notify('Senha alterada com sucesso!', 'success');
+            this.authMsg = 'Senha alterada!';
+            this.authMsgType = 'success';
+            
+            // Clear password fields
+            this.currentPassword = '';
+            this.newPassword = '';
+            this.newPasswordConfirm = '';
+            
+            return true;
+        } catch (e) {
+            console.error('[CLOUD] Erro ao alterar senha:', e);
+            this.authMsg = this.translateAuthError(e.message);
+            this.authMsgType = 'error';
+            this.notify('Erro ao alterar senha.', 'error');
+            return false;
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Permanently delete user account and all associated data
+     * This is IRREVERSIBLE - use with extreme caution
+     */
+    async deleteAccountPermanently() {
+        if (!this.supabase || !this.user) {
+            this.notify('Você precisa estar logado.', 'error');
+            return false;
+        }
+        
+        this.authLoading = true;
+        this.notify('Deletando conta...', 'info');
+        
+        try {
+            const userId = this.user.id;
+            
+            // 1. Delete all campaign memberships
+            await this.supabase
+                .from('campaign_members')
+                .delete()
+                .eq('user_id', userId);
+            
+            // 2. Delete all campaigns owned by user
+            const { data: ownedCampaigns } = await this.supabase
+                .from('campaigns')
+                .select('id')
+                .eq('gm_id', userId);
+            
+            if (ownedCampaigns?.length) {
+                for (const campaign of ownedCampaigns) {
+                    // Delete campaign members
+                    await this.supabase.from('campaign_members').delete().eq('campaign_id', campaign.id);
+                    // Delete campaign logs
+                    await this.supabase.from('campaign_logs').delete().eq('campaign_id', campaign.id);
+                    // Delete dice logs
+                    await this.supabase.from('dice_logs').delete().eq('campaign_id', campaign.id);
+                }
+                // Delete campaigns
+                await this.supabase.from('campaigns').delete().eq('gm_id', userId);
+            }
+            
+            // 3. Delete user profile
+            await this.supabase
+                .from('profiles')
+                .delete()
+                .eq('id', userId);
+            
+            // 4. Clear all local storage
+            localStorage.clear();
+            
+            // 5. Sign out
+            await this.supabase.auth.signOut();
+            
+            this.notify('Conta deletada com sucesso. Adeus!', 'success');
+            
+            // 6. Reload page after delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+            
+            return true;
+        } catch (e) {
+            console.error('[CLOUD] Erro ao deletar conta:', e);
+            this.notify('Erro ao deletar conta: ' + e.message, 'error');
+            return false;
+        } finally {
+            this.authLoading = false;
+        }
+    },
+    
+    /**
+     * Request email change - sends confirmation to new email
+     * Only works for email/password users, not OAuth
+     * @param {string} newEmail - New email address
+     */
+    async requestEmailChange(newEmail) {
+        if (!this.supabase || !this.user) {
+            this.notify('Você precisa estar logado.', 'error');
+            return false;
+        }
+        
+        // Check if OAuth user
+        if (this.user.app_metadata?.provider && this.user.app_metadata?.provider !== 'email') {
+            this.notify('Usuários OAuth não podem alterar o e-mail.', 'error');
+            return false;
+        }
+        
+        if (!newEmail || !newEmail.includes('@')) {
+            this.notify('E-mail inválido.', 'error');
+            return false;
+        }
+        
+        this.authLoading = true;
+        
+        try {
+            const { error } = await this.supabase.auth.updateUser({
+                email: newEmail
+            });
+            
+            if (error) throw error;
+            
+            this.notify('Link de confirmação enviado para o novo e-mail!', 'success');
+            return true;
+        } catch (e) {
+            console.error('[CLOUD] Erro ao solicitar mudança de e-mail:', e);
+            this.notify('Erro: ' + this.translateAuthError(e.message), 'error');
+            return false;
+        } finally {
+            this.authLoading = false;
+        }
     }
 };

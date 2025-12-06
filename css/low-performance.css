@@ -1,0 +1,181 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOW PERFORMANCE MODE - Para computadores antigos
+   ═══════════════════════════════════════════════════════════════════════════
+   
+   Otimizações inteligentes que mantêm a usabilidade:
+   - Remove animações e transições pesadas
+   - Desabilita blur e sombras complexas
+   - Simplifica efeitos visuais
+   - MANTÉM cores e legibilidade
+*/
+
+body.low-perf {
+    /* Desabilita animações globalmente */
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition-duration: 0ms !important;
+    }
+    
+    /* Remove blur (muito pesado) */
+    .backdrop-blur,
+    .backdrop-blur-xl,
+    .backdrop-blur-sm {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    /* Simplifica glassmorphism - MANTÉM cor de fundo escura */
+    .glass {
+        background: rgba(10, 10, 15, 0.98) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    /* Remove sombras pesadas mas mantém bordas visíveis */
+    * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+    
+    /* Remove filtros pesados mas mantém cores */
+    img,
+    svg {
+        filter: none !important;
+    }
+    
+    /* Remove transformações de hover/active */
+    .hover\:scale-105:hover,
+    .hover\:scale-110:hover,
+    .active\:scale-95:active,
+    .hover\:scale-\[1\.02\]:hover {
+        transform: none !important;
+    }
+    
+    /* Desabilita CRT mode se ativo */
+    &.crt-mode::before,
+    &.crt-mode::after {
+        display: none !important;
+    }
+    
+    /* Remove background grid animado */
+    .bg-grid,
+    .bg-grid::before,
+    .bg-grid::after {
+        display: none !important;
+    }
+    
+    /* Simplifica scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #0a0a0c;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* Remove efeitos de foco complexos - mantém outline simples */
+    *:focus-visible {
+        outline: 2px solid var(--neon-core) !important;
+        outline-offset: 2px !important;
+        box-shadow: none !important;
+    }
+    
+    /* Simplifica inputs - MANTÉM cores do tema */
+    input,
+    textarea,
+    select {
+        background: rgba(0, 0, 0, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    input:focus,
+    textarea:focus,
+    select:focus {
+        border-color: var(--neon-core) !important;
+        box-shadow: none !important;
+    }
+    
+    /* Simplifica botões - MANTÉM cores do tema */
+    button {
+        box-shadow: none !important;
+    }
+    
+    button:hover {
+        transform: none !important;
+    }
+    
+    button:active {
+        transform: none !important;
+    }
+    
+    /* Mantém cores dos botões primários */
+    button.bg-\[var\(--neon-core\)\],
+    button[class*="bg-cyan"],
+    button[class*="bg-purple"],
+    button[class*="bg-red"],
+    button[class*="bg-green"] {
+        /* Cores preservadas, apenas remove efeitos */
+        box-shadow: none !important;
+    }
+    
+    /* Remove loading spinner animation mas mantém ícone */
+    .fa-spin {
+        animation: none !important;
+    }
+    
+    /* Simplifica cards mantendo estrutura */
+    .glass.rounded-2xl,
+    .rounded-2xl {
+        border-radius: 12px !important;
+    }
+    
+    /* Remove will-change para economizar memória */
+    * {
+        will-change: auto !important;
+    }
+    
+    /* Desabilita hardware acceleration desnecessária */
+    * {
+        transform: none !important;
+        backface-visibility: visible !important;
+    }
+    
+    /* Remove efeitos de partículas e decorações */
+    [class*="animate-"],
+    .blink-anim,
+    .modal-enter {
+        animation: none !important;
+    }
+}
+
+/* Indicador visual discreto de modo low-perf ativo */
+body.low-perf::after {
+    content: '⚡ MODO PERFORMANCE';
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.9);
+    color: var(--neon-core);
+    padding: 6px 12px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: bold;
+    border: 1px solid var(--neon-core);
+    border-radius: 6px;
+    z-index: 99999;
+    pointer-events: none;
+    letter-spacing: 0.5px;
+}

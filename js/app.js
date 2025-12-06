@@ -13,6 +13,7 @@ function zeniteSystem() {
         // --- ESTADO DO SISTEMA ---
         systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
         loadingChar: false, rebooting: false,
+        isOffline: false, // Modo offline (sem conexão)
         
         // Feature Flags
         netlinkEnabled: FEATURES.NETLINK_ENABLED,
@@ -22,6 +23,9 @@ function zeniteSystem() {
         authLoading: false, authMsg: '', authMsgType: '',
         authMode: 'login', // 'login', 'register', 'forgot'
         authEmail: '', authPassword: '', authPasswordConfirm: '', authUsername: '',
+        recoverMode: false, // Password reset mode (from email link)
+        newPassword: '', newPasswordConfirm: '', // For password reset
+        currentPassword: '', // For secure password change (requires verification)
         
         // Verificação de username
         usernameChecking: false,
@@ -43,6 +47,7 @@ function zeniteSystem() {
             compactMode: false, 
             crtMode: false, 
             sfxEnabled: true, 
+            lowPerfMode: false, // Modo de performance para PCs antigos
             themeColor: 'cyan',
             username: '', // Nome de usuário único (14 dias cooldown)
             displayName: '', // Nome de exibição (alterável a qualquer momento)
@@ -76,6 +81,7 @@ function zeniteSystem() {
         // UI / Modais
         notifications: [], configModal: false, confirmOpen: false,
         confirmData: { title:'', desc:'', action:null, type:'danger' },
+        accountSettingsOpen: false, // Account Settings Modal
         welcomeModal: false, // Modal de boas-vindas
         historyModal: false,
         usernameModalOpen: false, // Modal para forçar username
@@ -98,6 +104,21 @@ function zeniteSystem() {
         autoSaveEnabled: false, // NOVO: Controle manual do auto-save
         lastManualSave: null,
         
+        // ═══════════════════════════════════════════════════════════════════════
+        // SMART AUTO-SAVE PARA CAMPANHAS
+        // Salva automaticamente após X alterações ou Y minutos
+        // ═══════════════════════════════════════════════════════════════════════
+        campaignChangeCount: 0, // Contador de alterações na campanha
+        campaignLastAutoSave: null, // Timestamp do último auto-save
+        campaignAutoSaveThreshold: 5, // Salva após 5 alterações
+        campaignAutoSaveInterval: 3 * 60 * 1000, // Salva a cada 3 minutos
+        
+        // Modal de seleção de personagem para campanhas
+        characterSelectModalOpen: false,
+        characterSelectCampaign: null,
+        selectedCharForCampaign: null,
+        pendingCampaign: null,
+        
         // GIF/Tenor
         gifModalOpen: false,
         tenorSearch: '',
@@ -113,7 +134,7 @@ function zeniteSystem() {
         // ═══════════════════════════════════════════════════════════════════════
         // FERRAMENTAS E DADOS
         // ═══════════════════════════════════════════════════════════════════════
-        cropperOpen: false, cropperInstance: null, uploadContext: 'char',
+        cropperOpen: false, cropperInstance: null, uploadContext: 'char', cropperMode: 'upload', originalCropImage: null,
         
         // Modo de visualização de ficha de campanha (GM vê ficha de jogador)
         campaignCharMode: false,  // true = visualizando ficha de membro
@@ -125,6 +146,7 @@ function zeniteSystem() {
         trayPosition: { x: 100, y: 100 },
         isDraggingTray: false, showDiceTip: false, hasSeenDiceTip: false,
         diceLog: [], lastRoll: '--', lastNatural: 0, lastFaces: 20, diceMod: 0, diceReason: '',
+        diceLogModalOpen: false, diceLogModalMember: null, // Modal de histórico de rolagens
         
         // ═══════════════════════════════════════════════════════════════════════
         // DADOS DO GM (LOCAL ONLY)
@@ -283,7 +305,18 @@ function zeniteSystem() {
                             this.checkOnboarding();
                         }
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
-                            if (event === 'SIGNED_IN' && session) {
+                            console.log('[AUTH] Event:', event);
+                            
+                            if (event === 'PASSWORD_RECOVERY') {
+                                // User clicked recover link from email
+                                console.log('[AUTH] Password recovery mode detected');
+                                this.recoverMode = true;
+                                if (session) {
+                                    this.user = session.user;
+                                }
+                                // Navigate to recover page
+                                window.location.hash = '#/recover';
+                            } else if (event === 'SIGNED_IN' && session) {
                                 if (this.user?.id === session.user.id) return;
                                 this.user = session.user;
                                 this.isGuest = false;
@@ -294,6 +327,7 @@ function zeniteSystem() {
                                 this.user = null;
                                 this.chars = {};
                                 this.currentView = 'dashboard';
+                                this.recoverMode = false;
                             }
                         });
                     } catch(e) {
@@ -401,7 +435,54 @@ function zeniteSystem() {
         },
 
         setupListeners() {
-            window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+            // Reconecta realtime quando página é restaurada do cache (bfcache)
+            // Em vez de recarregar a página inteira, apenas reconecta os serviços
+            window.addEventListener('pageshow', (event) => { 
+                if (event.persisted) {
+                    console.log('[SYSTEM] Página restaurada do cache, reconectando serviços...');
+                    // Reconecta realtime se estava em campanha
+                    if (this.activeCampaign && this.connectToRealtime) {
+                        this.connectToRealtime(this.activeCampaign.id);
+                    }
+                    // Recarrega dados da nuvem se logado
+                    if (this.user && !this.isGuest && this.fetchCloud) {
+                        this.fetchCloud();
+                    }
+                }
+            });
+            
+            // ═══════════════════════════════════════════════════════════════════════
+            // OFFLINE MODE DETECTION
+            // Detecta perda de conexão e entra em modo somente-leitura
+            // ═══════════════════════════════════════════════════════════════════════
+            this.isOffline = !navigator.onLine;
+            
+            window.addEventListener('online', () => {
+                console.log('[NETWORK] Conexão restaurada');
+                this.isOffline = false;
+                this.notify('Conexão restaurada! Sincronizando...', 'success');
+                
+                // Tenta reconectar realtime se estava em campanha
+                if (this.activeCampaign && this.connectToRealtime) {
+                    this.connectToRealtime(this.activeCampaign.id);
+                }
+                
+                // Sincroniza dados pendentes
+                if (this.unsavedChanges && this.user && !this.isGuest) {
+                    this.syncCloud(true);
+                }
+            });
+            
+            window.addEventListener('offline', () => {
+                console.warn('[NETWORK] Conexão perdida - entrando em modo offline');
+                this.isOffline = true;
+                this.notify('Sem conexão. Modo offline ativado.', 'warn');
+                
+                // Desconecta realtime para evitar erros
+                if (this.disconnectRealtime) {
+                    this.disconnectRealtime();
+                }
+            });
             
             // CRITICAL: Warn user before leaving with unsaved changes
             window.addEventListener('beforeunload', (e) => {
@@ -719,22 +800,63 @@ function zeniteSystem() {
     };
 }
 
+// Expor zeniteSystem globalmente para o Alpine (no HTML)
 window.zeniteSystem = zeniteSystem;
 
 // --- INICIALIZAÇÃO CRÍTICA DO ALPINE ---
 document.addEventListener('DOMContentLoaded', async () => {
-    // Carregar Alpine e plugins
-    const [alpineModule, collapseModule] = await Promise.all([
-        import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js'),
-        import('https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/module.esm.js')
-    ]);
+    console.log('[BOOT] Initializing...');
     
-    const Alpine = alpineModule.default;
-    const collapse = collapseModule.default;
-    
-    // Registrar plugins ANTES de iniciar
-    Alpine.plugin(collapse);
-    
-    Alpine.data('zeniteSystem', zeniteSystem);
-    Alpine.start();
+    try {
+        // Carregar Alpine e plugins dinamicamente
+        const [alpineModule, collapseModule] = await Promise.all([
+            import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js'),
+            import('https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/module.esm.js')
+        ]);
+        
+        const Alpine = alpineModule.default;
+        const collapse = collapseModule.default;
+        
+        // Registrar plugins
+        Alpine.plugin(collapse);
+        
+        // Expor Alpine globalmente
+        window.Alpine = Alpine;
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // SUPRIMIR ERROS NÃO-CRÍTICOS DO ALPINE
+        // Erros de null/undefined em expressões são esperados durante transições
+        // ═══════════════════════════════════════════════════════════════════════
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        // Lista de padrões de erro para suprimir
+        const suppressPatterns = [
+            'Alpine Expression Error',
+            'Cannot read properties of null',
+            'Cannot read properties of undefined',
+            'AudioContext was not allowed',
+            '[DOM] Password field is not contained'
+        ];
+        
+        console.warn = function(...args) {
+            const msg = args[0]?.toString() || '';
+            if (suppressPatterns.some(p => msg.includes(p))) return;
+            originalWarn.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            const msg = args[0]?.toString() || '';
+            // Só suprime erros de Alpine com null/undefined (não-críticos)
+            if (msg.includes('Alpine') && suppressPatterns.some(p => msg.includes(p))) return;
+            originalError.apply(console, args);
+        };
+        
+        // Iniciar Alpine explicitamente
+        Alpine.start();
+        console.log('[BOOT] Alpine started');
+        
+    } catch (e) {
+        console.error('[BOOT] Critical Error:', e);
+    }
 });

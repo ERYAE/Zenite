@@ -1,0 +1,10 @@
+# .windsurfignore
+node_modules/
+dist/
+.git/
+.vscode/
+package-lock.json
+yarn.lock
+**/*.min.js
+**/*.map
+**/*.svg

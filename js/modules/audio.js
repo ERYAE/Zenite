@@ -105,8 +105,44 @@ export const initAudio = () => {
         warmup.buffer = silent;
         warmup.connect(masterGain);
         warmup.start();
+        
+        // Handle tab visibility changes to prevent crackling
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Handle window focus to resume audio smoothly
+        window.addEventListener('focus', handleWindowFocus);
+        
     } catch (e) {
         console.warn('[AUDIO] AudioContext não suportado', e);
+    }
+};
+
+// Handle tab visibility to suspend/resume AudioContext gracefully
+const handleVisibilityChange = () => {
+    if (!audioCtx || !isSfxEnabled) return;
+    
+    if (document.hidden) {
+        // Tab is hidden - suspend to save resources and prevent crackling
+        if (audioCtx.state === 'running') {
+            audioCtx.suspend().catch(() => {});
+        }
+    } else {
+        // Tab is visible - resume smoothly
+        if (audioCtx.state === 'suspended') {
+            // Small delay to let the browser stabilize
+            setTimeout(() => {
+                audioCtx.resume().catch(() => {});
+            }, 100);
+        }
+    }
+};
+
+// Handle window focus for smoother audio resume
+const handleWindowFocus = () => {
+    if (!audioCtx || !isSfxEnabled) return;
+    
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
     }
 };
 

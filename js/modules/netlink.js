@@ -392,7 +392,10 @@ export const netlinkLogic = {
     
     /**
      * Entra em uma campanha diretamente pelo código (usado pelo router)
-     * Se já for membro, apenas entra. Se não for, mostra modal de seleção de personagem.
+     * Fluxo inteligente:
+     * 1. Se já é membro -> entra direto
+     * 2. Se não é membro e tem personagens -> mostra modal de seleção
+     * 3. Se não é membro e NÃO tem personagens -> redireciona para wizard
      * @param {string} code - Código de convite (pode ser URL ou código direto)
      */
     async joinByCode(code) {
@@ -430,10 +433,15 @@ export const netlinkLogic = {
             if (error || !campaign) {
                 console.warn('[NETLINK] Campanha não encontrada para código:', sanitizedCode, error);
                 this.notify('Código de convite inválido ou campanha não encontrada.', 'error');
+                router.navigate('dashboard');
                 return false;
             }
             
             console.log('[NETLINK] Campanha encontrada:', campaign.name);
+            
+            // Salva a campanha pendente para uso posterior
+            this.pendingCampaign = campaign;
+            this.pendingCampaignCode = sanitizedCode;
             
             // Verifica se já é membro
             const { data: member } = await this.supabase
@@ -445,21 +453,108 @@ export const netlinkLogic = {
             
             if (member) {
                 // Já é membro, entra direto
+                console.log('[NETLINK] Usuário já é membro, entrando...');
                 await this.enterCampaign(campaign);
                 return true;
             }
             
-            // Não é membro, mostra modal para selecionar personagem
-            this.pendingCampaignCode = code;
-            this.netlinkModal = true;
-            this.netlinkView = 'join';
-            this.notify('Selecione um personagem para entrar na campanha.', 'info');
+            // Não é membro - verifica se tem personagens
+            const charCount = Object.keys(this.chars || {}).length;
+            
+            if (charCount === 0) {
+                // Não tem personagens - redireciona para wizard
+                console.log('[NETLINK] Usuário sem personagens, redirecionando para wizard...');
+                this.notify('Você precisa criar um personagem antes de entrar na campanha.', 'warn');
+                
+                // Salva o código para entrar depois de criar o personagem
+                sessionStorage.setItem('zenite_pending_campaign', sanitizedCode);
+                
+                // Abre o wizard de criação
+                this.currentView = 'dashboard';
+                this.wizardOpen = true;
+                this.wizardStep = 1;
+                return true;
+            }
+            
+            // Se já tem um personagem selecionado (veio do wizard), entra direto
+            if (this.selectedCharForCampaign && this.chars[this.selectedCharForCampaign]) {
+                console.log('[NETLINK] Personagem já selecionado, entrando direto...');
+                this.characterSelectCampaign = campaign;
+                await this.confirmCharacterSelection(this.selectedCharForCampaign);
+                this.selectedCharForCampaign = null;
+                return true;
+            }
+            
+            // Se só tem 1 personagem, entra direto com ele
+            if (charCount === 1) {
+                const charId = Object.keys(this.chars)[0];
+                console.log('[NETLINK] Apenas 1 personagem, entrando direto...');
+                this.characterSelectCampaign = campaign;
+                await this.confirmCharacterSelection(charId);
+                return true;
+            }
+            
+            // Tem múltiplos personagens - mostra modal de seleção
+            console.log('[NETLINK] Mostrando modal de seleção de personagem...');
+            this.characterSelectModalOpen = true;
+            this.characterSelectCampaign = campaign;
             return true;
             
         } catch (e) {
             console.error('[NETLINK] Erro ao buscar campanha:', e);
             this.notify('Erro ao buscar campanha.', 'error');
             return false;
+        }
+    },
+    
+    /**
+     * Confirma a seleção de personagem e entra na campanha
+     * @param {string} charId - ID do personagem selecionado
+     */
+    async confirmCharacterSelection(charId) {
+        if (!this.characterSelectCampaign || !charId) {
+            this.notify('Selecione um personagem.', 'error');
+            return;
+        }
+        
+        const campaign = this.characterSelectCampaign;
+        const char = this.chars[charId];
+        
+        if (!char) {
+            this.notify('Personagem não encontrado.', 'error');
+            return;
+        }
+        
+        try {
+            // Adiciona como membro da campanha
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .insert({
+                    campaign_id: campaign.id,
+                    user_id: this.user.id,
+                    role: 'player',
+                    char_data: char
+                });
+            
+            if (error) throw error;
+            
+            // Fecha todos os modais relacionados
+            this.characterSelectModalOpen = false;
+            this.characterSelectCampaign = null;
+            this.netlinkModal = false; // Garante que o modal do netlink está fechado
+            
+            // Limpa código pendente
+            sessionStorage.removeItem('zenite_pending_campaign');
+            
+            playSFX('success');
+            this.notify(`Você entrou na campanha "${campaign.name}"!`, 'success');
+            
+            // Entra na campanha
+            await this.enterCampaign(campaign);
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao entrar na campanha:', e);
+            this.notify('Erro ao entrar na campanha.', 'error');
         }
     },
     
@@ -593,7 +688,118 @@ export const netlinkLogic = {
     },
     
     /**
-     * Salva alterações e fecha o modo de ficha de campanha
+     * ═══════════════════════════════════════════════════════════════════════
+     * SMART AUTO-SAVE PARA CAMPANHAS
+     * Salva automaticamente após X alterações ou Y minutos
+     * Evita spam de saves e economiza requests ao Supabase
+     * ═══════════════════════════════════════════════════════════════════════
+     */
+    
+    /**
+     * Registra uma alteração na campanha e verifica se deve auto-salvar
+     * Chame isso sempre que algo mudar na ficha durante modo campanha
+     */
+    trackCampaignChange() {
+        if (!this.campaignCharMode || !this.activeCampaign) return;
+        
+        this.campaignChangeCount++;
+        this.unsavedChanges = true;
+        
+        const now = Date.now();
+        const timeSinceLastSave = this.campaignLastAutoSave ? now - this.campaignLastAutoSave : Infinity;
+        
+        // Auto-save se atingiu threshold de alterações OU passou o intervalo de tempo
+        if (this.campaignChangeCount >= this.campaignAutoSaveThreshold || 
+            timeSinceLastSave >= this.campaignAutoSaveInterval) {
+            console.log(`[NETLINK] Smart auto-save triggered (changes: ${this.campaignChangeCount}, time: ${Math.round(timeSinceLastSave/1000)}s)`);
+            this.saveCampaignSheetSilent();
+        }
+    },
+    
+    /**
+     * Salva ficha da campanha silenciosamente (sem notificação)
+     * Usado pelo smart auto-save
+     */
+    async saveCampaignSheetSilent() {
+        if (!this.campaignCharMode || !this.campaignMemberId || !this.char) return;
+        if (this.isSyncing) return; // Evita saves simultâneos
+        
+        this.isSyncing = true;
+        this.saveStatus = 'saving';
+        
+        try {
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .update({ char_data: this.char })
+                .eq('id', this.campaignMemberId);
+            
+            if (error) throw error;
+            
+            // Reseta contadores
+            this.campaignChangeCount = 0;
+            this.campaignLastAutoSave = Date.now();
+            this.unsavedChanges = false;
+            this.saveStatus = 'saved';
+            
+            // Broadcast silencioso (sem notificação local)
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'member_update',
+                    payload: { memberId: this.campaignMemberId }
+                });
+            }
+            
+            console.log('[NETLINK] Auto-save concluído');
+            
+            // Reseta status após 2s
+            setTimeout(() => {
+                if (this.saveStatus === 'saved') this.saveStatus = 'idle';
+            }, 2000);
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro no auto-save:', e);
+            this.saveStatus = 'error';
+        } finally {
+            this.isSyncing = false;
+        }
+    },
+    
+    /**
+     * Inicia o timer de auto-save por intervalo
+     * Chamado ao entrar em uma campanha
+     */
+    startCampaignAutoSaveTimer() {
+        // Limpa timer anterior se existir
+        if (this._campaignAutoSaveTimer) {
+            clearInterval(this._campaignAutoSaveTimer);
+        }
+        
+        // Inicia novo timer
+        this._campaignAutoSaveTimer = setInterval(() => {
+            if (this.campaignCharMode && this.unsavedChanges && this.campaignChangeCount > 0) {
+                console.log('[NETLINK] Auto-save por intervalo de tempo');
+                this.saveCampaignSheetSilent();
+            }
+        }, this.campaignAutoSaveInterval);
+        
+        console.log('[NETLINK] Timer de auto-save iniciado');
+    },
+    
+    /**
+     * Para o timer de auto-save
+     * Chamado ao sair de uma campanha
+     */
+    stopCampaignAutoSaveTimer() {
+        if (this._campaignAutoSaveTimer) {
+            clearInterval(this._campaignAutoSaveTimer);
+            this._campaignAutoSaveTimer = null;
+            console.log('[NETLINK] Timer de auto-save parado');
+        }
+    },
+    
+    /**
+     * Salva alterações e fecha o modo de ficha de campanha (manual)
      */
     async saveCampaignSheet() {
         if (!this.campaignCharMode || !this.campaignMemberId) {
@@ -608,6 +814,8 @@ export const netlinkLogic = {
         }
         
         console.log('[NETLINK] Salvando ficha do membro:', this.campaignMemberId);
+        this.isSyncing = true;
+        this.saveStatus = 'saving';
         
         try {
             // Salva as alterações no banco
@@ -620,6 +828,12 @@ export const netlinkLogic = {
             if (error) throw error;
             
             console.log('[NETLINK] Ficha salva com sucesso:', data);
+            
+            // Reseta contadores do smart auto-save
+            this.campaignChangeCount = 0;
+            this.campaignLastAutoSave = Date.now();
+            this.unsavedChanges = false;
+            this.saveStatus = 'saved';
             
             // Broadcast para atualizar outros clientes
             if (this.realtimeChannel) {
@@ -640,6 +854,9 @@ export const netlinkLogic = {
         } catch (e) {
             console.error('[NETLINK] Erro ao salvar ficha:', e);
             this.notify('Erro ao salvar ficha: ' + e.message, 'error');
+            this.saveStatus = 'error';
+        } finally {
+            this.isSyncing = false;
         }
     },
     
@@ -739,8 +956,22 @@ export const netlinkLogic = {
             // Escuta TUDO da tabela campaign_members
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'campaign_members', filter: `campaign_id=eq.${campaignId}` },
-                () => {
-                    console.log('[REALTIME] Lista de membros atualizada');
+                async (payload) => {
+                    console.log('[REALTIME] Lista de membros atualizada:', payload.eventType);
+                    
+                    // Detecta se o próprio usuário foi removido (kickado)
+                    if (payload.eventType === 'DELETE' && payload.old?.user_id === this.user?.id) {
+                        console.warn('[REALTIME] Você foi removido da campanha!');
+                        this.notify('Você foi removido da campanha pelo Mestre.', 'warn');
+                        playSFX('error');
+                        
+                        // Sai da campanha e volta para o dashboard
+                        await this.leaveCampaign();
+                        this.currentView = 'dashboard';
+                        return;
+                    }
+                    
+                    // Recarrega membros normalmente
                     this.loadCampaignMembers(campaignId);
                 }
             )
@@ -758,9 +989,31 @@ export const netlinkLogic = {
             )
             // Broadcast de atualização de membro (quando GM edita ficha de jogador)
             .on('broadcast', { event: 'member_update' },
-                () => {
-                    console.log('[REALTIME] Ficha de membro atualizada pelo GM');
-                    this.loadCampaignMembers(campaignId);
+                async (payload) => {
+                    console.log('[REALTIME] Ficha de membro atualizada pelo GM:', payload.payload?.memberId);
+                    
+                    // Recarrega membros
+                    await this.loadCampaignMembers(campaignId);
+                    
+                    // Se o jogador está visualizando sua própria ficha em modo campanha,
+                    // atualiza os dados locais também
+                    if (this.campaignCharMode && this.campaignMemberId === payload.payload?.memberId) {
+                        const updatedMember = this.campaignMembers.find(m => m.id === payload.payload?.memberId);
+                        if (updatedMember?.char_data) {
+                            console.log('[REALTIME] Atualizando ficha local do jogador');
+                            this.char = { ...updatedMember.char_data };
+                            this.notify('Sua ficha foi atualizada pelo Mestre!', 'info');
+                        }
+                    }
+                    
+                    // Se é o próprio jogador (não GM) e sua ficha foi atualizada
+                    const myMembership = this.getMyMembership();
+                    if (myMembership && payload.payload?.memberId === myMembership.id) {
+                        // Atualiza dados locais se não estiver em modo de edição
+                        if (!this.campaignCharMode) {
+                            console.log('[REALTIME] Dados do jogador atualizados pelo GM');
+                        }
+                    }
                 }
             )
             // Broadcast de música ambiente (GM controla, jogadores recebem)
@@ -779,9 +1032,31 @@ export const netlinkLogic = {
                     // Força recarga inicial para garantir sincronia
                     this.loadChatHistory();
                     this.loadCampaignMembers(campaignId);
+                    // Limpa tentativas de retry
+                    if (this._realtimeRetryTimeout) {
+                        clearTimeout(this._realtimeRetryTimeout);
+                        this._realtimeRetryTimeout = null;
+                    }
+                    this._realtimeRetries = 0;
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                     console.error('❌ [NETLINK] Erro na conexão realtime:', status);
-                    this.notify('Erro ao conectar tempo real. Chat pode não funcionar.', 'warn');
+                    
+                    // Retry logic - tenta reconectar até 3 vezes
+                    if (!this._realtimeRetries) this._realtimeRetries = 0;
+                    
+                    if (this._realtimeRetries < 3) {
+                        this._realtimeRetries++;
+                        const delay = this._realtimeRetries * 2000; // 2s, 4s, 6s
+                        console.log(`[NETLINK] Tentando reconectar em ${delay/1000}s (tentativa ${this._realtimeRetries}/3)...`);
+                        
+                        this._realtimeRetryTimeout = setTimeout(() => {
+                            console.log('[NETLINK] Reconectando...');
+                            this.connectToRealtime(campaignId);
+                        }, delay);
+                    } else {
+                        console.error('[NETLINK] Falha após 3 tentativas. Realtime desabilitado para esta sessão.');
+                        this.notify('Tempo real indisponível. Recarregue a página para tentar novamente.', 'warn');
+                    }
                 } else if (status === 'CLOSED') {
                     console.warn('⚠️ [NETLINK] Conexão realtime fechada');
                 }
@@ -813,6 +1088,17 @@ export const netlinkLogic = {
             this.roll(sides);
             return;
         }
+        
+        // Rate limiting: 10 rolls per minute
+        if (!window._diceRollTimestamps) window._diceRollTimestamps = [];
+        const now = Date.now();
+        window._diceRollTimestamps = window._diceRollTimestamps.filter(t => now - t < 60000);
+        
+        if (window._diceRollTimestamps.length >= 10) {
+            this.notify('Limite de rolagens atingido! Aguarde um momento.', 'warn');
+            return;
+        }
+        window._diceRollTimestamps.push(now);
         
         playSFX('dice');
         
@@ -857,14 +1143,41 @@ export const netlinkLogic = {
             if (isFumble) this.incrementStat('fumbleRolls');
         }
         
+        // ═══════════════════════════════════════════════════════════════════════
+        // OPTIMISTIC UI: Adiciona ao log LOCAL imediatamente
+        // O jogador vê sua própria rolagem instantaneamente, sem esperar o servidor
+        // ═══════════════════════════════════════════════════════════════════════
+        const optimisticId = `local_${Date.now()}`;
+        const username = this.char?.name || this.settings?.displayName || this.settings?.username || this.user.email?.split('@')[0] || 'Anônimo';
+        
+        this.sessionDiceLog.unshift({
+            id: optimisticId,
+            username: username,
+            formula: formula,
+            result: total,
+            natural: natural,
+            mod: modifier,
+            crit: isCrit,
+            fumble: isFumble,
+            reason: this.diceReason || '',
+            isPrivate: isPrivate,
+            time: new Date().toLocaleTimeString('pt-BR'),
+            isOptimistic: true // Flag para identificar entrada local
+        });
+        
+        // Limita tamanho do log
+        if (this.sessionDiceLog.length > 100) {
+            this.sessionDiceLog = this.sessionDiceLog.slice(0, 100);
+        }
+        
         try {
             // Envia para o Supabase
-            const { error } = await this.supabase
+            const { data, error } = await this.supabase
                 .from('dice_logs')
                 .insert([{
                     campaign_id: this.activeCampaign.id,
                     user_id: this.user.id,
-                    username: this.char?.name || this.settings?.displayName || this.settings?.username || this.user.email?.split('@')[0] || 'Anônimo',
+                    username: username,
                     roll_data: {
                         sides,
                         natural,
@@ -880,12 +1193,26 @@ export const netlinkLogic = {
                     total_result: total,
                     formula: formula,
                     reason: this.diceReason || null
-                }]);
+                }])
+                .select()
+                .single();
             
             if (error) throw error;
             
+            // Atualiza o ID local com o ID real do servidor
+            const idx = this.sessionDiceLog.findIndex(l => l.id === optimisticId);
+            if (idx !== -1 && data) {
+                this.sessionDiceLog[idx].id = data.id;
+                this.sessionDiceLog[idx].isOptimistic = false;
+            }
+            
         } catch (e) {
             console.error('[NETLINK] Erro ao enviar rolagem:', e);
+            // Marca a entrada como erro mas mantém visível
+            const idx = this.sessionDiceLog.findIndex(l => l.id === optimisticId);
+            if (idx !== -1) {
+                this.sessionDiceLog[idx].syncError = true;
+            }
             this.notify('Erro ao sincronizar rolagem.', 'error');
         }
         
@@ -963,7 +1290,21 @@ export const netlinkLogic = {
             return;
         }
         
-        // Adiciona ao log da sessão
+        // OPTIMISTIC UI: Ignora se já existe (própria rolagem já adicionada localmente)
+        // Verifica por ID real ou se é uma entrada optimistic que foi confirmada
+        const existingIdx = this.sessionDiceLog.findIndex(l => 
+            l.id === log.id || 
+            (l.isOptimistic && l.username === log.username && l.result === log.total_result && l.formula === log.formula)
+        );
+        
+        if (existingIdx !== -1) {
+            // Atualiza a entrada existente com o ID real do servidor
+            this.sessionDiceLog[existingIdx].id = log.id;
+            this.sessionDiceLog[existingIdx].isOptimistic = false;
+            return;
+        }
+        
+        // Adiciona ao log da sessão (rolagem de outro jogador)
         this.sessionDiceLog.unshift({
             id: log.id,
             username: log.username,
@@ -986,6 +1327,64 @@ export const netlinkLogic = {
         // Som de notificação para rolagens de outros
         if (log.user_id !== this.user?.id) {
             playSFX('notification');
+        }
+    },
+    
+    /**
+     * Retorna a última rolagem de um membro específico
+     * @param {string} username - Nome do personagem
+     * @returns {object|null} - Última rolagem ou null
+     */
+    getLastRollForMember(username) {
+        if (!username || !this.sessionDiceLog?.length) return null;
+        return this.sessionDiceLog.find(log => log.username === username) || null;
+    },
+    
+    /**
+     * Carrega histórico de rolagens das últimas 24h do Supabase
+     * @param {string} campaignId - ID da campanha
+     */
+    async loadDiceHistory(campaignId) {
+        if (!this.supabase || !campaignId) return;
+        
+        try {
+            // Calcula timestamp de 24h atrás
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            
+            const { data, error } = await this.supabase
+                .from('dice_logs')
+                .select('*')
+                .eq('campaign_id', campaignId)
+                .gte('created_at', twentyFourHoursAgo)
+                .order('created_at', { ascending: false })
+                .limit(100);
+            
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                // Converte para o formato do sessionDiceLog
+                this.sessionDiceLog = data.map(log => ({
+                    id: log.id,
+                    username: log.username,
+                    formula: log.formula,
+                    result: log.total_result,
+                    natural: log.natural_result,
+                    mod: log.modifier,
+                    crit: log.is_critical,
+                    fumble: log.is_fumble,
+                    reason: log.reason,
+                    isPrivate: log.is_private,
+                    time: new Date(log.created_at).toLocaleTimeString('pt-BR')
+                }));
+                
+                console.log(`[NETLINK] Carregadas ${data.length} rolagens das últimas 24h`);
+            } else {
+                this.sessionDiceLog = [];
+            }
+            
+        } catch (e) {
+            console.error('[NETLINK] Erro ao carregar histórico de dados:', e);
+            this.sessionDiceLog = [];
         }
     },
     
@@ -1559,6 +1958,24 @@ export const netlinkLogic = {
     async sendChatMessage(content, type = 'chat') {
         if (!this.supabase || !this.activeCampaign || !content.trim()) return;
         
+        // Rate limiting: 20 messages per minute
+        if (!window._chatTimestamps) window._chatTimestamps = [];
+        const now = Date.now();
+        window._chatTimestamps = window._chatTimestamps.filter(t => now - t < 60000);
+        
+        if (window._chatTimestamps.length >= 20) {
+            this.notify('Limite de mensagens atingido! Aguarde um momento.', 'warn');
+            return;
+        }
+        window._chatTimestamps.push(now);
+        
+        // Sanitize message (max 2000 chars, remove scripts)
+        const sanitized = content
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+            .replace(/javascript:/gi, '')
+            .slice(0, 2000);
+        
         try {
             const senderName = this.char?.name || this.settings?.displayName || this.settings?.username || this.user?.email?.split('@')[0] || 'Anônimo';
             
@@ -1568,7 +1985,7 @@ export const netlinkLogic = {
                     campaign_id: this.activeCampaign.id,
                     user_id: this.user.id,
                     sender: senderName,
-                    content: content.trim(),
+                    content: sanitized,
                     type: type,
                     metadata: {
                         isGM: this.isGMOfActiveCampaign()
@@ -1644,24 +2061,68 @@ export const netlinkLogic = {
         try {
             // Giphy API SDK Key (pública para desenvolvimento)
             const GIPHY_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
-            const response = await fetch(
-                `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13&lang=pt`
-            );
+            const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=50&rating=pg-13&lang=pt`;
             
-            if (!response.ok) throw new Error('Giphy API error');
+            console.log('[GIPHY] Buscando:', query);
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                console.error('[GIPHY] API response not OK:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('[GIPHY] Error body:', errorText);
+                throw new Error(`Giphy API error: ${response.status} - ${response.statusText}`);
+            }
             
             const data = await response.json();
+            console.log('[GIPHY] Response data:', data);
+            console.log('[GIPHY] Resultados encontrados:', data.data?.length || 0);
             
-            this.tenorResults = (data.data || []).map(gif => ({
-                id: gif.id,
-                title: gif.title,
-                preview: gif.images?.fixed_height_small?.url || gif.images?.preview_gif?.url,
-                full: gif.images?.original?.url || gif.images?.downsized_medium?.url
-            }));
+            if (!data.data || data.data.length === 0) {
+                this.tenorResults = [];
+                this.notify('Nenhum GIF encontrado. Tente outro termo.', 'info');
+                return;
+            }
+            
+            this.tenorResults = (data.data || []).map(gif => {
+                // Prioriza fixed_height_small para preview (mais rápido)
+                const preview = gif.images?.fixed_height_small?.url || 
+                               gif.images?.fixed_height?.url || 
+                               gif.images?.downsized_small?.url ||
+                               gif.images?.downsized?.url || 
+                               gif.images?.original?.url;
+                
+                // Usa downsized_medium para envio (bom balanço qualidade/tamanho)
+                const full = gif.images?.downsized_medium?.url || 
+                            gif.images?.downsized?.url || 
+                            gif.images?.original?.url;
+                
+                return {
+                    id: gif.id,
+                    title: gif.title || 'GIF',
+                    preview: preview,
+                    full: full
+                };
+            }).filter(gif => gif.preview && gif.full);
+            
+            console.log('[GIPHY] GIFs válidos após filtro:', this.tenorResults.length);
+            
+            if (this.tenorResults.length === 0) {
+                this.notify('GIFs encontrados mas sem URLs válidas. Tente outro termo.', 'warn');
+            }
         } catch (e) {
             console.error('[GIPHY] Erro na busca:', e);
+            console.error('[GIPHY] Stack:', e.stack);
             this.tenorResults = [];
-            this.notify('Erro ao buscar GIFs. Tente novamente.', 'warn');
+            
+            // Mensagem de erro mais específica
+            if (e.message.includes('Failed to fetch')) {
+                this.notify('Erro de conexão com Giphy. Verifique sua internet.', 'error');
+            } else if (e.message.includes('429')) {
+                this.notify('Limite de requisições Giphy atingido. Aguarde um momento.', 'warn');
+            } else {
+                this.notify('Erro ao buscar GIFs: ' + e.message, 'error');
+            }
         } finally {
             this.tenorLoading = false;
         }
@@ -1768,6 +2229,14 @@ export const netlinkLogic = {
         // Para o timer se estiver rodando
         this.stopSessionTimer();
         
+        // Para o timer de auto-save
+        this.stopCampaignAutoSaveTimer();
+        
+        // Salva alterações pendentes antes de sair
+        if (this.campaignCharMode && this.unsavedChanges && this.campaignChangeCount > 0) {
+            await this.saveCampaignSheetSilent();
+        }
+        
         // Limpa estado
         this.activeCampaign = null;
         this.campaignMembers = [];
@@ -1799,6 +2268,7 @@ export const netlinkLogic = {
         await Promise.all([
             this.loadCampaignMembers(campaign.id),
             this.loadChatHistory(),
+            this.loadDiceHistory(campaign.id),
             this.connectToRealtime(campaign.id)
         ]);
         
@@ -1813,6 +2283,11 @@ export const netlinkLogic = {
         // Troca contexto do log de dados para esta campanha
         this.switchDiceLogContext();
         
+        // Inicia timer de auto-save para campanhas
+        this.startCampaignAutoSaveTimer();
+        this.campaignChangeCount = 0;
+        this.campaignLastAutoSave = Date.now();
+        
         // Muda para a view da campanha
         this.currentView = 'campaign';
         this.netlinkView = 'campaign';
@@ -1823,7 +2298,47 @@ export const netlinkLogic = {
             router.navigate('netlink', campaign.invite_code, false, true);
         }
         
+        // Atualiza o título da aba com o NOME da campanha (não o código)
+        document.title = `ZENITE OS // ${campaign.name || 'Campanha'}`;
+        
         playSFX('success');
+    },
+    
+    /**
+     * Fallback robusto para copiar texto para clipboard
+     * Funciona em contextos não-seguros (HTTP) e browsers antigos
+     */
+    async copyToClipboard(text) {
+        // Tenta API moderna primeiro
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (e) {
+                console.warn('[CLIPBOARD] API moderna falhou, tentando fallback:', e);
+            }
+        }
+        
+        // Fallback: execCommand (deprecated mas funciona em mais contextos)
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            const success = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            if (success) return true;
+        } catch (e) {
+            console.warn('[CLIPBOARD] Fallback execCommand falhou:', e);
+        }
+        
+        return false;
     },
     
     /**
@@ -1832,12 +2347,13 @@ export const netlinkLogic = {
     async copyInviteCode() {
         if (!this.activeCampaign?.invite_code) return;
         
-        try {
-            await navigator.clipboard.writeText(this.activeCampaign.invite_code);
+        const success = await this.copyToClipboard(this.activeCampaign.invite_code);
+        if (success) {
             playSFX('success');
             this.notify('Código copiado!', 'success');
-        } catch (e) {
-            this.notify('Erro ao copiar código', 'error');
+        } else {
+            // Mostra o código para copiar manualmente
+            this.notify(`Código: ${this.activeCampaign.invite_code}`, 'info');
         }
     },
     
@@ -1847,13 +2363,14 @@ export const netlinkLogic = {
     async copyInviteLink() {
         if (!this.activeCampaign?.invite_code) return;
         
-        try {
-            const url = `${window.location.origin}${window.location.pathname}#/netlink/${this.activeCampaign.invite_code}`;
-            await navigator.clipboard.writeText(url);
+        const url = `${window.location.origin}${window.location.pathname}#/netlink/${this.activeCampaign.invite_code}`;
+        const success = await this.copyToClipboard(url);
+        if (success) {
             playSFX('success');
             this.notify('Link copiado!', 'success');
-        } catch (e) {
-            this.notify('Erro ao copiar link', 'error');
+        } else {
+            // Mostra o link para copiar manualmente
+            this.notify('Não foi possível copiar. Copie manualmente da barra de endereço.', 'warn');
         }
     },
     
@@ -2100,13 +2617,18 @@ export const netlinkLogic = {
         this.ambientMusic.playing = !this.ambientMusic.playing;
         
         if (this.ambientMusic.playing) {
-            // Se já tem URL, apenas retoma. Se não, toca nova música
+            // Se já tem URL e player carregado, apenas retoma. Se não, toca nova música
+            const player = document.getElementById('ambient-music-player');
             const currentVideoId = this.extractYouTubeId(this.ambientMusic.url);
-            if (currentVideoId === videoId && player && player.src) {
-                // Retoma música pausada
+            const isAlreadyLoaded = player && player.src && player.src.includes(videoId);
+            
+            if (isAlreadyLoaded) {
+                // Retoma música pausada (mantém posição)
+                console.log('[MUSIC] Retomando música pausada');
                 this.resumeMusicLocally();
             } else {
-                // Toca nova música
+                // Toca nova música (carrega do início)
+                console.log('[MUSIC] Carregando nova música:', videoId);
                 this.playMusicLocally(videoId);
             }
             
@@ -2261,20 +2783,21 @@ export const netlinkLogic = {
         const bar = event.currentTarget;
         const rect = bar.getBoundingClientRect();
         const percent = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        const seekTime = percent * (this.ambientMusic.duration || 1);
         
-        console.log('[MUSIC] Seeking para:', Math.round(percent * 100), '%');
+        console.log('[MUSIC] Seeking para:', Math.round(percent * 100), '%', 'Time:', seekTime);
         
         // Seek no iframe via postMessage
         const iframe = document.getElementById('ambient-music-player');
         if (iframe && iframe.contentWindow) {
-            const seekTime = percent * (this.ambientMusic.duration || 1);
             iframe.contentWindow.postMessage(JSON.stringify({
                 event: 'command',
                 func: 'seekTo',
                 args: [seekTime, true]
             }), '*');
-            this.ambientMusic.currentTime = seekTime;
         }
+        
+        this.ambientMusic.currentTime = seekTime;
         
         // Broadcast para todos
         if (this.realtimeChannel) {
@@ -2531,7 +3054,6 @@ export const netlinkLogic = {
                     user_id: friendUserId,
                     role: NETLINK_CONFIG.ROLES.PLAYER,
                     status: NETLINK_CONFIG.MEMBER_STATUS.PENDING,
-                    invited_by: this.user.id,
                     char_data: null
                 }]);
             
@@ -2574,7 +3096,6 @@ export const netlinkLogic = {
                 .select(`
                     id,
                     campaign_id,
-                    invited_by,
                     created_at,
                     campaigns:campaign_id (
                         id,
@@ -2595,7 +3116,6 @@ export const netlinkLogic = {
                 campaignName: invite.campaigns?.name || 'Campanha',
                 campaignDesc: invite.campaigns?.description || '',
                 inviteCode: invite.campaigns?.invite_code,
-                invitedBy: invite.invited_by,
                 createdAt: invite.created_at
             }));
             

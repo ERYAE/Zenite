@@ -542,10 +542,95 @@ body.interaction-lock {
     50% { transform: scale(1.2); }
 }
 
-/* Responsividade */
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVIDADE AVANÇADA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @media (max-width: 768px) {
     .glass {
         backdrop-filter: blur(10px);
+    }
+    
+    /* Melhor toque em mobile */
+    button, a, [role="button"] {
+        touch-action: manipulation;
+    }
+    
+    /* Inputs maiores para dedos */
+    input, textarea, select {
+        font-size: 16px !important; /* Previne zoom no iOS */
+        min-height: 44px;
+    }
+    
+    /* Headers mais compactos */
+    .font-brand {
+        font-size: 0.9em;
+    }
+    
+    /* Cards mais espaçados para toque */
+    .glass {
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Botões de ação mais acessíveis */
+    .fixed.bottom-6 {
+        bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 380px) {
+    body {
+        font-size: 14px;
+    }
+    
+    .text-lg {
+        font-size: 1rem;
+    }
+    
+    .text-xl {
+        font-size: 1.125rem;
+    }
+    
+    .p-4 {
+        padding: 0.75rem;
+    }
+    
+    .gap-4 {
+        gap: 0.75rem;
+    }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    .fixed.bottom-6 {
+        bottom: 0.5rem;
+    }
+    
+    .modal-enter {
+        max-height: 90vh;
+    }
+}
+
+/* Tablets */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .max-w-7xl {
+        max-width: 95%;
+    }
+}
+
+/* Safe areas para iPhones com notch */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+    
+    .fixed.bottom-0,
+    .fixed.bottom-4,
+    .fixed.bottom-6 {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
     }
 }
 
@@ -796,4 +881,341 @@ body.compact-mode button {
     color: #888;
     font-size: 16px;
     letter-spacing: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MELHORIAS DE UX
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Focus visible para acessibilidade */
+:focus-visible {
+    outline: 2px solid var(--neon-core);
+    outline-offset: 2px;
+}
+
+/* Remove outline padrão mas mantém para keyboard */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Hover states mais suaves */
+button, a, [role="button"] {
+    transition: all 0.2s ease;
+}
+
+/* Active state feedback */
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* Disabled states */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Loading spinner */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.fa-spin, .animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Skeleton loading */
+.skeleton {
+    background: linear-gradient(90deg, 
+        rgba(255,255,255,0.05) 25%, 
+        rgba(255,255,255,0.1) 50%, 
+        rgba(255,255,255,0.05) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Tooltip styles */
+[title] {
+    position: relative;
+}
+
+/* Pulse effect para notificações */
+.pulse-ring {
+    position: absolute;
+    inset: -4px;
+    border: 2px solid var(--neon-core);
+    border-radius: inherit;
+    animation: pulse-ring 1.5s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.3); opacity: 0; }
+}
+
+/* Smooth image loading */
+img {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+img[loading="lazy"] {
+    opacity: 0;
+}
+
+img[loading="lazy"].loaded {
+    opacity: 1;
+}
+
+/* Better text selection */
+::selection {
+    background: rgba(var(--neon-rgb), 0.3);
+    color: white;
+}
+
+/* Drag and drop visual feedback */
+.dragging {
+    opacity: 0.5;
+    cursor: grabbing !important;
+}
+
+.drag-over {
+    border: 2px dashed var(--neon-core) !important;
+    background: rgba(var(--neon-rgb), 0.1) !important;
+}
+
+/* Toast notifications animation */
+.toast-enter {
+    animation: toast-slide-in 0.3s ease-out;
+}
+
+.toast-leave {
+    animation: toast-slide-out 0.3s ease-in forwards;
+}
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-slide-out {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* Music visualizer bars */
+@keyframes music-bar {
+    0%, 100% { height: 40%; }
+    50% { height: 100%; }
+}
+
+.music-bar-1 { animation: music-bar 0.4s ease infinite; }
+.music-bar-2 { animation: music-bar 0.4s ease 0.1s infinite; }
+.music-bar-3 { animation: music-bar 0.4s ease 0.2s infinite; }
+
+/* Card hover lift effect */
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+/* Gradient text helper */
+.gradient-text {
+    background: linear-gradient(135deg, var(--neon-core), var(--neon-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Neon glow effect */
+.neon-glow {
+    box-shadow: 
+        0 0 5px var(--neon-core),
+        0 0 10px var(--neon-core),
+        0 0 20px var(--neon-core);
+}
+
+/* Subtle border glow on hover */
+.glow-hover:hover {
+    box-shadow: 0 0 20px rgba(var(--neon-rgb), 0.3);
+    border-color: var(--neon-core);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS & FEEDBACK ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Shake animation for errors */
+.animate-shake {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
+
+/* Bounce-in animation for success checkmarks */
+.animate-bounce-in {
+    animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Pulse glow for critical/success states */
+.animate-glow-pulse {
+    animation: glowPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 5px var(--neon-core), 0 0 10px var(--neon-core); }
+    50% { box-shadow: 0 0 20px var(--neon-core), 0 0 30px var(--neon-core); }
+}
+
+/* Dice roll animation */
+.animate-dice-roll {
+    animation: diceRoll 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes diceRoll {
+    0% { transform: scale(0.5) rotate(-180deg); opacity: 0; }
+    50% { transform: scale(1.2) rotate(10deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Critical hit effect */
+.animate-critical {
+    animation: criticalHit 0.8s ease-out;
+}
+
+@keyframes criticalHit {
+    0% { transform: scale(1); filter: brightness(1); }
+    25% { transform: scale(1.3); filter: brightness(2) drop-shadow(0 0 20px #22c55e); }
+    50% { transform: scale(0.9); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* Fumble effect */
+.animate-fumble {
+    animation: fumble 0.6s ease-out;
+}
+
+@keyframes fumble {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); filter: brightness(0.8); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); filter: hue-rotate(-20deg); }
+}
+
+/* Skeleton loader shimmer */
+.skeleton-loader {
+    background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0.05) 25%,
+        rgba(255,255,255,0.1) 50%,
+        rgba(255,255,255,0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* D20 spinner for loading */
+.animate-d20-spin {
+    animation: d20Spin 1s linear infinite;
+}
+
+@keyframes d20Spin {
+    0% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(90deg) scale(1.1); }
+    50% { transform: rotate(180deg) scale(1); }
+    75% { transform: rotate(270deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* Achievement unlock effect */
+.animate-achievement {
+    animation: achievementUnlock 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes achievementUnlock {
+    0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+    50% { transform: scale(1.2) rotate(10deg); }
+    70% { transform: scale(0.9) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Save indicator pulse */
+.animate-save-pulse {
+    animation: savePulse 1s ease-in-out infinite;
+}
+
+@keyframes savePulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* Holographic shimmer for RPG profile */
+.holographic-shimmer {
+    background: linear-gradient(
+        135deg,
+        rgba(14, 165, 233, 0.1) 0%,
+        rgba(217, 70, 239, 0.1) 25%,
+        rgba(14, 165, 233, 0.2) 50%,
+        rgba(217, 70, 239, 0.1) 75%,
+        rgba(14, 165, 233, 0.1) 100%
+    );
+    background-size: 400% 400%;
+    animation: holographic 8s ease infinite;
+}
+
+@keyframes holographic {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Scanline effect for cyber aesthetic */
+.scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.1) 2px,
+        rgba(0, 0, 0, 0.1) 4px
+    );
+    pointer-events: none;
+    opacity: 0.3;
 }

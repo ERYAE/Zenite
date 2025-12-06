@@ -278,6 +278,7 @@ export const socialLogic = {
     
     // Achievements (calculado localmente)
     unlockedAchievements: [],
+    achievementsLoaded: false, // Flag para evitar checks antes de carregar
     
     // Stats locais (economiza queries)
     localStats: {
@@ -334,8 +335,14 @@ export const socialLogic = {
         // Carrega achievements desbloqueados
         const savedAchievements = localStorage.getItem('zenite_achievements');
         if (savedAchievements) {
-            this.unlockedAchievements = JSON.parse(savedAchievements);
+            try {
+                this.unlockedAchievements = JSON.parse(savedAchievements);
+            } catch (e) {
+                console.warn('[SOCIAL] Erro ao carregar achievements:', e);
+                this.unlockedAchievements = [];
+            }
         }
+        this.achievementsLoaded = true;
         
         // Atualiza contagem de personagens
         this.localStats.charsCreated = Object.keys(this.chars || {}).length;
@@ -392,10 +399,21 @@ export const socialLogic = {
     // ─────────────────────────────────────────────────────────────────────────
     
     checkAchievements() {
+        // Guard: não verifica antes de carregar do localStorage
+        if (!this.achievementsLoaded) {
+            console.log('[ACHIEVEMENTS] Aguardando carregamento...');
+            return [];
+        }
+        
         let newUnlocks = [];
         const achievements = Object.values(ACHIEVEMENTS);
-        const totalCount = achievements.filter(a => !a.isPlatinum).length; // Exclui platina da contagem
+        const totalCount = achievements.filter(a => !a.isPlatinum).length;
         const currentUnlocked = this.unlockedAchievements.filter(id => id !== 'platinum').length;
+        
+        // Usa flag de sessão para evitar mostrar duplicados na mesma sessão
+        if (!window._achievementsShownThisSession) {
+            window._achievementsShownThisSession = new Set();
+        }
         
         achievements.forEach(achievement => {
             const isUnlocked = this.unlockedAchievements.includes(achievement.id);
@@ -410,14 +428,19 @@ export const socialLogic = {
             
             if (!isUnlocked && shouldUnlock) {
                 this.unlockedAchievements.push(achievement.id);
-                newUnlocks.push(achievement);
+                
+                // Só adiciona à lista de notificações se não foi mostrado nesta sessão
+                if (!window._achievementsShownThisSession.has(achievement.id)) {
+                    newUnlocks.push(achievement);
+                    window._achievementsShownThisSession.add(achievement.id);
+                }
             }
         });
         
         // Salva no localStorage
         localStorage.setItem('zenite_achievements', JSON.stringify(this.unlockedAchievements));
         
-        // Notifica novos achievements
+        // Notifica apenas achievements realmente novos
         newUnlocks.forEach(achievement => {
             this.showAchievementUnlock(achievement);
         });

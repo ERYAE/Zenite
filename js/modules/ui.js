@@ -20,6 +20,11 @@ export const uiLogic = {
             this.applyCompactMode();
         }
         
+        // Aplica modo low performance
+        if(key === 'lowPerfMode') {
+            this.applyLowPerfMode();
+        }
+        
         this.updateVisualState();
         this.saveLocal(); 
     },
@@ -31,6 +36,24 @@ export const uiLogic = {
         } else {
             document.body.classList.remove('compact-mode');
             document.documentElement.style.removeProperty('--compact-scale');
+        }
+    },
+    
+    applyLowPerfMode() {
+        if (this.settings.lowPerfMode) {
+            document.body.classList.add('low-perf');
+            // Load low-perf CSS if not already loaded
+            if (!document.getElementById('low-perf-css')) {
+                const link = document.createElement('link');
+                link.id = 'low-perf-css';
+                link.rel = 'stylesheet';
+                link.href = '/css/low-performance.css';
+                document.head.appendChild(link);
+            }
+            this.notify('Modo Performance ativado! Animações desabilitadas.', 'success');
+        } else {
+            document.body.classList.remove('low-perf');
+            this.notify('Modo Performance desativado.', 'info');
         }
     },
 
@@ -198,8 +221,19 @@ export const uiLogic = {
         
         this.wizardOpen = false; 
         
-        // Se veio do NetLink, volta para o modal ao invés de abrir a ficha
-        if (this.wizardFromNetlink) {
+        // Verifica se há campanha pendente (usuário veio por link de convite)
+        const pendingCampaignCode = sessionStorage.getItem('zenite_pending_campaign');
+        
+        if (pendingCampaignCode) {
+            // Tem campanha pendente - seleciona automaticamente o personagem criado
+            sessionStorage.removeItem('zenite_pending_campaign');
+            this.selectedCharForCampaign = id;
+            
+            // Busca a campanha e entra
+            this.notify('Personagem criado! Entrando na campanha...', 'success');
+            this.joinByCode(pendingCampaignCode);
+        } else if (this.wizardFromNetlink) {
+            // Se veio do NetLink, volta para o modal ao invés de abrir a ficha
             this.wizardFromNetlink = false;
             this.netlinkModal = true;
             this.loadCampaigns();
@@ -498,7 +532,41 @@ export const uiLogic = {
     // CROPPER
     openImageEditor(context = 'sheet') { 
         this.uploadContext = context; 
+        this.cropperMode = 'upload'; // 'upload' ou 'recrop'
         document.getElementById('file-input').click(); 
+    },
+    
+    // Abre o cropper para re-cortar a imagem existente
+    openRecropEditor(context = 'sheet') {
+        this.uploadContext = context;
+        this.cropperMode = 'recrop';
+        
+        // Pega a foto atual
+        let currentPhoto = null;
+        if (context === 'wizard') {
+            currentPhoto = this.wizardData?.photo;
+        } else if (this.char) {
+            currentPhoto = this.char.photo;
+        }
+        
+        if (!currentPhoto) {
+            this.notify('Nenhuma foto para editar. Faça upload de uma imagem primeiro.', 'warn');
+            return;
+        }
+        
+        const img = document.getElementById('crop-target');
+        if (!img) return;
+        
+        img.src = currentPhoto;
+        this.cropperOpen = true;
+        
+        setTimeout(() => {
+            if (this.cropperInstance) this.cropperInstance.destroy();
+            this.cropperInstance = new Cropper(img, {
+                aspectRatio: 1,
+                viewMode: 1
+            });
+        }, 150);
     },
     
     initCropper(e) { 
@@ -510,6 +578,8 @@ export const uiLogic = {
             const img = document.getElementById('crop-target');
             if(!img) return; 
             
+            // Salva a imagem original para permitir re-crop
+            this.originalCropImage = evt.target.result;
             img.src = evt.target.result; 
             this.cropperOpen = true; 
             
@@ -740,31 +810,62 @@ export const uiLogic = {
         const startLeft = this.trayPosition.x; 
         const startTop = this.trayPosition.y;
         
+        // Performance: Desabilita transições e usa GPU acceleration
         trayEl.style.transition = 'none';
+        trayEl.style.willChange = 'transform';
+        
+        // Variáveis para throttling com rAF
+        let currentX = startLeft;
+        let currentY = startTop;
+        let rafId = null;
+        
+        const updatePosition = () => {
+            // Usa translate3d para GPU acceleration (evita reflow)
+            trayEl.style.transform = `translate3d(${currentX - startLeft}px, ${currentY - startTop}px, 0)`;
+            rafId = null;
+        };
         
         const moveHandler = (ev) => {
             if(!this.isDraggingTray) return;
-            const dx = ev.clientX - startX; 
-            const dy = ev.clientY - startY;
-            trayEl.style.left = `${startLeft + dx}px`; 
-            trayEl.style.top = `${startTop + dy}px`;
+            
+            // Calcula nova posição
+            currentX = startLeft + (ev.clientX - startX);
+            currentY = startTop + (ev.clientY - startY);
+            
+            // Throttle com requestAnimationFrame (máximo 60fps)
+            if (!rafId) {
+                rafId = requestAnimationFrame(updatePosition);
+            }
         };
         
         const upHandler = (ev) => {
             this.isDraggingTray = false;
+            
+            // Cancela qualquer rAF pendente
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+            }
+            
             document.removeEventListener('mousemove', moveHandler); 
             document.removeEventListener('mouseup', upHandler);
             
+            // Calcula posição final
             const dx = ev.clientX - startX; 
             const dy = ev.clientY - startY;
             this.trayPosition.x = startLeft + dx; 
             this.trayPosition.y = startTop + dy;
             
-            if(trayEl) trayEl.style.transition = '';
+            // Reseta transform e aplica posição final via left/top
+            trayEl.style.transform = '';
+            trayEl.style.left = `${this.trayPosition.x}px`;
+            trayEl.style.top = `${this.trayPosition.y}px`;
+            trayEl.style.willChange = '';
+            trayEl.style.transition = '';
+            
             this.saveLocal(); 
         };
         
-        document.addEventListener('mousemove', moveHandler); 
+        document.addEventListener('mousemove', moveHandler, { passive: true }); 
         document.addEventListener('mouseup', upHandler);
     },
 
@@ -882,42 +983,85 @@ export const uiLogic = {
     },
     
     // Executa uma macro (rola os dados)
-    executeMacro(macro) {
-        if (!macro.dice) return;
-        
-        // Parse do formato de dados (ex: "2d6+3", "1d20", "3d8-2")
-        const diceRegex = /(\d+)d(\d+)([+-]\d+)?/i;
-        const match = macro.dice.match(diceRegex);
-        
-        if (!match) {
-            this.notify('Formato de dados inválido!', 'error');
+    executeMacro(macro, isSecret = false) {
+        if (!macro?.dice) {
+            this.notify?.('Macro inválida!', 'error');
             return;
         }
         
-        const numDice = parseInt(match[1]);
-        const diceSides = parseInt(match[2]);
-        const diceModifier = match[3] ? parseInt(match[3]) : 0;
-        const totalModifier = diceModifier + (macro.modifier || 0);
+        // Parse do formato de dados (ex: "2d6+3", "1d20", "3d8-2")
+        const diceRegex = /(\d+)d(\d+)([+-]\d+)?/i;
+        const match = macro.dice.trim().match(diceRegex);
         
-        // Rola os dados
-        let rolls = [];
-        let total = 0;
-        for (let i = 0; i < numDice; i++) {
-            const roll = Math.floor(Math.random() * diceSides) + 1;
-            rolls.push(roll);
-            total += roll;
+        if (!match) {
+            this.notify?.('Formato de dados inválido! Use: 2d6, 1d20+5, 3d8-2', 'error');
+            return;
         }
-        total += totalModifier;
         
-        // Se estiver em campanha, envia para o log
-        if (this.activeCampaign && !this.isGMOfActiveCampaign()) {
-            this.rollForCampaign(`${numDice}d${diceSides}`, totalModifier, macro.name);
+        const numDice = parseInt(match[1]) || 1;
+        const diceSides = parseInt(match[2]) || 20;
+        const modifier = match[3] ? parseInt(match[3]) : 0;
+        
+        // Se estiver em campanha, usa o sistema de campanha
+        if (this.activeCampaign && typeof this.rollForCampaign === 'function') {
+            // Salva o motivo e modificador temporariamente
+            const oldReason = this.diceReason;
+            const oldMod = this.diceMod;
+            
+            this.diceReason = macro.name;
+            this.diceMod = modifier;
+            
+            // Rola cada dado individualmente e soma
+            let totalRolls = 0;
+            for (let i = 0; i < numDice; i++) {
+                // Para múltiplos dados, só envia o último para o log
+                if (i === numDice - 1) {
+                    this.rollForCampaign(diceSides, isSecret);
+                } else {
+                    // Rola localmente sem enviar
+                    const roll = Math.floor(Math.random() * diceSides) + 1;
+                    totalRolls += roll;
+                }
+            }
+            
+            // Restaura valores
+            this.diceReason = oldReason;
+            this.diceMod = oldMod;
+            
         } else {
-            // Exibe resultado local
-            const modStr = totalModifier >= 0 ? `+${totalModifier}` : totalModifier;
+            // Rolagem local (sem campanha)
+            let rolls = [];
+            let total = 0;
+            for (let i = 0; i < numDice; i++) {
+                const roll = Math.floor(Math.random() * diceSides) + 1;
+                rolls.push(roll);
+                total += roll;
+            }
+            total += modifier;
+            
+            const isCrit = diceSides === 20 && numDice === 1 && rolls[0] === 20;
+            const isFumble = diceSides === 20 && numDice === 1 && rolls[0] === 1;
+            
+            const modStr = modifier !== 0 ? (modifier >= 0 ? ` +${modifier}` : ` ${modifier}`) : '';
             const rollsStr = rolls.length > 1 ? ` (${rolls.join('+')})` : '';
-            this.notify(`${macro.name}: ${total}${rollsStr}${totalModifier !== 0 ? ' ' + modStr : ''}`, 'info');
-            playSFX('dice');
+            
+            let message = `${macro.name}: ${total}${rollsStr}${modStr}`;
+            let type = 'info';
+            
+            if (isCrit) {
+                message = `🎯 CRÍTICO! ${macro.name}: ${total}${modStr}`;
+                type = 'success';
+                playSFX?.('critical');
+            } else if (isFumble) {
+                message = `💀 FUMBLE! ${macro.name}: ${total}${modStr}`;
+                type = 'error';
+                playSFX?.('fumble');
+            } else {
+                playSFX?.('dice');
+            }
+            
+            this.notify?.(message, type);
+            console.log(`[MACRO] ${macro.name}: ${rolls.join('+')}${modStr} = ${total}`);
         }
     },
     
