@@ -62,88 +62,47 @@ export const CHANGELOG = [
                 ]
             },
             {
-                title: 'Otimizações',
+                title: 'Animações',
+                icon: 'fa-wand-magic-sparkles',
+                color: 'purple',
+                items: [
+                    {
+                        title: 'Transições Suaves Universais',
+                        details: [
+                            'Hover effects em todos os botões e cards',
+                            'Active press com scale suave',
+                            'Modal enter com movimento vertical',
+                            'Stagger animation em listas',
+                            'Glass effect com backdrop blur'
+                        ]
+                    },
+                    {
+                        title: 'Micro-interações',
+                        details: [
+                            'Focus visible com outline animado',
+                            'Disabled state com grayscale',
+                            'Success flash e error shake',
+                            'Unread badge pulse',
+                            'Typing indicator bounce'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Performance',
                 icon: 'fa-bolt',
                 color: 'yellow',
                 items: [
-                    { title: 'Realtime lazy loading - conecta apenas quando necessário' },
-                    { title: 'Fallbacks automáticos se funções SQL não existirem' },
-                    { title: 'Cache agressivo com invalidação inteligente' },
-                    { title: 'Mensagens otimistas para UX instantânea' }
+                    { title: 'GPU acceleration apenas onde necessário' },
+                    { title: 'Removido will-change excessivo' },
+                    { title: 'Realtime lazy loading' },
+                    { title: 'Fallbacks automáticos' },
+                    { title: 'Cache agressivo com invalidação inteligente' }
                 ]
             }
         ]
     },
     
-    // ───────────────────────────────────────────────────────────────────
-    // LOADING PRECISION - Sistema de Loading
-    // ───────────────────────────────────────────────────────────────────
-    {
-        title: 'LOADING PRECISION',
-        emoji: '✨',
-        sections: [
-            {
-                title: 'Novidades',
-                icon: 'fa-sparkles',
-                color: 'cyan',
-                items: [
-                    {
-                        title: 'Loading com Progresso Real',
-                        description: 'Sistema de loading mostra etapas precisas do carregamento',
-                        details: [
-                            'Etapas: INIT → AUTH → SYNC → LOAD → READY',
-                            'Barra de progresso real (0% → 100%)',
-                            'Textos descritivos para cada etapa',
-                            'Animação suave entre transições'
-                        ]
-                    },
-                    {
-                        title: 'Animações Aprimoradas',
-                        description: 'Todas as animações funcionando corretamente',
-                        details: [
-                            'Hover states em todos os botões',
-                            'Transições suaves em modais',
-                            'Pulse effects em notificações',
-                            'Skeleton loaders durante carregamento',
-                            'Compatível com modo low-performance'
-                        ]
-                    }
-                ]
-            },
-            {
-                title: 'Correções',
-                icon: 'fa-wrench',
-                color: 'yellow',
-                items: [
-                    {
-                        title: 'Animações CSS',
-                        details: [
-                            'Corrigido will-change para melhor performance',
-                            'GPU acceleration em elementos críticos',
-                            'Removido jank em transições',
-                            'Keyframes otimizados'
-                        ]
-                    }
-                ]
-            },
-            {
-                title: 'Melhorias',
-                icon: 'fa-arrow-up',
-                color: 'green',
-                items: [
-                    {
-                        title: 'Performance de animações otimizada'
-                    },
-                    {
-                        title: 'Loading mais informativo e preciso'
-                    },
-                    {
-                        title: 'Feedback visual em todas as ações'
-                    }
-                ]
-            }
-        ]
-    },
     // ───────────────────────────────────────────────────────────────────
     // CLOUDCHECK - Sistema de Verificação de Dados
     // ───────────────────────────────────────────────────────────────────

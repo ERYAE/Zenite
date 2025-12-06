@@ -925,18 +925,51 @@ textarea:disabled {
     cursor: not-allowed;
 }
 
-/* Loading spinner - ÚNICA DEFINIÇÃO */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOADING ANIMATIONS - Suaves e performáticas
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Spinner rotation suave */
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-.fa-spin {
-    animation: spin 1s linear infinite !important;
+.fa-spin,
+.animate-spin {
+    animation: spin 1s linear infinite;
+    will-change: transform;
+    transform-origin: center center;
 }
 
-.animate-spin {
-    animation: spin 1s linear infinite !important;
+/* Loading bar smooth */
+@keyframes loadingBar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.loading-bar {
+    animation: loadingBar 1.5s ease-in-out infinite;
+}
+
+/* Pulse suave */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Bounce suave */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.animate-bounce {
+    animation: bounce 1s ease-in-out infinite;
 }
 
 /* Skeleton loading */
@@ -1843,16 +1876,44 @@ select:hover {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FRIEND CARD - Hover effects
+   CARDS & LISTS - Animações de entrada e hover
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.friend-card {
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+/* Card hover suave */
+.friend-card,
+[class*="rounded-xl"][class*="border"],
+[class*="rounded-lg"][class*="border"] {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.friend-card:hover {
+.friend-card:hover,
+[class*="rounded-xl"][class*="border"]:hover,
+[class*="rounded-lg"][class*="border"]:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-color: rgba(var(--neon-rgb), 0.3) !important;
+}
+
+/* Stagger animation para listas */
+[x-for] > * {
+    animation: listItemEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+[x-for] > *:nth-child(1) { animation-delay: 0.05s; }
+[x-for] > *:nth-child(2) { animation-delay: 0.1s; }
+[x-for] > *:nth-child(3) { animation-delay: 0.15s; }
+[x-for] > *:nth-child(4) { animation-delay: 0.2s; }
+[x-for] > *:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes listItemEnter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Unread badge pulse */
