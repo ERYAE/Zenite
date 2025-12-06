@@ -3746,26 +3746,45 @@
                     <div class="flex items-center gap-4">
                         <!-- Holographic Avatar -->
                         <div class="relative">
-                            <div class="w-20 h-20 rounded-xl bg-gradient-to-br from-[var(--neon-core)]/20 to-purple-500/20 flex items-center justify-center border-2 border-[var(--neon-core)]/40 shadow-[0_0_20px_rgba(var(--neon-rgb),0.3)]">
-                                <i class="fa-solid fa-user text-[var(--neon-core)] text-3xl"></i>
+                            <div class="w-20 h-20 rounded-xl bg-gradient-to-br from-[var(--neon-core)]/20 to-purple-500/20 flex items-center justify-center border-2 border-[var(--neon-core)]/40 shadow-[0_0_20px_rgba(var(--neon-rgb),0.3)] overflow-hidden">
+                                <!-- Avatar do perfil sendo visualizado OU do próprio usuário -->
+                                <img x-show="viewingProfile?.avatar_url || publicProfile?.avatar_url" 
+                                     :src="viewingProfile?.avatar_url || publicProfile?.avatar_url" 
+                                     class="w-full h-full object-cover">
+                                <i x-show="!viewingProfile?.avatar_url && !publicProfile?.avatar_url" class="fa-solid fa-user text-[var(--neon-core)] text-3xl"></i>
                             </div>
                             <!-- Status Indicator -->
                             <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-black flex items-center justify-center">
                                 <i class="fa-solid fa-signal text-[8px] text-black"></i>
                             </div>
+                            <!-- Botão de upload (apenas meu perfil) -->
+                            <button x-show="!viewingProfile" 
+                                    @click="$refs.avatarInput.click()" 
+                                    class="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center cursor-pointer">
+                                <i class="fa-solid fa-camera text-white text-lg"></i>
+                            </button>
+                            <input type="file" x-ref="avatarInput" accept="image/*" class="hidden" @change="uploadAvatar($event)">
                         </div>
                         
                         <!-- Identity Info -->
                         <div class="flex-1">
                             <p class="text-[9px] text-[var(--neon-core)] font-code mb-1">CODENAME</p>
                             <h3 class="text-xl font-bold text-white font-brand tracking-wide" 
-                                x-text="viewingProfile?.username || publicProfile?.username || settings.username || user?.email?.split('@')[0] || 'AGENT_NULL'"></h3>
-                            <p class="text-[10px] text-gray-500 font-code mt-1" x-text="viewingProfile ? '' : user?.email"></p>
+                                x-text="viewingProfile?.username || publicProfile?.username || settings?.username || user?.email?.split('@')[0] || 'AGENT_NULL'"></h3>
+                            <p class="text-[10px] text-gray-500 font-code mt-1" x-text="viewingProfile ? '@' + viewingProfile.username : user?.email"></p>
                             
-                            <!-- Copy Username -->
+                            <!-- Copy Username (meu perfil) -->
                             <div x-show="!viewingProfile && settings?.username" class="mt-2 flex items-center gap-2">
                                 <code class="text-xs text-[var(--neon-core)] bg-black/40 px-2 py-0.5 rounded border border-[var(--neon-core)]/20">@<span x-text="settings?.username"></span></code>
                                 <button @click="navigator.clipboard.writeText(settings?.username); notify('Username copiado!', 'success')" 
+                                        class="text-gray-500 hover:text-[var(--neon-core)] transition-colors">
+                                    <i class="fa-solid fa-copy text-xs"></i>
+                                </button>
+                            </div>
+                            <!-- Username do perfil visualizado -->
+                            <div x-show="viewingProfile?.username" class="mt-2 flex items-center gap-2">
+                                <code class="text-xs text-[var(--neon-core)] bg-black/40 px-2 py-0.5 rounded border border-[var(--neon-core)]/20">@<span x-text="viewingProfile?.username"></span></code>
+                                <button @click="navigator.clipboard.writeText(viewingProfile?.username); notify('Username copiado!', 'success')" 
                                         class="text-gray-500 hover:text-[var(--neon-core)] transition-colors">
                                     <i class="fa-solid fa-copy text-xs"></i>
                                 </button>
@@ -3774,8 +3793,8 @@
                     </div>
                 </div>
                 
-                <!-- Stats Grid - RPG Style -->
-                <div class="grid grid-cols-4 gap-2">
+                <!-- Stats Grid - RPG Style (apenas meu perfil) -->
+                <div x-show="!viewingProfile" class="grid grid-cols-4 gap-2">
                     <!-- Total Rolls -->
                     <div class="bg-black/40 rounded-xl p-3 border border-cyan-500/20 text-center group hover:border-cyan-500/50 transition-all hover:bg-cyan-500/5">
                         <div class="w-8 h-8 mx-auto rounded-lg bg-cyan-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
@@ -3810,8 +3829,22 @@
                     </div>
                 </div>
                 
-                <!-- Experience Bar -->
-                <div class="bg-black/40 rounded-xl p-4 border border-white/10">
+                <!-- Info do perfil visualizado -->
+                <div x-show="viewingProfile" class="bg-black/40 rounded-xl p-4 border border-[var(--neon-core)]/20">
+                    <p class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-id-card"></i> INFORMAÇÕES DO AGENTE
+                    </p>
+                    <div class="space-y-2">
+                        <div x-show="viewingProfile?.bio" class="text-sm text-gray-300" x-text="viewingProfile?.bio"></div>
+                        <div x-show="!viewingProfile?.bio" class="text-sm text-gray-500 italic">Este agente não possui biografia.</div>
+                        <div class="text-[9px] text-gray-600 mt-2">
+                            Membro desde <span x-text="viewingProfile?.created_at ? new Date(viewingProfile.created_at).toLocaleDateString('pt-BR') : 'N/A'"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Experience Bar (apenas meu perfil) -->
+                <div x-show="!viewingProfile" class="bg-black/40 rounded-xl p-4 border border-white/10">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ACHIEVEMENT PROGRESS</span>
                         <span class="text-xs text-[var(--neon-core)] font-code" x-text="getAchievementProgress().percentage + '%'"></span>
@@ -3831,8 +3864,8 @@
                     </div>
                 </div>
                 
-                <!-- Recent Achievements -->
-                <div class="bg-black/40 rounded-xl p-4 border border-yellow-500/20">
+                <!-- Recent Achievements (apenas meu perfil) -->
+                <div x-show="!viewingProfile" class="bg-black/40 rounded-xl p-4 border border-yellow-500/20">
                     <p class="text-[10px] text-yellow-400 font-bold uppercase mb-3 flex items-center gap-2">
                         <i class="fa-solid fa-medal"></i> RECENT ACHIEVEMENTS
                     </p>

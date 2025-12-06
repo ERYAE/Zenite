@@ -563,63 +563,112 @@ export const socialLogic = {
         if (this.friendsLoaded && !forceRefresh) return;
         
         try {
-            // Busca amizades aceitas
-            const { data: friendships } = await this.supabase
+            console.log('[SOCIAL] Carregando amigos para:', this.user.id);
+            
+            // Busca amizades aceitas onde o usuário é user_id OU friend_id
+            const { data: friendships, error: friendshipsError } = await this.supabase
                 .from('friendships')
                 .select('id, friend_id, user_id, status, created_at')
                 .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`)
                 .eq('status', 'accepted');
             
+            if (friendshipsError) {
+                console.error('[SOCIAL] Erro ao buscar amizades:', friendshipsError);
+                throw friendshipsError;
+            }
+            
+            console.log('[SOCIAL] Amizades encontradas:', friendships?.length || 0);
+            
             // Busca perfis dos amigos para obter username e avatar
             if (friendships && friendships.length > 0) {
-                const friendIds = friendships.map(f => 
-                    f.user_id === this.user.id ? f.friend_id : f.user_id
-                );
+                // Determina o ID do amigo (o outro usuário na relação)
+                const friendIds = friendships.map(f => {
+                    // Se eu sou o user_id, o amigo é friend_id
+                    // Se eu sou o friend_id, o amigo é user_id
+                    return f.user_id === this.user.id ? f.friend_id : f.user_id;
+                }).filter(id => id && id !== this.user.id); // Remove IDs inválidos ou próprio
                 
-                const { data: profiles } = await this.supabase
-                    .from('profiles')
-                    .select('id, username, avatar_url')
-                    .in('id', friendIds);
+                console.log('[SOCIAL] IDs dos amigos:', friendIds);
                 
-                // Mapeia os perfis para as amizades
-                const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
-                
-                this.friends = friendships.map(f => {
-                    const friendId = f.user_id === this.user.id ? f.friend_id : f.user_id;
-                    const profile = profileMap.get(friendId);
-                    return {
-                        ...f,
-                        friend_id: friendId, // IMPORTANTE: ID do amigo para convites
-                        friend_username: profile?.username || 'usuário',
-                        friend_display_name: profile?.username || 'Usuário',
-                        friend_avatar: profile?.avatar_url || null
-                    };
-                }).filter(f => f.friend_username !== 'usuário' || f.friend_id); // Remove amigos sem dados válidos
+                if (friendIds.length === 0) {
+                    this.friends = [];
+                } else {
+                    const { data: profiles, error: profilesError } = await this.supabase
+                        .from('profiles')
+                        .select('id, username, avatar_url, display_name')
+                        .in('id', friendIds);
+                    
+                    if (profilesError) {
+                        console.error('[SOCIAL] Erro ao buscar perfis:', profilesError);
+                    }
+                    
+                    console.log('[SOCIAL] Perfis encontrados:', profiles);
+                    
+                    // Mapeia os perfis por ID
+                    const profileMap = new Map();
+                    if (profiles) {
+                        profiles.forEach(p => profileMap.set(p.id, p));
+                    }
+                    
+                    this.friends = friendships.map(f => {
+                        const friendId = f.user_id === this.user.id ? f.friend_id : f.user_id;
+                        const profile = profileMap.get(friendId);
+                        
+                        console.log('[SOCIAL] Mapeando amigo:', friendId, '-> perfil:', profile);
+                        
+                        return {
+                            id: f.id,
+                            friend_id: friendId,
+                            created_at: f.created_at,
+                            friend_username: profile?.username || 'desconhecido',
+                            friend_display_name: profile?.display_name || profile?.username || 'Usuário',
+                            friend_avatar: profile?.avatar_url || null
+                        };
+                    }).filter(f => f.friend_id && f.friend_id !== this.user.id);
+                }
             } else {
                 this.friends = [];
             }
             
-            // Busca pedidos pendentes com username do remetente
-            const { data: requests } = await this.supabase
+            console.log('[SOCIAL] Lista final de amigos:', this.friends);
+            
+            // Busca pedidos pendentes (onde EU sou o destinatário)
+            const { data: requests, error: requestsError } = await this.supabase
                 .from('friendships')
                 .select('id, user_id, created_at')
                 .eq('friend_id', this.user.id)
                 .eq('status', 'pending');
             
+            if (requestsError) {
+                console.error('[SOCIAL] Erro ao buscar pedidos:', requestsError);
+            }
+            
+            console.log('[SOCIAL] Pedidos pendentes:', requests?.length || 0);
+            
             // Busca usernames dos remetentes
             if (requests && requests.length > 0) {
-                const senderIds = requests.map(r => r.user_id);
+                const senderIds = requests.map(r => r.user_id).filter(Boolean);
+                
                 const { data: senderProfiles } = await this.supabase
                     .from('profiles')
-                    .select('id, username')
+                    .select('id, username, avatar_url')
                     .in('id', senderIds);
                 
-                const senderMap = new Map(senderProfiles?.map(p => [p.id, p.username]) || []);
+                const senderMap = new Map();
+                if (senderProfiles) {
+                    senderProfiles.forEach(p => senderMap.set(p.id, p));
+                }
                 
-                this.friendRequests = requests.map(r => ({
-                    ...r,
-                    sender_username: senderMap.get(r.user_id) || null
-                }));
+                this.friendRequests = requests.map(r => {
+                    const sender = senderMap.get(r.user_id);
+                    return {
+                        id: r.id,
+                        user_id: r.user_id,
+                        created_at: r.created_at,
+                        sender_username: sender?.username || 'desconhecido',
+                        sender_avatar: sender?.avatar_url || null
+                    };
+                });
             } else {
                 this.friendRequests = [];
             }
@@ -633,6 +682,8 @@ export const socialLogic = {
             
         } catch (e) {
             console.error('[SOCIAL] Erro ao carregar amigos:', e);
+            this.friends = [];
+            this.friendRequests = [];
         }
     },
     
@@ -645,46 +696,66 @@ export const socialLogic = {
         // Remove canal anterior se existir
         if (this.friendsRealtimeChannel) {
             await this.supabase.removeChannel(this.friendsRealtimeChannel);
+            this.friendsRealtimeChannel = null;
         }
         
-        console.log('[SOCIAL] Configurando realtime de amizades...');
+        console.log('[SOCIAL] Configurando realtime de amizades para:', this.user.id);
         
+        // Ouve TODAS as mudanças na tabela friendships e filtra no cliente
+        // Isso é mais confiável que filtros server-side em algumas versões do Supabase
         this.friendsRealtimeChannel = this.supabase
-            .channel(`friendships:${this.user.id}`)
+            .channel(`friendships-realtime-${this.user.id}`)
             .on('postgres_changes', 
                 { 
-                    event: 'INSERT', 
+                    event: '*', // Ouve INSERT, UPDATE, DELETE
                     schema: 'public', 
-                    table: 'friendships',
-                    filter: `friend_id=eq.${this.user.id}`
+                    table: 'friendships'
                 },
                 (payload) => {
-                    console.log('[SOCIAL] Novo pedido de amizade recebido:', payload);
-                    // Recarrega lista de amigos
-                    this.loadFriends(true);
-                    // Notifica o usuário
-                    this.notify('Você recebeu um pedido de amizade!', 'info');
-                    playSFX('notification');
-                }
-            )
-            .on('postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'friendships',
-                    filter: `user_id=eq.${this.user.id}`
-                },
-                (payload) => {
-                    console.log('[SOCIAL] Amizade atualizada:', payload);
-                    if (payload.new?.status === 'accepted') {
-                        this.notify('Seu pedido de amizade foi aceito!', 'success');
-                        playSFX('success');
+                    console.log('[SOCIAL] Mudança em friendships:', payload);
+                    
+                    const { eventType, new: newRecord, old: oldRecord } = payload;
+                    const record = newRecord || oldRecord;
+                    
+                    // Verifica se a mudança é relevante para este usuário
+                    const isRelevant = record && (
+                        record.user_id === this.user.id || 
+                        record.friend_id === this.user.id
+                    );
+                    
+                    if (!isRelevant) {
+                        console.log('[SOCIAL] Mudança não relevante, ignorando');
+                        return;
                     }
+                    
+                    console.log('[SOCIAL] Mudança relevante detectada:', eventType);
+                    
+                    // INSERT = novo pedido de amizade
+                    if (eventType === 'INSERT' && record.friend_id === this.user.id && record.status === 'pending') {
+                        this.notify('Você recebeu um pedido de amizade!', 'info');
+                        playSFX('notification');
+                    }
+                    
+                    // UPDATE = pedido aceito/recusado
+                    if (eventType === 'UPDATE') {
+                        if (record.status === 'accepted' && record.user_id === this.user.id) {
+                            this.notify('Seu pedido de amizade foi aceito!', 'success');
+                            playSFX('success');
+                        }
+                    }
+                    
+                    // Recarrega lista de amigos em qualquer mudança relevante
                     this.loadFriends(true);
                 }
             )
-            .subscribe((status) => {
+            .subscribe((status, err) => {
                 console.log('[SOCIAL] Status do canal de amizades:', status);
+                if (err) {
+                    console.error('[SOCIAL] Erro no canal:', err);
+                }
+                if (status === 'SUBSCRIBED') {
+                    console.log('[SOCIAL] ✓ Canal de amizades conectado!');
+                }
             });
     },
     
@@ -965,11 +1036,98 @@ export const socialLogic = {
     },
     
     // ─────────────────────────────────────────────────────────────────────────
+    // AVATAR UPLOAD
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    async uploadAvatar(event) {
+        if (!this.supabase || !this.user) {
+            this.notify('Faça login para alterar o avatar.', 'error');
+            return;
+        }
+        
+        const file = event.target.files?.[0];
+        if (!file) return;
+        
+        // Validações
+        if (!file.type.startsWith('image/')) {
+            this.notify('Selecione uma imagem válida.', 'error');
+            return;
+        }
+        
+        if (file.size > 2 * 1024 * 1024) { // 2MB max
+            this.notify('Imagem muito grande. Máximo 2MB.', 'error');
+            return;
+        }
+        
+        try {
+            this.notify('Enviando avatar...', 'info');
+            
+            // Gera nome único para o arquivo
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${this.user.id}-${Date.now()}.${fileExt}`;
+            const filePath = `avatars/${fileName}`;
+            
+            // Upload para o Supabase Storage
+            const { data: uploadData, error: uploadError } = await this.supabase.storage
+                .from('avatars')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+            
+            if (uploadError) {
+                console.error('[SOCIAL] Erro no upload:', uploadError);
+                throw uploadError;
+            }
+            
+            // Obtém URL pública
+            const { data: urlData } = this.supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
+            
+            const avatarUrl = urlData?.publicUrl;
+            
+            if (!avatarUrl) {
+                throw new Error('Não foi possível obter URL do avatar');
+            }
+            
+            // Atualiza perfil no banco
+            const { error: updateError } = await this.supabase
+                .from('profiles')
+                .update({ avatar_url: avatarUrl })
+                .eq('id', this.user.id);
+            
+            if (updateError) {
+                console.error('[SOCIAL] Erro ao atualizar perfil:', updateError);
+                throw updateError;
+            }
+            
+            // Atualiza estado local
+            if (this.publicProfile) {
+                this.publicProfile.avatar_url = avatarUrl;
+            }
+            
+            this.notify('Avatar atualizado!', 'success');
+            playSFX('success');
+            
+            // Recarrega perfil
+            await this.loadMyProfile();
+            
+        } catch (e) {
+            console.error('[SOCIAL] Erro ao fazer upload do avatar:', e);
+            this.notify('Erro ao enviar avatar. Tente novamente.', 'error');
+        }
+        
+        // Limpa o input
+        event.target.value = '';
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────────
     
     openFriendsModal() {
-        this.loadFriends();
+        this.loadFriends(true); // Força refresh
         this.friendsModalOpen = true;
     },
     

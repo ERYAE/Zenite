@@ -3992,6 +3992,13 @@
       }
     }
   }
+  .hover\:opacity-100 {
+    &:hover {
+      @media (hover: hover) {
+        opacity: 100%;
+      }
+    }
+  }
   .hover\:shadow-\[0_0_15px_rgba\(var\(--neon-rgb\)\,0\.3\)\] {
     &:hover {
       @media (hover: hover) {

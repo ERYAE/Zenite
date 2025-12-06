@@ -918,13 +918,18 @@ textarea:disabled {
     cursor: not-allowed;
 }
 
-/* Loading spinner */
+/* Loading spinner - ÚNICA DEFINIÇÃO */
 @keyframes spin {
+    from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-.fa-spin, .animate-spin {
-    animation: spin 1s linear infinite;
+.fa-spin {
+    animation: spin 1s linear infinite !important;
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite !important;
 }
 
 /* Skeleton loading */
@@ -1366,15 +1371,16 @@ img {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LOADING STATES - Spinner suave
+   LOADING STATES - D20 Spinner
    ═══════════════════════════════════════════════════════════════════════════ */
-.animate-spin {
-    animation: smoothSpin 0.8s linear infinite;
+@keyframes d20Spin {
+    0% { transform: rotateY(0deg) rotateX(10deg); }
+    50% { transform: rotateY(180deg) rotateX(-10deg); }
+    100% { transform: rotateY(360deg) rotateX(10deg); }
 }
 
-@keyframes smoothSpin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.animate-d20-spin {
+    animation: d20Spin 2s ease-in-out infinite;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
