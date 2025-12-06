@@ -938,40 +938,46 @@ export const socialLogic = {
     
     /**
      * Verifica se um username está disponível (chamado pelo debounce do input)
+     * Funciona tanto para usuários logados quanto durante registro
      */
     async checkUsernameAvailable(username) {
         // Limpa se vazio
         if (!username || username.trim().length === 0) {
             this.usernameCheckResult = null;
             this.usernameCheckMessage = '';
+            this.usernameChecking = false;
             return;
         }
         
-        const normalized = username.trim().toLowerCase();
+        const normalized = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
         
         // Validação local primeiro
         if (normalized.length < 2) {
             this.usernameCheckResult = 'invalid';
             this.usernameCheckMessage = 'Mínimo 2 caracteres';
+            this.usernameChecking = false;
             return;
         }
         
         if (normalized.length > 20) {
             this.usernameCheckResult = 'invalid';
             this.usernameCheckMessage = 'Máximo 20 caracteres';
+            this.usernameChecking = false;
             return;
         }
         
         if (!/^[a-z0-9_]+$/.test(normalized)) {
             this.usernameCheckResult = 'invalid';
             this.usernameCheckMessage = 'Apenas letras, números e _';
+            this.usernameChecking = false;
             return;
         }
         
-        // Se é o mesmo username atual, não precisa verificar
-        if (normalized === this.settings?.username?.toLowerCase()) {
+        // Se é o mesmo username atual do usuário logado, não precisa verificar
+        if (this.user && normalized === this.settings?.username?.toLowerCase()) {
             this.usernameCheckResult = null;
             this.usernameCheckMessage = '';
+            this.usernameChecking = false;
             return;
         }
         
@@ -979,16 +985,17 @@ export const socialLogic = {
         this.usernameChecking = true;
         
         try {
-            if (this.supabase && this.user) {
+            // Funciona com ou sem usuário logado (para registro)
+            if (this.supabase) {
                 const { data, error } = await this.supabase
                     .rpc('check_username_available', { 
                         check_username: normalized,
-                        current_user_id: this.user.id 
+                        current_user_id: this.user?.id || null  // null para usuários não logados
                     });
                 
                 if (error) throw error;
                 
-                if (data) {
+                if (data === true) {
                     this.usernameCheckResult = 'available';
                     this.usernameCheckMessage = 'Disponível!';
                 } else {

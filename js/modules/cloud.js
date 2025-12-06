@@ -397,11 +397,17 @@ export const cloudLogic = {
             return this.notify('As senhas não coincidem.', 'error');
         }
 
-        const normalizedUsername = normalizeUsername(username || email.split('@')[0]);
-        if (!isValidUsername(normalizedUsername)) {
-            return this.notify('Username inválido. Use 2-20 caracteres (a-z, 0-9, _).', 'error');
-        }
+        // DEFENSIVE: Generate fallback username from email if not provided
+        const fallbackBase = (email || '').split('@')[0] || 'user';
+        const rawUsername = username && username.trim().length >= 2 ? username : fallbackBase;
+        const normalizedUsername = normalizeUsername(rawUsername);
+        
+        // If normalization failed, generate a random username
+        const finalUsername = isValidUsername(normalizedUsername) 
+            ? normalizedUsername 
+            : `user_${Date.now().toString(36)}`;
 
+        // Check OAuth provider (non-blocking)
         try {
             const { data: providerCheck } = await this.supabase.rpc('check_email_oauth_provider', {
                 email_to_check: email
@@ -425,15 +431,17 @@ export const cloudLogic = {
             console.warn('[CLOUD] Não foi possível verificar OAuth provider:', e);
         }
 
-        // Verifica disponibilidade do username antes de criar
+        // Check username availability (non-blocking - trigger will handle conflicts)
+        let usernameToSend = finalUsername;
         try {
             const { data: availability } = await this.supabase.rpc('check_username_available', {
-                check_username: normalizedUsername,
+                check_username: finalUsername,
                 current_user_id: null
             });
             if (availability === false) {
-                this.notify('Username já em uso. Escolha outro.', 'error');
-                return;
+                // Username taken, append random suffix
+                usernameToSend = `${finalUsername.slice(0, 14)}_${Date.now().toString(36)}`;
+                console.warn('[CLOUD] Username taken, using:', usernameToSend);
             }
         } catch (e) {
             console.warn('[CLOUD] Não foi possível validar username (seguindo mesmo assim):', e);
@@ -444,13 +452,14 @@ export const cloudLogic = {
         this.authMsgType = 'info';
 
         try {
+            // IMPORTANT: Always send username in metadata for trigger
             const { data, error } = await this.supabase.auth.signUp({
                 email,
                 password,
                 options: {
                     data: {
-                        username: normalizedUsername,
-                        display_name: normalizedUsername,
+                        username: usernameToSend,
+                        display_name: usernameToSend,
                         avatar_url: null,
                         bio: '',
                         is_public: false
@@ -461,32 +470,38 @@ export const cloudLogic = {
             if (error) throw error;
 
             if (data.user && !data.session) {
+                // Email confirmation required
                 this.authMsg = 'Verifique seu email para confirmar a conta!';
                 this.authMsgType = 'success';
                 this.notify('Email de confirmação enviado!', 'success');
+                playSFX('success');
             } else if (data.session) {
+                // Auto-confirmed (dev mode or disabled confirmation)
                 this.user = data.user;
                 this.isGuest = false;
                 localStorage.removeItem('zenite_is_guest');
 
+                // Fallback: ensure profile exists (trigger should handle this, but be safe)
                 try {
                     const { error: profileError } = await this.supabase
                         .from('profiles')
                         .upsert(
                             {
                                 id: data.user.id,
-                                username: normalizedUsername,
+                                username: usernameToSend,
+                                display_name: usernameToSend,
                                 data: { config: this.settings },
                                 created_at: new Date().toISOString(),
                                 updated_at: new Date().toISOString()
                             },
                             {
-                                onConflict: 'id'
+                                onConflict: 'id',
+                                ignoreDuplicates: false
                             }
                         );
 
                     if (profileError) {
-                        console.warn('[CLOUD] Erro ao criar perfil (pode já existir):', profileError);
+                        console.warn('[CLOUD] Erro ao criar perfil (trigger já criou):', profileError);
                     }
                 } catch (profileErr) {
                     console.warn('[CLOUD] Erro ao criar perfil:', profileErr);
@@ -495,12 +510,19 @@ export const cloudLogic = {
                 this.authMsg = 'Conta criada com sucesso!';
                 this.authMsgType = 'success';
                 this.notify('Bem-vindo ao ZENITE!', 'success');
+                playSFX('success');
 
                 await this.fetchCloud();
-                this.checkOnboarding();
-                this.checkUsername();
-                this.currentView = 'dashboard';
-                window.location.hash = '#/dashboard';
+                this.checkOnboarding?.();
+                this.checkUsername?.();
+                
+                // Use router if available
+                if (window.zeniteRouter) {
+                    window.zeniteRouter.navigate('dashboard', null, true);
+                } else {
+                    this.currentView = 'dashboard';
+                    window.location.hash = '#/dashboard';
+                }
             }
         } catch (e) {
             console.error('[CLOUD] Erro no registro:', e);
@@ -508,6 +530,7 @@ export const cloudLogic = {
             this.authMsg = friendly;
             this.authMsgType = 'error';
             this.notify(friendly, 'error');
+            playSFX('error');
         } finally {
             this.authLoading = false;
         }

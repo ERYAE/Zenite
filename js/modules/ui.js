@@ -374,31 +374,51 @@ export const uiLogic = {
     },
     
     saveAndExit(fromHistory = false) {
+        // Bloqueia saída se houver alterações não salvas (exceto modo guest ou popstate)
         if (this.unsavedChanges && !this.isGuest && !fromHistory) { 
             this.triggerShake(); 
+            this.notify('Salve ou descarte as alterações.', 'warn');
             return; 
         }
         
-        if(this.char && this.activeCharId) { 
-            this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
-            this.updateAgentCount(); 
+        // Salva dados do personagem atual
+        if (this.char && this.activeCharId && this.chars) { 
+            try {
+                this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char)); 
+                this.updateAgentCount?.(); 
+            } catch (e) {
+                console.error('[UI] Erro ao salvar personagem:', e);
+            }
         } 
         
-        this.saveLocal(); 
+        this.saveLocal?.(); 
         
-        if (!this.isGuest && this.unsavedChanges) {
+        // Sincroniza com nuvem se necessário
+        if (!this.isGuest && this.unsavedChanges && this.debouncedSaveFunc) {
             this.autoSaveEnabled = true;
             this.debouncedSaveFunc();
         }
         
+        // Limpa estado da UI
         this.diceTrayOpen = false; 
         this.showDiceTip = false; 
         this.userMenuOpen = false;
-        this.currentView = 'dashboard'; 
+        this.unsavedChanges = false;
+        this.char = null;
         this.activeCharId = null;
+        this.currentView = 'dashboard';
         
-        if (!fromHistory && window.location.hash === '#sheet') { 
-            history.back(); 
+        // Usa o router para navegar corretamente
+        if (window.zeniteRouter) {
+            // Se veio do popstate (botão voltar), não adiciona nova entrada no histórico
+            if (fromHistory) {
+                window.zeniteRouter.updateUrl('dashboard');
+            } else {
+                window.zeniteRouter.exitSheet?.() || window.zeniteRouter.navigate('dashboard', null, false);
+            }
+        } else {
+            // Fallback se router não disponível
+            window.location.hash = '#/dashboard';
         }
     },
 
@@ -963,6 +983,184 @@ export const uiLogic = {
         }
     },
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // AUTH UI HELPERS - Password Strength, Generation, Email Autocomplete
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Calculate password strength score (0-4)
+     * @param {string} password - The password to evaluate
+     * @returns {number} Score from 0 (very weak) to 4 (excellent)
+     */
+    calculatePasswordStrength(password) {
+        if (!password) return 0;
+        
+        let score = 0;
+        const p = String(password);
+        
+        // Length checks
+        if (p.length >= 6) score++;
+        if (p.length >= 8 && /[A-Z]/.test(p)) score++;
+        if (p.length >= 10 && /[0-9]/.test(p)) score++;
+        if (p.length >= 12 && /[^A-Za-z0-9]/.test(p)) score++;
+        
+        return score;
+    },
+
+    /**
+     * Get password strength label
+     * @param {number} score - Strength score (0-4)
+     * @returns {string} Localized strength label
+     */
+    getPasswordStrengthLabel(score) {
+        const labels = ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Excelente!'];
+        return labels[Math.min(score, 4)] || labels[0];
+    },
+
+    /**
+     * Get password strength color class
+     * @param {number} score - Strength score (0-4)
+     * @returns {string} Tailwind color class
+     */
+    getPasswordStrengthColor(score) {
+        const colors = ['text-gray-500', 'text-red-400', 'text-yellow-400', 'text-green-400', 'text-cyan-400'];
+        return colors[Math.min(score, 4)] || colors[0];
+    },
+
+    /**
+     * Update password strength meter bars (toggle classes, don't recreate)
+     * Call this from @input on password field
+     * @param {string} password - Current password value
+     */
+    updatePasswordStrengthMeter(password) {
+        const score = this.calculatePasswordStrength(password);
+        
+        // Store in app state for Alpine reactivity
+        this.passwordStrength = score;
+        this.passwordStrengthLabel = this.getPasswordStrengthLabel(score);
+        this.passwordStrengthColor = this.getPasswordStrengthColor(score);
+        
+        // Update DOM bars directly (for non-Alpine scenarios)
+        const bars = document.querySelectorAll('[data-strength-bar]');
+        bars.forEach((bar, index) => {
+            const barIndex = index + 1;
+            
+            // Remove all color classes first
+            bar.classList.remove('bg-red-500', 'bg-yellow-500', 'bg-green-500', 'bg-cyan-500', 'bg-white/10');
+            
+            // Apply appropriate color based on score
+            if (score === 0) {
+                bar.classList.add('bg-white/10');
+            } else if (barIndex <= score) {
+                if (score === 1) bar.classList.add('bg-red-500');
+                else if (score === 2) bar.classList.add('bg-yellow-500');
+                else if (score === 3) bar.classList.add('bg-green-500');
+                else bar.classList.add('bg-cyan-500');
+            } else {
+                bar.classList.add('bg-white/10');
+            }
+        });
+        
+        return score;
+    },
+
+    /**
+     * Generate a strong random password
+     * @param {number} length - Password length (default 16)
+     * @returns {string} Generated password
+     */
+    generateStrongPassword(length = 16) {
+        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const numbers = '0123456789';
+        const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+        
+        const allChars = lowercase + uppercase + numbers + symbols;
+        
+        // Ensure at least one of each type
+        let password = '';
+        password += lowercase[Math.floor(Math.random() * lowercase.length)];
+        password += uppercase[Math.floor(Math.random() * uppercase.length)];
+        password += numbers[Math.floor(Math.random() * numbers.length)];
+        password += symbols[Math.floor(Math.random() * symbols.length)];
+        
+        // Fill the rest randomly
+        for (let i = password.length; i < length; i++) {
+            password += allChars[Math.floor(Math.random() * allChars.length)];
+        }
+        
+        // Shuffle the password
+        password = password.split('').sort(() => Math.random() - 0.5).join('');
+        
+        return password;
+    },
+
+    /**
+     * Handle email input keydown for Tab autocomplete
+     * Call this with @keydown on email input
+     * @param {KeyboardEvent} event - The keydown event
+     * @param {string} currentEmail - Current email value
+     * @param {string|null} suggestion - Current suggestion (if any)
+     */
+    handleEmailKeydown(event, currentEmail, suggestion) {
+        // Only handle Tab key
+        if (event.key !== 'Tab') return;
+        
+        // If we have a valid suggestion, use it
+        if (suggestion && suggestion !== currentEmail) {
+            event.preventDefault(); // Stop focus change
+            this.authEmail = suggestion;
+            return true;
+        }
+        
+        return false;
+    },
+
+    /**
+     * Generate email domain suggestions based on partial input
+     * @param {string} email - Current email value
+     * @returns {string|null} Suggested complete email or null
+     */
+    getEmailSuggestion(email) {
+        if (!email || !email.includes('@')) return null;
+        
+        const [localPart, domainPart] = email.split('@');
+        if (!localPart) return null;
+        
+        const domains = [
+            'gmail.com',
+            'outlook.com',
+            'hotmail.com',
+            'yahoo.com',
+            'icloud.com',
+            'protonmail.com'
+        ];
+        
+        // If domain part is empty or partial, suggest first matching domain
+        if (!domainPart) {
+            return `${localPart}@${domains[0]}`;
+        }
+        
+        // Find matching domain
+        const matchingDomain = domains.find(d => d.startsWith(domainPart.toLowerCase()));
+        if (matchingDomain && matchingDomain !== domainPart.toLowerCase()) {
+            return `${localPart}@${matchingDomain}`;
+        }
+        
+        return null;
+    },
+
+    /**
+     * Initialize auth UI state
+     * Call this when auth modal opens
+     */
+    initAuthUI() {
+        this.passwordStrength = 0;
+        this.passwordStrengthLabel = 'Muito fraca';
+        this.passwordStrengthColor = 'text-gray-500';
+        this.emailSuggestion = null;
+    },
+
     // ═══════════════════════════════════════════════════════════════════════
     // EXPORTAR FICHA COMO IMAGEM (PNG)
     // ═══════════════════════════════════════════════════════════════════════
