@@ -312,6 +312,8 @@ function zeniteSystem() {
                             this.checkOnboarding();
                             // Configura realtime de amizades
                             this.setupFriendsRealtime();
+                            // CloudCheck automático (verifica integridade dos dados)
+                            this.autoCloudCheck();
                         }
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             console.log('[AUTH] Event:', event);
@@ -334,6 +336,8 @@ function zeniteSystem() {
                                 this.checkOnboarding();
                                 // Configura realtime de amizades
                                 this.setupFriendsRealtime();
+                                // CloudCheck automático (verifica integridade dos dados)
+                                this.autoCloudCheck();
                             } else if (event === 'SIGNED_OUT') {
                                 this.user = null;
                                 this.chars = {};

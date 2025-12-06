@@ -4378,6 +4378,71 @@
                     </div>
                 </div>
 
+                <!-- CloudCheck - Verificação de Dados -->
+                <div class="bg-purple-500/10 rounded-xl p-4 border border-purple-500/30"
+                     x-data="{ 
+                         running: false, 
+                         report: null,
+                         async runCheck() {
+                             this.running = true;
+                             this.report = null;
+                             try {
+                                 this.report = await runCloudCheck(false);
+                             } finally {
+                                 this.running = false;
+                             }
+                         }
+                     }">
+                    <h3 class="text-sm font-bold text-purple-400 uppercase mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-check"></i> CloudCheck
+                    </h3>
+                    <p class="text-xs text-gray-400 mb-3">Verifica e corrige problemas nos seus dados automaticamente</p>
+                    
+                    <div class="space-y-3">
+                        <button @click="runCheck()" 
+                                :disabled="running"
+                                class="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                            <i class="fa-solid" :class="running ? 'fa-circle-notch fa-spin' : 'fa-magnifying-glass'"></i>
+                            <span x-text="running ? 'VERIFICANDO...' : 'EXECUTAR VERIFICAÇÃO'"></span>
+                        </button>
+                        
+                        <!-- Resultado -->
+                        <div x-show="report" x-transition class="bg-black/30 rounded-lg p-3 space-y-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid" :class="report?.success ? 'fa-check-circle text-green-400' : 'fa-times-circle text-red-400'"></i>
+                                <span class="text-xs font-bold" :class="report?.success ? 'text-green-400' : 'text-red-400'" 
+                                      x-text="report?.success ? 'Verificação concluída!' : 'Erro na verificação'"></span>
+                            </div>
+                            <div class="text-[10px] text-gray-400 space-y-1">
+                                <p><i class="fa-solid fa-clock mr-1"></i> Duração: <span x-text="report?.duration + 'ms'"></span></p>
+                                <p><i class="fa-solid fa-list-check mr-1"></i> Verificações: <span x-text="report?.checks?.length || 0"></span></p>
+                                <p><i class="fa-solid fa-wrench mr-1"></i> Correções: <span x-text="report?.fixes?.length || 0" :class="report?.fixes?.length > 0 ? 'text-yellow-400' : ''"></span></p>
+                                <p x-show="report?.errors?.length > 0" class="text-red-400">
+                                    <i class="fa-solid fa-exclamation-triangle mr-1"></i> Erros: <span x-text="report?.errors?.length"></span>
+                                </p>
+                            </div>
+                            <div x-show="report?.fixes?.length > 0" class="mt-2 pt-2 border-t border-white/10">
+                                <p class="text-[10px] text-yellow-400 font-bold mb-1">Correções aplicadas:</p>
+                                <ul class="text-[9px] text-gray-500 space-y-0.5">
+                                    <template x-for="fix in report?.fixes?.slice(0, 5)" :key="fix">
+                                        <li class="flex items-center gap-1">
+                                            <i class="fa-solid fa-check text-green-500"></i>
+                                            <span x-text="fix"></span>
+                                        </li>
+                                    </template>
+                                    <li x-show="report?.fixes?.length > 5" class="text-gray-600">
+                                        + <span x-text="report?.fixes?.length - 5"></span> mais...
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <p class="text-[10px] text-gray-600">
+                            <i class="fa-solid fa-info-circle mr-1"></i> O CloudCheck roda automaticamente a cada 7 dias ou quando há atualização do sistema.
+                        </p>
+                    </div>
+                </div>
+
                 <!-- Danger Zone -->
                 <div class="bg-red-500/10 rounded-xl p-4 border border-red-500/30"
                      x-data="{ confirmDelete: false, deleteConfirmText: '' }">

@@ -946,5 +946,517 @@ export const cloudLogic = {
         } finally {
             this.authLoading = false;
         }
+    },
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // CLOUDCHECK - SISTEMA DE VERIFICAÇÃO E MIGRAÇÃO DE DADOS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Versão atual do schema de dados
+    CLOUDCHECK_VERSION: 2,
+    
+    /**
+     * Executa verificação completa dos dados do usuário
+     * Corrige problemas e migra dados antigos
+     */
+    async runCloudCheck(silent = false) {
+        if (!this.supabase || !this.user) {
+            console.log('[CLOUDCHECK] Usuário não logado, pulando...');
+            return { success: false, reason: 'not_logged_in' };
+        }
+        
+        console.log('[CLOUDCHECK] ═══════════════════════════════════════════');
+        console.log('[CLOUDCHECK] Iniciando verificação de dados...');
+        
+        const report = {
+            startTime: Date.now(),
+            checks: [],
+            fixes: [],
+            errors: [],
+            profileFixed: false,
+            charsFixed: 0,
+            friendsFixed: 0
+        };
+        
+        try {
+            // 1. Verificar e corrigir perfil
+            await this._checkProfile(report);
+            
+            // 2. Verificar e corrigir personagens
+            await this._checkCharacters(report);
+            
+            // 3. Verificar e corrigir amizades
+            await this._checkFriendships(report);
+            
+            // 4. Verificar e corrigir configurações
+            await this._checkSettings(report);
+            
+            // 5. Atualizar versão do schema
+            await this._updateSchemaVersion(report);
+            
+            report.duration = Date.now() - report.startTime;
+            report.success = true;
+            
+            console.log('[CLOUDCHECK] ═══════════════════════════════════════════');
+            console.log('[CLOUDCHECK] Verificação concluída em', report.duration, 'ms');
+            console.log('[CLOUDCHECK] Checks:', report.checks.length);
+            console.log('[CLOUDCHECK] Fixes:', report.fixes.length);
+            console.log('[CLOUDCHECK] Errors:', report.errors.length);
+            
+            if (!silent && report.fixes.length > 0) {
+                this.notify(`CloudCheck: ${report.fixes.length} correções aplicadas!`, 'success');
+            }
+            
+            return report;
+            
+        } catch (e) {
+            console.error('[CLOUDCHECK] Erro fatal:', e);
+            report.errors.push({ type: 'fatal', message: e.message });
+            report.success = false;
+            
+            if (!silent) {
+                this.notify('Erro no CloudCheck. Verifique o console.', 'error');
+            }
+            
+            return report;
+        }
+    },
+    
+    /**
+     * Verifica e corrige o perfil do usuário
+     */
+    async _checkProfile(report) {
+        console.log('[CLOUDCHECK] Verificando perfil...');
+        report.checks.push('profile');
+        
+        try {
+            const { data: profile, error } = await this.supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', this.user.id)
+                .single();
+            
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // Perfil não existe - criar
+                    console.log('[CLOUDCHECK] Perfil não encontrado, criando...');
+                    await this._createMissingProfile(report);
+                    return;
+                }
+                throw error;
+            }
+            
+            const fixes = [];
+            const updates = {};
+            
+            // Check: username válido
+            if (!profile.username || profile.username.length < 2) {
+                const fallback = this.user.email?.split('@')[0] || 'user';
+                const newUsername = normalizeUsername(fallback) || `user_${Date.now().toString(36)}`;
+                updates.username = newUsername;
+                fixes.push('username_missing');
+                console.log('[CLOUDCHECK] Username inválido, corrigindo para:', newUsername);
+            } else if (!/^[a-z0-9_]+$/.test(profile.username)) {
+                // Username com caracteres inválidos
+                const normalized = normalizeUsername(profile.username);
+                if (normalized && normalized !== profile.username) {
+                    updates.username = normalized;
+                    fixes.push('username_normalized');
+                    console.log('[CLOUDCHECK] Username normalizado:', profile.username, '->', normalized);
+                }
+            }
+            
+            // Check: display_name
+            if (!profile.display_name) {
+                updates.display_name = profile.username || updates.username || 'Usuário';
+                fixes.push('display_name_missing');
+            }
+            
+            // Check: is_public definido
+            if (profile.is_public === null || profile.is_public === undefined) {
+                updates.is_public = true;
+                fixes.push('is_public_default');
+            }
+            
+            // Check: bio muito longa
+            if (profile.bio && profile.bio.length > 500) {
+                updates.bio = profile.bio.substring(0, 500);
+                fixes.push('bio_truncated');
+            }
+            
+            // Check: avatar_url válida
+            if (profile.avatar_url && !profile.avatar_url.startsWith('http')) {
+                updates.avatar_url = null;
+                fixes.push('avatar_url_invalid');
+            }
+            
+            // Check: data é objeto válido
+            if (profile.data && typeof profile.data !== 'object') {
+                updates.data = {};
+                fixes.push('data_invalid');
+            }
+            
+            // Aplicar correções se houver
+            if (Object.keys(updates).length > 0) {
+                updates.updated_at = new Date().toISOString();
+                
+                const { error: updateError } = await this.supabase
+                    .from('profiles')
+                    .update(updates)
+                    .eq('id', this.user.id);
+                
+                if (updateError) {
+                    console.error('[CLOUDCHECK] Erro ao atualizar perfil:', updateError);
+                    report.errors.push({ type: 'profile_update', message: updateError.message });
+                } else {
+                    report.fixes.push(...fixes);
+                    report.profileFixed = true;
+                    console.log('[CLOUDCHECK] Perfil corrigido:', fixes);
+                }
+            } else {
+                console.log('[CLOUDCHECK] Perfil OK');
+            }
+            
+        } catch (e) {
+            console.error('[CLOUDCHECK] Erro ao verificar perfil:', e);
+            report.errors.push({ type: 'profile_check', message: e.message });
+        }
+    },
+    
+    /**
+     * Cria perfil faltando
+     */
+    async _createMissingProfile(report) {
+        const fallbackUsername = normalizeUsername(this.user.email?.split('@')[0] || '') || `user_${Date.now().toString(36)}`;
+        
+        const newProfile = {
+            id: this.user.id,
+            username: fallbackUsername,
+            display_name: fallbackUsername,
+            bio: '',
+            avatar_url: null,
+            is_public: true,
+            data: { config: this.settings || {} },
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        const { error } = await this.supabase
+            .from('profiles')
+            .insert([newProfile]);
+        
+        if (error) {
+            console.error('[CLOUDCHECK] Erro ao criar perfil:', error);
+            report.errors.push({ type: 'profile_create', message: error.message });
+        } else {
+            report.fixes.push('profile_created');
+            report.profileFixed = true;
+            console.log('[CLOUDCHECK] Perfil criado com sucesso');
+        }
+    },
+    
+    /**
+     * Verifica e corrige personagens
+     */
+    async _checkCharacters(report) {
+        console.log('[CLOUDCHECK] Verificando personagens...');
+        report.checks.push('characters');
+        
+        if (!this.chars || typeof this.chars !== 'object') {
+            console.log('[CLOUDCHECK] Nenhum personagem para verificar');
+            return;
+        }
+        
+        let fixedCount = 0;
+        const charsToFix = {};
+        
+        for (const [id, char] of Object.entries(this.chars)) {
+            if (!char || typeof char !== 'object') continue;
+            
+            let needsFix = false;
+            const fixedChar = { ...char };
+            
+            // Check: ID válido
+            if (!fixedChar.id) {
+                fixedChar.id = id;
+                needsFix = true;
+            }
+            
+            // Check: nome válido
+            if (!fixedChar.name || typeof fixedChar.name !== 'string') {
+                fixedChar.name = 'Personagem Sem Nome';
+                needsFix = true;
+            } else if (fixedChar.name.length > 100) {
+                fixedChar.name = fixedChar.name.substring(0, 100);
+                needsFix = true;
+            }
+            
+            // Check: level válido
+            if (typeof fixedChar.level !== 'number' || fixedChar.level < 1) {
+                fixedChar.level = 1;
+                needsFix = true;
+            } else if (fixedChar.level > 99) {
+                fixedChar.level = 99;
+                needsFix = true;
+            }
+            
+            // Check: HP/MP válidos
+            ['hp', 'mp', 'san', 'ep'].forEach(stat => {
+                if (fixedChar[stat] !== undefined) {
+                    if (typeof fixedChar[stat].current !== 'number') {
+                        fixedChar[stat].current = fixedChar[stat].max || 10;
+                        needsFix = true;
+                    }
+                    if (typeof fixedChar[stat].max !== 'number' || fixedChar[stat].max < 1) {
+                        fixedChar[stat].max = 10;
+                        needsFix = true;
+                    }
+                    // Current não pode ser maior que max
+                    if (fixedChar[stat].current > fixedChar[stat].max) {
+                        fixedChar[stat].current = fixedChar[stat].max;
+                        needsFix = true;
+                    }
+                    // Current não pode ser negativo
+                    if (fixedChar[stat].current < 0) {
+                        fixedChar[stat].current = 0;
+                        needsFix = true;
+                    }
+                }
+            });
+            
+            // Check: atributos válidos
+            if (fixedChar.attributes && typeof fixedChar.attributes === 'object') {
+                for (const [attr, value] of Object.entries(fixedChar.attributes)) {
+                    if (typeof value !== 'number') {
+                        fixedChar.attributes[attr] = 0;
+                        needsFix = true;
+                    } else if (value < -10 || value > 100) {
+                        fixedChar.attributes[attr] = Math.max(-10, Math.min(100, value));
+                        needsFix = true;
+                    }
+                }
+            }
+            
+            // Check: lastAccess
+            if (!fixedChar.lastAccess || typeof fixedChar.lastAccess !== 'number') {
+                fixedChar.lastAccess = Date.now();
+                needsFix = true;
+            }
+            
+            // Check: inventory é array
+            if (fixedChar.inventory && !Array.isArray(fixedChar.inventory)) {
+                fixedChar.inventory = [];
+                needsFix = true;
+            }
+            
+            // Check: skills é array
+            if (fixedChar.skills && !Array.isArray(fixedChar.skills)) {
+                fixedChar.skills = [];
+                needsFix = true;
+            }
+            
+            // Check: notes é string
+            if (fixedChar.notes && typeof fixedChar.notes !== 'string') {
+                fixedChar.notes = String(fixedChar.notes);
+                needsFix = true;
+            }
+            
+            if (needsFix) {
+                charsToFix[id] = fixedChar;
+                fixedCount++;
+            }
+        }
+        
+        // Aplicar correções
+        if (fixedCount > 0) {
+            Object.assign(this.chars, charsToFix);
+            await this.syncCloud(true);
+            report.fixes.push(`characters_fixed_${fixedCount}`);
+            report.charsFixed = fixedCount;
+            console.log('[CLOUDCHECK] Personagens corrigidos:', fixedCount);
+        } else {
+            console.log('[CLOUDCHECK] Personagens OK');
+        }
+    },
+    
+    /**
+     * Verifica e corrige amizades
+     */
+    async _checkFriendships(report) {
+        console.log('[CLOUDCHECK] Verificando amizades...');
+        report.checks.push('friendships');
+        
+        try {
+            // Busca amizades do usuário
+            const { data: friendships, error } = await this.supabase
+                .from('friendships')
+                .select('id, user_id, friend_id, status')
+                .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`);
+            
+            if (error) throw error;
+            
+            if (!friendships || friendships.length === 0) {
+                console.log('[CLOUDCHECK] Nenhuma amizade para verificar');
+                return;
+            }
+            
+            let fixedCount = 0;
+            const toDelete = [];
+            
+            for (const friendship of friendships) {
+                // Check: auto-amizade (usuário amigo de si mesmo)
+                if (friendship.user_id === friendship.friend_id) {
+                    toDelete.push(friendship.id);
+                    fixedCount++;
+                    console.log('[CLOUDCHECK] Removendo auto-amizade:', friendship.id);
+                    continue;
+                }
+                
+                // Check: status válido
+                if (!['pending', 'accepted', 'rejected', 'blocked'].includes(friendship.status)) {
+                    const { error: updateError } = await this.supabase
+                        .from('friendships')
+                        .update({ status: 'pending' })
+                        .eq('id', friendship.id);
+                    
+                    if (!updateError) {
+                        fixedCount++;
+                        console.log('[CLOUDCHECK] Status de amizade corrigido:', friendship.id);
+                    }
+                }
+            }
+            
+            // Deletar amizades inválidas
+            if (toDelete.length > 0) {
+                const { error: deleteError } = await this.supabase
+                    .from('friendships')
+                    .delete()
+                    .in('id', toDelete);
+                
+                if (deleteError) {
+                    console.error('[CLOUDCHECK] Erro ao deletar amizades:', deleteError);
+                }
+            }
+            
+            if (fixedCount > 0) {
+                report.fixes.push(`friendships_fixed_${fixedCount}`);
+                report.friendsFixed = fixedCount;
+                // Recarrega lista de amigos
+                if (this.loadFriends) {
+                    await this.loadFriends(true);
+                }
+            }
+            
+            console.log('[CLOUDCHECK] Amizades verificadas:', friendships.length, '| Corrigidas:', fixedCount);
+            
+        } catch (e) {
+            console.error('[CLOUDCHECK] Erro ao verificar amizades:', e);
+            report.errors.push({ type: 'friendships_check', message: e.message });
+        }
+    },
+    
+    /**
+     * Verifica e corrige configurações
+     */
+    async _checkSettings(report) {
+        console.log('[CLOUDCHECK] Verificando configurações...');
+        report.checks.push('settings');
+        
+        const defaultSettings = {
+            themeColor: 'cyan',
+            soundEnabled: true,
+            musicEnabled: true,
+            sfxVolume: 0.5,
+            musicVolume: 0.3,
+            diceAnimation: true,
+            autoSave: true,
+            compactMode: false,
+            lowPerformance: false
+        };
+        
+        let needsFix = false;
+        
+        if (!this.settings || typeof this.settings !== 'object') {
+            this.settings = { ...defaultSettings };
+            needsFix = true;
+        } else {
+            // Garantir que todas as configurações existem
+            for (const [key, defaultValue] of Object.entries(defaultSettings)) {
+                if (this.settings[key] === undefined || this.settings[key] === null) {
+                    this.settings[key] = defaultValue;
+                    needsFix = true;
+                }
+            }
+            
+            // Validar tipos
+            if (typeof this.settings.sfxVolume !== 'number' || this.settings.sfxVolume < 0 || this.settings.sfxVolume > 1) {
+                this.settings.sfxVolume = 0.5;
+                needsFix = true;
+            }
+            if (typeof this.settings.musicVolume !== 'number' || this.settings.musicVolume < 0 || this.settings.musicVolume > 1) {
+                this.settings.musicVolume = 0.3;
+                needsFix = true;
+            }
+        }
+        
+        if (needsFix) {
+            report.fixes.push('settings_fixed');
+            this.saveLocal();
+            console.log('[CLOUDCHECK] Configurações corrigidas');
+        } else {
+            console.log('[CLOUDCHECK] Configurações OK');
+        }
+    },
+    
+    /**
+     * Atualiza versão do schema
+     */
+    async _updateSchemaVersion(report) {
+        console.log('[CLOUDCHECK] Atualizando versão do schema...');
+        
+        const currentVersion = localStorage.getItem('zenite_schema_version');
+        
+        if (currentVersion !== String(this.CLOUDCHECK_VERSION)) {
+            localStorage.setItem('zenite_schema_version', String(this.CLOUDCHECK_VERSION));
+            report.fixes.push(`schema_updated_v${this.CLOUDCHECK_VERSION}`);
+            console.log('[CLOUDCHECK] Schema atualizado para v' + this.CLOUDCHECK_VERSION);
+        }
+    },
+    
+    /**
+     * Verifica se precisa rodar CloudCheck
+     */
+    needsCloudCheck() {
+        const lastCheck = localStorage.getItem('zenite_last_cloudcheck');
+        const schemaVersion = localStorage.getItem('zenite_schema_version');
+        
+        // Se nunca rodou ou versão diferente
+        if (!lastCheck || schemaVersion !== String(this.CLOUDCHECK_VERSION)) {
+            return true;
+        }
+        
+        // Se faz mais de 7 dias
+        const daysSinceCheck = (Date.now() - parseInt(lastCheck)) / (1000 * 60 * 60 * 24);
+        return daysSinceCheck > 7;
+    },
+    
+    /**
+     * Marca CloudCheck como executado
+     */
+    markCloudCheckDone() {
+        localStorage.setItem('zenite_last_cloudcheck', String(Date.now()));
+    },
+    
+    /**
+     * Executa CloudCheck se necessário (chamado no login)
+     */
+    async autoCloudCheck() {
+        if (this.needsCloudCheck()) {
+            console.log('[CLOUDCHECK] Executando verificação automática...');
+            const report = await this.runCloudCheck(true);
+            this.markCloudCheckDone();
+            return report;
+        }
+        return null;
     }
 };
