@@ -1,12 +1,14 @@
 /**
  * ZENITE OS - Social Module
- * Sistema de Amigos, Achievements e Perfil Público
+ * Sistema de Amigos, Chat, Achievements e Perfil Público
  * 
- * OTIMIZADO para economizar recursos:
- * - Cache local agressivo
- * - Sync sob demanda
- * - Achievements calculados localmente
- * - Batch operations
+ * ARQUITETURA PROFISSIONAL:
+ * - Realtime lazy loading (conecta apenas quando necessário)
+ * - Cache agressivo com invalidação inteligente
+ * - Funções SQL otimizadas (get_friends_full, get_pending_requests, etc)
+ * - Chat entre amigos com mensagens não lidas
+ * - Sistema de convite para campanha
+ * - Performance e segurança em primeiro lugar
  */
 
 import { playSFX } from './audio.js';
@@ -268,20 +270,38 @@ export const ACHIEVEMENTS = {
 export const socialLogic = {
     
     // ─────────────────────────────────────────────────────────────────────────
-    // ESTADO
+    // ESTADO PRINCIPAL
     // ─────────────────────────────────────────────────────────────────────────
     
-    // Amigos (cache local)
+    // Amigos (cache local com dados completos)
     friends: [],
     friendRequests: [],
     friendsLoaded: false,
-    friendsRealtimeChannel: null, // Canal realtime para pedidos de amizade
+    
+    // Realtime (lazy loading - conecta apenas quando necessário)
+    friendsRealtimeChannel: null,
+    chatRealtimeChannel: null,
+    realtimeActive: false,
+    
+    // Chat entre amigos
+    activeChatFriendId: null,
+    activeChatFriend: null,
+    chatMessages: [],
+    chatLoading: false,
+    chatInput: '',
+    unreadCounts: {}, // { friendId: count }
+    totalUnreadMessages: 0,
+    
+    // Convite para campanha
+    inviteCampaignModalOpen: false,
+    inviteTargetFriend: null,
+    availableCampaigns: [],
     
     // Achievements (calculado localmente)
     unlockedAchievements: [],
-    achievementsLoaded: false, // Flag para evitar checks antes de carregar
+    achievementsLoaded: false,
     
-    // Stats locais (economiza queries)
+    // Stats locais
     localStats: {
         totalRolls: 0,
         criticalRolls: 0,
@@ -300,28 +320,33 @@ export const socialLogic = {
         themeChanges: 0,
         nightOwl: false,
         earlyBird: false,
-        longestSession: 0, // minutos
+        longestSession: 0,
         konamiActivated: false,
         systemFailure: false,
         hackerMode: false
     },
     
-    // Perfil
+    // Perfil e Modais
     publicProfile: null,
     profileModalOpen: false,
     friendsModalOpen: false,
     achievementsModalOpen: false,
-    changelogModalOpen: false, // Modal de changelog
-    viewingProfile: null, // Perfil de outro usuário sendo visualizado
+    changelogModalOpen: false,
+    chatModalOpen: false,
+    viewingProfile: null,
     
     // Username System
-    usernameInput: '',           // Input do campo de username
-    usernameChecking: false,     // Se está verificando disponibilidade
-    usernameCheckResult: null,   // 'available', 'taken', 'invalid', null
-    usernameCheckMessage: '',    // Mensagem de feedback
-    usernameCooldownDays: 0,     // Dias restantes para poder alterar
-    canChangeUsername: true,     // Se pode alterar agora
-    usernameSaving: false,       // Se está salvando
+    usernameInput: '',
+    usernameChecking: false,
+    usernameCheckResult: null,
+    usernameCheckMessage: '',
+    usernameCooldownDays: 0,
+    canChangeUsername: true,
+    usernameSaving: false,
+    
+    // Busca de amigos
+    friendSearchQuery: '',
+    friendSearchLoading: false,
     
     // ─────────────────────────────────────────────────────────────────────────
     // INICIALIZAÇÃO (carrega do localStorage)
@@ -554,71 +579,136 @@ export const socialLogic = {
     },
     
     // ─────────────────────────────────────────────────────────────────────────
-    // AMIGOS (cache local, sync sob demanda)
-    // ⚠️ REFATORADO v2.2.0 - Usa funções SQL otimizadas
+    // SISTEMA DE AMIGOS (Refatorado - Usa funções SQL otimizadas)
     // ─────────────────────────────────────────────────────────────────────────
     
+    /**
+     * Carrega lista completa de amigos com dados do perfil
+     * Usa função SQL get_friends_full() para performance
+     */
     async loadFriends(forceRefresh = false) {
         if (!this.supabase || !this.user) return;
-        
-        // Usa cache se já carregou
         if (this.friendsLoaded && !forceRefresh) return;
         
         try {
-            console.log('[SOCIAL] Carregando amigos para:', this.user.id);
-            
-            // USA FUNÇÃO SQL OTIMIZADA - Uma única query com JOIN
+            // USA FUNÇÃO SQL OTIMIZADA com todos os dados
             const { data: friends, error: friendsError } = await this.supabase
-                .rpc('get_user_friends', { target_user_id: this.user.id });
+                .rpc('get_friends_full');
             
             if (friendsError) {
-                console.error('[SOCIAL] Erro ao buscar amigos:', friendsError);
-                throw friendsError;
+                console.error('[FRIENDS] Erro ao buscar:', friendsError);
+                // Fallback para query tradicional
+                await this.loadFriendsFallback();
+                return;
             }
             
-            console.log('[SOCIAL] Amigos carregados:', friends?.length || 0);
-            
-            // Mapeia para o formato esperado
+            // Mapeia para formato esperado
             this.friends = (friends || []).map(f => ({
                 id: f.friendship_id,
-                friend_id: f.friend_id,
-                friend_username: f.friend_username || 'desconhecido',
-                friend_display_name: f.friend_display_name || f.friend_username || 'Usuário',
-                friend_avatar: f.friend_avatar_url,
-                created_at: f.created_at
+                friendId: f.friend_id,
+                username: f.username || 'desconhecido',
+                displayName: f.display_name || f.username || 'Usuário',
+                avatar: f.avatar_url,
+                bio: f.bio,
+                isOnline: f.is_online || false,
+                lastSeen: f.last_seen,
+                friendshipDate: f.friendship_date,
+                unreadMessages: f.unread_messages || 0,
+                achievementsCount: f.achievements_count || 0
             }));
             
-            console.log('[SOCIAL] Lista final de amigos:', this.friends);
+            // Calcula total de mensagens não lidas
+            this.totalUnreadMessages = this.friends.reduce((sum, f) => sum + (f.unreadMessages || 0), 0);
             
-            // USA FUNÇÃO SQL OTIMIZADA para pedidos
+            // Cria mapa de contagem
+            this.unreadCounts = {};
+            this.friends.forEach(f => {
+                if (f.unreadMessages > 0) {
+                    this.unreadCounts[f.friendId] = f.unreadMessages;
+                }
+            });
+            
+            // USA FUNÇÃO SQL para pedidos pendentes
             const { data: requests, error: requestsError } = await this.supabase
-                .rpc('get_friend_requests', { target_user_id: this.user.id });
+                .rpc('get_pending_requests');
             
-            if (requestsError) {
-                console.error('[SOCIAL] Erro ao buscar pedidos:', requestsError);
+            if (!requestsError) {
+                this.friendRequests = (requests || []).map(r => ({
+                    id: r.request_id,
+                    senderId: r.sender_id,
+                    username: r.username || 'desconhecido',
+                    displayName: r.display_name || r.username || 'Usuário',
+                    avatar: r.avatar_url,
+                    bio: r.bio,
+                    sentAt: r.sent_at
+                }));
             }
             
-            console.log('[SOCIAL] Pedidos pendentes:', requests?.length || 0);
-            
-            // Mapeia para o formato esperado
-            this.friendRequests = (requests || []).map(r => ({
-                id: r.request_id,
-                user_id: r.sender_id,
-                sender_username: r.sender_username || 'desconhecido',
-                sender_display_name: r.sender_display_name || r.sender_username || 'Usuário',
-                sender_avatar: r.sender_avatar_url,
-                created_at: r.created_at
-            }));
-            
             this.friendsLoaded = true;
-            
-            // Atualiza stat
             this.localStats.friendsCount = this.friends.length;
             this.saveLocalStats();
             this.checkAchievements();
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao carregar amigos:', e);
+            console.error('[FRIENDS] Erro ao carregar:', e);
+            await this.loadFriendsFallback();
+        }
+    },
+    
+    /**
+     * Fallback caso as funções SQL não existam
+     */
+    async loadFriendsFallback() {
+        try {
+            const { data: friendships } = await this.supabase
+                .from('friendships')
+                .select(`
+                    id, user_id, friend_id, status, created_at,
+                    profiles!friendships_friend_id_fkey(username, display_name, avatar_url, bio)
+                `)
+                .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`)
+                .eq('status', 'accepted');
+            
+            this.friends = (friendships || []).map(f => {
+                const isMe = f.user_id === this.user.id;
+                const friendId = isMe ? f.friend_id : f.user_id;
+                const profile = f.profiles;
+                
+                return {
+                    id: f.id,
+                    friendId: friendId,
+                    username: profile?.username || 'desconhecido',
+                    displayName: profile?.display_name || profile?.username || 'Usuário',
+                    avatar: profile?.avatar_url,
+                    bio: profile?.bio,
+                    friendshipDate: f.created_at,
+                    unreadMessages: 0,
+                    achievementsCount: 0
+                };
+            });
+            
+            // Pedidos pendentes
+            const { data: requests } = await this.supabase
+                .from('friendships')
+                .select(`
+                    id, user_id, created_at,
+                    profiles!friendships_user_id_fkey(username, display_name, avatar_url)
+                `)
+                .eq('friend_id', this.user.id)
+                .eq('status', 'pending');
+            
+            this.friendRequests = (requests || []).map(r => ({
+                id: r.id,
+                senderId: r.user_id,
+                username: r.profiles?.username || 'desconhecido',
+                displayName: r.profiles?.display_name || r.profiles?.username || 'Usuário',
+                avatar: r.profiles?.avatar_url,
+                sentAt: r.created_at
+            }));
+            
+            this.friendsLoaded = true;
+        } catch (e) {
+            console.error('[FRIENDS] Fallback também falhou:', e);
             this.friends = [];
             this.friendRequests = [];
         }
@@ -800,7 +890,296 @@ export const socialLogic = {
             await this.loadFriends(true);
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao remover amigo:', e);
+            console.error('[FRIENDS] Erro ao remover:', e);
+        }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHAT ENTRE AMIGOS (Whisper/Cochicho)
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Abre chat com um amigo específico
+     */
+    async openChat(friend) {
+        if (!friend?.friendId) return;
+        
+        this.activeChatFriendId = friend.friendId;
+        this.activeChatFriend = friend;
+        this.chatMessages = [];
+        this.chatInput = '';
+        this.chatModalOpen = true;
+        this.chatLoading = true;
+        
+        // Conecta realtime do chat
+        await this.setupChatRealtime(friend.friendId);
+        
+        // Carrega mensagens
+        await this.loadChatMessages(friend.friendId);
+        
+        // Marca como lidas e atualiza contador
+        if (this.unreadCounts[friend.friendId]) {
+            this.totalUnreadMessages -= this.unreadCounts[friend.friendId];
+            this.unreadCounts[friend.friendId] = 0;
+            friend.unreadMessages = 0;
+        }
+        
+        this.chatLoading = false;
+    },
+    
+    /**
+     * Fecha o chat e desconecta realtime
+     */
+    async closeChat() {
+        await this.disconnectChatRealtime();
+        this.activeChatFriendId = null;
+        this.activeChatFriend = null;
+        this.chatMessages = [];
+        this.chatModalOpen = false;
+    },
+    
+    /**
+     * Carrega mensagens de uma conversa
+     */
+    async loadChatMessages(friendId, limit = 50) {
+        if (!this.supabase || !friendId) return;
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('get_friend_conversation', {
+                    p_friend_id: friendId,
+                    p_limit: limit,
+                    p_offset: 0
+                });
+            
+            if (error) throw error;
+            
+            // Inverte para ordem cronológica (mais antigas primeiro)
+            this.chatMessages = (data || []).reverse().map(m => ({
+                id: m.id,
+                content: m.content,
+                isMine: m.is_mine,
+                createdAt: m.created_at,
+                isRead: m.is_read
+            }));
+            
+        } catch (e) {
+            console.error('[CHAT] Erro ao carregar mensagens:', e);
+            // Fallback
+            await this.loadChatMessagesFallback(friendId);
+        }
+    },
+    
+    /**
+     * Fallback para carregar mensagens
+     */
+    async loadChatMessagesFallback(friendId) {
+        try {
+            const { data } = await this.supabase
+                .from('friend_messages')
+                .select('*')
+                .or(`and(sender_id.eq.${this.user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${this.user.id})`)
+                .order('created_at', { ascending: true })
+                .limit(50);
+            
+            this.chatMessages = (data || []).map(m => ({
+                id: m.id,
+                content: m.content,
+                isMine: m.sender_id === this.user.id,
+                createdAt: m.created_at,
+                isRead: m.is_read
+            }));
+        } catch (e) {
+            console.error('[CHAT] Fallback falhou:', e);
+            this.chatMessages = [];
+        }
+    },
+    
+    /**
+     * Envia mensagem para um amigo
+     */
+    async sendChatMessage() {
+        const content = this.chatInput?.trim();
+        if (!content || !this.activeChatFriendId || !this.supabase) return;
+        
+        const friendId = this.activeChatFriendId;
+        this.chatInput = '';
+        
+        // Adiciona mensagem otimista
+        const tempId = `temp-${Date.now()}`;
+        const optimisticMessage = {
+            id: tempId,
+            content: content,
+            isMine: true,
+            createdAt: new Date().toISOString(),
+            isRead: false,
+            sending: true
+        };
+        
+        this.chatMessages.push(optimisticMessage);
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('send_friend_message', {
+                    p_receiver_id: friendId,
+                    p_content: content
+                });
+            
+            if (error) throw error;
+            
+            if (!data?.success) {
+                throw new Error(data?.error || 'Erro ao enviar');
+            }
+            
+            // Atualiza mensagem otimista
+            const idx = this.chatMessages.findIndex(m => m.id === tempId);
+            if (idx !== -1) {
+                this.chatMessages[idx].id = data.message_id;
+                this.chatMessages[idx].sending = false;
+            }
+            
+            // Incrementa stat
+            this.localStats.messagesSent++;
+            this.saveLocalStats();
+            this.checkAchievements();
+            
+        } catch (e) {
+            console.error('[CHAT] Erro ao enviar:', e);
+            
+            // Remove mensagem otimista em caso de erro
+            const idx = this.chatMessages.findIndex(m => m.id === tempId);
+            if (idx !== -1) {
+                this.chatMessages.splice(idx, 1);
+            }
+            
+            this.notify('Erro ao enviar mensagem.', 'error');
+        }
+    },
+    
+    /**
+     * Configura realtime do chat
+     */
+    async setupChatRealtime(friendId) {
+        await this.disconnectChatRealtime();
+        
+        if (!this.supabase) return;
+        
+        this.chatRealtimeChannel = this.supabase
+            .channel(`chat-${this.user.id}-${friendId}`)
+            .on('postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'friend_messages',
+                    filter: `receiver_id=eq.${this.user.id}`
+                },
+                (payload) => {
+                    const msg = payload.new;
+                    if (msg.sender_id === friendId) {
+                        this.chatMessages.push({
+                            id: msg.id,
+                            content: msg.content,
+                            isMine: false,
+                            createdAt: msg.created_at,
+                            isRead: true
+                        });
+                        playSFX('notification');
+                    }
+                }
+            )
+            .subscribe();
+    },
+    
+    /**
+     * Desconecta realtime do chat
+     */
+    async disconnectChatRealtime() {
+        if (this.chatRealtimeChannel && this.supabase) {
+            await this.supabase.removeChannel(this.chatRealtimeChannel);
+            this.chatRealtimeChannel = null;
+        }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONVITE PARA CAMPANHA
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Abre modal de convite para campanha
+     */
+    async openInviteCampaignModal(friend) {
+        if (!friend?.friendId) return;
+        
+        this.inviteTargetFriend = friend;
+        this.availableCampaigns = [];
+        this.inviteCampaignModalOpen = true;
+        
+        // Carrega campanhas onde sou GM
+        await this.loadAvailableCampaigns();
+    },
+    
+    /**
+     * Carrega campanhas disponíveis para convite
+     */
+    async loadAvailableCampaigns() {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            const { data, error } = await this.supabase
+                .from('campaigns')
+                .select('id, name, code, invite_code')
+                .eq('gm_id', this.user.id);
+            
+            if (error) throw error;
+            
+            this.availableCampaigns = data || [];
+        } catch (e) {
+            console.error('[INVITE] Erro ao carregar campanhas:', e);
+            this.availableCampaigns = [];
+        }
+    },
+    
+    /**
+     * Envia convite de campanha para amigo
+     */
+    async sendCampaignInvite(campaignId) {
+        if (!this.inviteTargetFriend?.friendId || !campaignId) return;
+        
+        try {
+            // Verifica se já é membro
+            const { data: existing } = await this.supabase
+                .from('campaign_members')
+                .select('id')
+                .eq('campaign_id', campaignId)
+                .eq('user_id', this.inviteTargetFriend.friendId)
+                .single();
+            
+            if (existing) {
+                this.notify('Este amigo já está na campanha!', 'warn');
+                return;
+            }
+            
+            // Adiciona como membro pendente
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .insert({
+                    campaign_id: campaignId,
+                    user_id: this.inviteTargetFriend.friendId,
+                    role: 'player',
+                    status: 'invited'
+                });
+            
+            if (error) throw error;
+            
+            this.notify(`Convite enviado para ${this.inviteTargetFriend.displayName}!`, 'success');
+            playSFX('success');
+            
+            this.inviteCampaignModalOpen = false;
+            this.inviteTargetFriend = null;
+            
+        } catch (e) {
+            console.error('[INVITE] Erro ao enviar convite:', e);
+            this.notify('Erro ao enviar convite.', 'error');
         }
     },
     

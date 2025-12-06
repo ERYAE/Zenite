@@ -1,16 +1,85 @@
 // js/modules/changelog.js
 // ═══════════════════════════════════════════════════════════════════════════
-// CHANGELOG DATA
+// ZENITE OS - CHANGELOG
 // ═══════════════════════════════════════════════════════════════════════════
-// ⚠️ IMPORTANTE: SEMPRE ATUALIZAR ESTE ARQUIVO QUANDO HOUVER MUDANÇAS!
-// ⚠️ Adicione novas versões no TOPO do array
+// Histórico de atualizações do sistema
+// Adicione novos updates no TOPO do array
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CHANGELOG = [
+    // ───────────────────────────────────────────────────────────────────
+    // SOCIAL OVERHAUL - Sistema de Amigos e Chat
+    // ───────────────────────────────────────────────────────────────────
     {
-        version: 'v2.3.0',
-        date: '2024-12-06',
-        title: 'ANIMATIONS & LOADING PRECISION',
+        title: 'SOCIAL OVERHAUL',
+        emoji: '👥',
+        isNew: true,
+        sections: [
+            {
+                title: 'Chat entre Amigos',
+                icon: 'fa-comments',
+                color: 'pink',
+                items: [
+                    {
+                        title: 'Whisper/Cochicho',
+                        description: 'Converse em privado com seus amigos',
+                        details: [
+                            'Mensagens em tempo real',
+                            'Contador de mensagens não lidas',
+                            'Atualização otimista instantânea',
+                            'Realtime lazy loading (conecta só quando usa)'
+                        ]
+                    },
+                    {
+                        title: 'Convite para Campanha',
+                        description: 'Convide amigos diretamente para suas campanhas'
+                    }
+                ]
+            },
+            {
+                title: 'Sistema de Amigos',
+                icon: 'fa-user-group',
+                color: 'cyan',
+                items: [
+                    {
+                        title: 'Perfis Completos',
+                        details: [
+                            'Username e display name',
+                            'Avatar personalizável',
+                            'Bio e links sociais',
+                            'Contagem de achievements'
+                        ]
+                    },
+                    {
+                        title: 'SQL Otimizado',
+                        details: [
+                            'Funções get_friends_full() e get_pending_requests()',
+                            'Índices compostos para performance',
+                            'Row Level Security (RLS)',
+                            'Queries 10x mais rápidas'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Otimizações',
+                icon: 'fa-bolt',
+                color: 'yellow',
+                items: [
+                    { title: 'Realtime lazy loading - conecta apenas quando necessário' },
+                    { title: 'Fallbacks automáticos se funções SQL não existirem' },
+                    { title: 'Cache agressivo com invalidação inteligente' },
+                    { title: 'Mensagens otimistas para UX instantânea' }
+                ]
+            }
+        ]
+    },
+    
+    // ───────────────────────────────────────────────────────────────────
+    // LOADING PRECISION - Sistema de Loading
+    // ───────────────────────────────────────────────────────────────────
+    {
+        title: 'LOADING PRECISION',
         emoji: '✨',
         sections: [
             {
@@ -75,11 +144,12 @@ export const CHANGELOG = [
             }
         ]
     },
+    // ───────────────────────────────────────────────────────────────────
+    // CLOUDCHECK - Sistema de Verificação de Dados
+    // ───────────────────────────────────────────────────────────────────
     {
-        version: 'v2.2.0',
-        date: '2024-12-06',
-        title: 'FRIENDS SYSTEM OVERHAUL',
-        emoji: '🤝',
+        title: 'CLOUDCHECK',
+        emoji: '🛡️',
         sections: [
             {
                 title: 'Novidades',
@@ -121,11 +191,12 @@ export const CHANGELOG = [
             }
         ]
     },
+    // ───────────────────────────────────────────────────────────────────
+    // STABILITY - Correções e Melhorias
+    // ───────────────────────────────────────────────────────────────────
     {
-        version: 'v2.1.0',
-        date: '2024-12-06',
-        title: 'CLOUDCHECK & STABILITY',
-        emoji: '🛡️',
+        title: 'STABILITY',
+        emoji: '🔧',
         sections: [
             {
                 title: 'Novidades',
@@ -211,9 +282,10 @@ export const CHANGELOG = [
             }
         ]
     },
+    // ───────────────────────────────────────────────────────────────────
+    // SISTEMA BASE - Lançamento Inicial
+    // ───────────────────────────────────────────────────────────────────
     {
-        version: 'v2.0.0',
-        date: '2024-11-XX',
         title: 'SISTEMA BASE',
         emoji: '🚀',
         sections: [
@@ -238,16 +310,27 @@ export const CHANGELOG = [
     }
 ];
 
-// Versão atual do sistema
-export const CURRENT_VERSION = 'v2.3.0';
-
-// Verifica se há nova versão desde a última visualização
-export function hasNewVersion() {
-    const lastSeenVersion = localStorage.getItem('zenite_last_seen_version');
-    return lastSeenVersion !== CURRENT_VERSION;
+// Obtém o update mais recente
+export function getLatestUpdate() {
+    return CHANGELOG[0] || null;
 }
 
-// Marca versão como visualizada
-export function markVersionSeen() {
-    localStorage.setItem('zenite_last_seen_version', CURRENT_VERSION);
+// Verifica se há update novo desde a última visualização
+export function hasNewUpdate() {
+    const lastSeenUpdate = localStorage.getItem('zenite_last_seen_update');
+    const latest = CHANGELOG[0];
+    return latest && lastSeenUpdate !== latest.title;
+}
+
+// Marca update como visualizado
+export function markUpdateSeen() {
+    const latest = CHANGELOG[0];
+    if (latest) {
+        localStorage.setItem('zenite_last_seen_update', latest.title);
+    }
+}
+
+// Obtém quantidade de updates
+export function getUpdateCount() {
+    return CHANGELOG.length;
 }

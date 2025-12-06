@@ -582,7 +582,7 @@
                             </button>
                             <button @click="changelogModalOpen = true; userMenuOpen = false" class="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-solid fa-code-branch w-4 text-cyan-400"></i> Changelog
-                                <span class="ml-auto text-[9px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded">v2.3.0</span>
+                                <span class="ml-auto text-[9px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded animate-pulse">NEW</span>
                             </button>
                             <button @click="openFriendsModal(); userMenuOpen = false" class="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-solid fa-user-group w-4 text-pink-400"></i> Amigos
@@ -3630,22 +3630,24 @@
             <!-- Pedidos pendentes -->
             <div x-show="friendRequests.length > 0" class="mb-4">
                 <h3 class="text-[10px] text-yellow-400 font-bold uppercase mb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-bell"></i> Pedidos Pendentes (<span x-text="friendRequests.length"></span>)
+                    <i class="fa-solid fa-bell animate-pulse"></i> Pedidos Pendentes (<span x-text="friendRequests.length"></span>)
                 </h3>
                 <div class="space-y-2">
                     <template x-for="req in friendRequests" :key="req.id">
                         <div class="bg-yellow-500/10 rounded-lg p-3 border border-yellow-500/20 flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400">
-                                <i class="fa-solid fa-user"></i>
+                            <div class="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 overflow-hidden flex-shrink-0">
+                                <img x-show="req.avatar" :src="req.avatar" class="w-full h-full object-cover">
+                                <i x-show="!req.avatar" class="fa-solid fa-user"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-xs text-white font-bold truncate" x-text="'@' + (req.sender_username || 'usuário')"></p>
+                                <p class="text-sm text-white font-bold truncate" x-text="req.displayName || 'Usuário'"></p>
+                                <p class="text-[9px] text-yellow-400/70 font-code" x-text="'@' + (req.username || 'usuário')"></p>
                             </div>
                             <div class="flex gap-1">
-                                <button @click="acceptFriendRequest(req.id)" class="w-7 h-7 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center justify-center">
+                                <button @click="acceptFriendRequest(req.id)" class="w-8 h-8 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center justify-center transition-all active:scale-90">
                                     <i class="fa-solid fa-check text-xs"></i>
                                 </button>
-                                <button @click="rejectFriendRequest(req.id)" class="w-7 h-7 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 flex items-center justify-center">
+                                <button @click="rejectFriendRequest(req.id)" class="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 flex items-center justify-center transition-all active:scale-90">
                                     <i class="fa-solid fa-xmark text-xs"></i>
                                 </button>
                             </div>
@@ -3688,29 +3690,52 @@
             
             <!-- Lista de amigos -->
             <div>
-                <h3 class="text-[10px] text-pink-400 font-bold uppercase mb-2">Meus Amigos (<span x-text="friends.length"></span>)</h3>
+                <h3 class="text-[10px] text-pink-400 font-bold uppercase mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-heart"></i> Meus Amigos (<span x-text="friends.length"></span>)
+                    <span x-show="totalUnreadMessages > 0" class="ml-auto text-[9px] bg-pink-500 text-white px-1.5 py-0.5 rounded-full animate-pulse" x-text="totalUnreadMessages + ' novas'"></span>
+                </h3>
                 <div class="space-y-2">
-                    <template x-for="friendship in friends" :key="friendship.id">
-                        <div class="bg-black/40 rounded-lg p-3 border border-white/5 flex items-center gap-3 group hover:border-pink-500/30 transition-colors cursor-pointer"
-                             @click="viewProfile(friendship.friend_id, true)">
-                            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden flex-shrink-0">
-                                <img x-show="friendship.friend_avatar" :src="friendship.friend_avatar" class="w-full h-full object-cover">
-                                <i x-show="!friendship.friend_avatar" class="fa-solid fa-user"></i>
+                    <template x-for="friend in friends" :key="friend.id">
+                        <div class="bg-black/40 rounded-xl p-3 border border-white/5 hover:border-pink-500/30 transition-all group">
+                            <!-- Avatar e info -->
+                            <div class="flex items-center gap-3 cursor-pointer" @click="viewProfile(friend.friendId, true)">
+                                <div class="relative flex-shrink-0">
+                                    <div class="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden">
+                                        <img x-show="friend.avatar" :src="friend.avatar" class="w-full h-full object-cover">
+                                        <i x-show="!friend.avatar" class="fa-solid fa-user text-lg"></i>
+                                    </div>
+                                    <!-- Badge de mensagens não lidas -->
+                                    <span x-show="friend.unreadMessages > 0" 
+                                          class="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse"
+                                          x-text="friend.unreadMessages"></span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-white font-bold truncate" x-text="friend.displayName || 'Usuário'"></p>
+                                    <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (friend.username || 'usuário')"></p>
+                                    <p x-show="friend.achievementsCount > 0" class="text-[8px] text-yellow-400/60 mt-0.5">
+                                        <i class="fa-solid fa-trophy"></i> <span x-text="friend.achievementsCount"></span> achievements
+                                    </p>
+                                </div>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm text-white font-bold truncate" x-text="friendship.friend_display_name || 'Usuário'"></p>
-                                <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (friendship.friend_username || 'usuário')"></p>
-                            </div>
-                            <div class="flex gap-1" @click.stop>
-                                <!-- Botão Convidar para Campanha (aparece se GM tem campanha ativa) -->
-                                <button x-show="activeCampaign && isGMOfActiveCampaign() && canInviteFriend(friendship.friend_id)"
-                                        @click.stop="inviteFriendToCampaign(friendship.friend_id)"
-                                        class="w-8 h-8 rounded-lg text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 flex items-center justify-center transition-all"
-                                        :title="'Convidar para ' + activeCampaign?.name">
-                                    <i class="fa-solid fa-gamepad text-xs"></i>
+                            
+                            <!-- Ações -->
+                            <div class="flex gap-2 mt-3 pt-3 border-t border-white/5">
+                                <!-- Chat -->
+                                <button @click="openChat(friend)" 
+                                        class="flex-1 py-2 rounded-lg bg-pink-500/20 text-pink-400 hover:bg-pink-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95">
+                                    <i class="fa-solid fa-comment"></i> Chat
+                                    <span x-show="friend.unreadMessages > 0" class="bg-pink-500 text-white px-1.5 rounded text-[9px]" x-text="friend.unreadMessages"></span>
                                 </button>
-                                <button @click="removeFriend(friendship.id)" 
-                                        class="w-8 h-8 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                
+                                <!-- Convidar para Campanha -->
+                                <button @click="openInviteCampaignModal(friend)" 
+                                        class="flex-1 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95">
+                                    <i class="fa-solid fa-gamepad"></i> Convidar
+                                </button>
+                                
+                                <!-- Remover -->
+                                <button @click="removeFriend(friend.id)" 
+                                        class="w-10 py-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-90">
                                     <i class="fa-solid fa-user-minus text-xs"></i>
                                 </button>
                             </div>
@@ -3718,19 +3743,130 @@
                     </template>
                     
                     <div x-show="friends.length === 0" class="text-center py-8 text-gray-600">
-                        <i class="fa-solid fa-user-group text-3xl mb-3"></i>
-                        <p class="text-sm">Nenhum amigo ainda</p>
-                        <p class="text-[10px] text-gray-700">Compartilhe seu @username!</p>
+                        <i class="fa-solid fa-user-group text-4xl mb-3 opacity-30"></i>
+                        <p class="text-sm font-bold">Nenhum amigo ainda</p>
+                        <p class="text-[10px] text-gray-700 mt-1">Compartilhe seu @username para adicionar amigos!</p>
                     </div>
                 </div>
             </div>
             
-            <!-- Info sobre convites (quando GM tem campanha ativa) -->
-            <div x-show="activeCampaign && isGMOfActiveCampaign()" class="mt-4 bg-purple-500/10 rounded-lg p-3 border border-purple-500/20">
-                <p class="text-[10px] text-purple-400 flex items-center gap-2">
-                    <i class="fa-solid fa-info-circle"></i>
-                    <span>Clique em <i class="fa-solid fa-gamepad mx-1"></i> para convidar amigos para "<span x-text="activeCampaign?.name" class="font-bold"></span>"</span>
-                </p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL: CHAT COM AMIGO (Whisper/Cochicho)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div x-show="chatModalOpen"  
+     class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+     x-transition.opacity @keydown.escape.window="closeChat()">
+    <div class="glass rounded-2xl w-full max-w-lg h-[80vh] flex flex-col border border-pink-500/30 shadow-2xl modal-enter overflow-hidden">
+        <!-- Header -->
+        <div class="p-4 border-b border-white/10 flex items-center gap-3 bg-pink-500/5 flex-shrink-0">
+            <button @click="closeChat()" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden flex-shrink-0">
+                <img x-show="activeChatFriend?.avatar" :src="activeChatFriend?.avatar" class="w-full h-full object-cover">
+                <i x-show="!activeChatFriend?.avatar" class="fa-solid fa-user"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-white font-bold truncate" x-text="activeChatFriend?.displayName || 'Chat'"></p>
+                <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (activeChatFriend?.username || '')"></p>
+            </div>
+        </div>
+        
+        <!-- Mensagens -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" id="chat-messages">
+            <div x-show="chatLoading" class="flex justify-center py-8">
+                <i class="fa-solid fa-spinner fa-spin text-pink-400 text-2xl"></i>
+            </div>
+            
+            <template x-for="msg in chatMessages" :key="msg.id">
+                <div class="flex" :class="msg.isMine ? 'justify-end' : 'justify-start'">
+                    <div class="max-w-[80%] rounded-2xl px-4 py-2"
+                         :class="msg.isMine ? 'bg-pink-500 text-white rounded-br-none' : 'bg-white/10 text-white rounded-bl-none'">
+                        <p class="text-sm break-words" x-text="msg.content"></p>
+                        <p class="text-[8px] mt-1 flex items-center gap-1"
+                           :class="msg.isMine ? 'text-pink-200 justify-end' : 'text-gray-500'">
+                            <span x-text="new Date(msg.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})"></span>
+                            <i x-show="msg.sending" class="fa-solid fa-clock"></i>
+                        </p>
+                    </div>
+                </div>
+            </template>
+            
+            <div x-show="chatMessages.length === 0 && !chatLoading" class="text-center py-8 text-gray-600">
+                <i class="fa-solid fa-comments text-3xl mb-3 opacity-30"></i>
+                <p class="text-xs">Nenhuma mensagem ainda</p>
+                <p class="text-[10px] text-gray-700">Comece a conversa!</p>
+            </div>
+        </div>
+        
+        <!-- Input -->
+        <div class="p-4 border-t border-white/10 bg-black/30 flex-shrink-0">
+            <form @submit.prevent="sendChatMessage()" class="flex gap-2">
+                <input type="text" x-model="chatInput" placeholder="Digite sua mensagem..."
+                       class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-pink-500 focus:outline-none">
+                <button type="submit" :disabled="!chatInput?.trim()"
+                        class="w-12 h-12 rounded-xl bg-pink-500 text-white flex items-center justify-center hover:bg-pink-600 transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MODAL: CONVITE PARA CAMPANHA
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div x-show="inviteCampaignModalOpen"  
+     class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+     x-transition.opacity @keydown.escape.window="inviteCampaignModalOpen = false"
+     @mousedown.self="inviteCampaignModalOpen = false">
+    <div class="glass rounded-2xl w-full max-w-md flex flex-col border border-purple-500/30 shadow-2xl modal-enter overflow-hidden">
+        <!-- Header -->
+        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
+                    <i class="fa-solid fa-gamepad"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-white font-brand">Convidar para Campanha</h2>
+                    <p class="text-[9px] text-purple-400" x-text="'Para @' + (inviteTargetFriend?.username || '')"></p>
+                </div>
+            </div>
+            <button @click="inviteCampaignModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        <!-- Lista de Campanhas -->
+        <div class="p-4 overflow-y-auto custom-scrollbar max-h-[60vh]">
+            <p class="text-[10px] text-gray-500 font-bold uppercase mb-3">Selecione uma Campanha</p>
+            
+            <div x-show="availableCampaigns.length === 0" class="text-center py-8 text-gray-600">
+                <i class="fa-solid fa-dungeon text-3xl mb-3 opacity-30"></i>
+                <p class="text-sm font-bold">Nenhuma campanha</p>
+                <p class="text-[10px] text-gray-700">Crie uma campanha primeiro para convidar amigos.</p>
+            </div>
+            
+            <div class="space-y-2">
+                <template x-for="campaign in availableCampaigns" :key="campaign.id">
+                    <button @click="sendCampaignInvite(campaign.id)" 
+                            class="w-full bg-black/40 rounded-xl p-4 border border-white/5 hover:border-purple-500/30 transition-all text-left group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 flex-shrink-0">
+                                <i class="fa-solid fa-dice-d20 text-xl"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-white font-bold truncate group-hover:text-purple-400 transition-colors" x-text="campaign.name"></p>
+                                <p class="text-[9px] text-gray-500 font-code" x-text="'Código: ' + (campaign.invite_code || campaign.code)"></p>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-gray-600 group-hover:text-purple-400 transition-colors"></i>
+                        </div>
+                    </button>
+                </template>
             </div>
         </div>
     </div>
@@ -3762,131 +3898,96 @@
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-            <!-- v2.1.0 -->
+            <!-- SOCIAL OVERHAUL (NOVO!) -->
+            <div class="bg-gradient-to-br from-pink-500/10 to-purple-500/10 rounded-xl p-5 border border-pink-500/30 relative overflow-hidden">
+                <div class="absolute top-3 right-3 px-2 py-1 bg-pink-500 text-white text-[9px] font-bold rounded animate-pulse">NOVO!</div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center text-2xl">
+                        👥
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white font-brand">SOCIAL OVERHAUL</h3>
+                        <p class="text-xs text-gray-400">Sistema de Amigos e Chat</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <div class="bg-black/30 rounded-lg p-3">
+                        <p class="text-sm font-bold text-white mb-1">💬 Chat entre Amigos</p>
+                        <p class="text-xs text-gray-400 mb-2">Converse em privado com seus amigos</p>
+                        <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
+                            <li>• Mensagens em tempo real</li>
+                            <li>• Contador de mensagens não lidas</li>
+                            <li>• Atualização otimista instantânea</li>
+                        </ul>
+                    </div>
+                    <div class="bg-black/30 rounded-lg p-3">
+                        <p class="text-sm font-bold text-white mb-1">🎮 Convite para Campanha</p>
+                        <p class="text-xs text-gray-400">Convide amigos diretamente para suas campanhas</p>
+                    </div>
+                    <div class="bg-black/30 rounded-lg p-3">
+                        <p class="text-sm font-bold text-white mb-1">⚡ Performance</p>
+                        <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
+                            <li>• Realtime lazy loading (conecta só quando usa)</li>
+                            <li>• Funções SQL otimizadas</li>
+                            <li>• Cache agressivo com invalidação inteligente</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLOUDCHECK -->
             <div class="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-xl p-5 border border-cyan-500/30">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center text-2xl">
                         🛡️
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-white font-brand">v2.1.0 - CLOUDCHECK & STABILITY</h3>
-                        <p class="text-xs text-gray-400">06 de Dezembro, 2024</p>
+                        <h3 class="text-xl font-bold text-white font-brand">CLOUDCHECK</h3>
+                        <p class="text-xs text-gray-400">Verificação de Dados</p>
                     </div>
                 </div>
                 
-                <!-- Novidades -->
-                <div class="space-y-3 mb-4">
-                    <h4 class="text-sm font-bold text-cyan-400 uppercase flex items-center gap-2">
-                        <i class="fa-solid fa-sparkles"></i> Novidades
-                    </h4>
-                    <div class="space-y-2">
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white mb-1">✨ CloudCheck System</p>
-                            <p class="text-xs text-gray-400 mb-2">Sistema automático de verificação e correção de dados</p>
-                            <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
-                                <li>• Verifica integridade de perfis, personagens, amizades e configurações</li>
-                                <li>• Executa automaticamente a cada 7 dias ou quando há atualização</li>
-                                <li>• Interface manual nas Configurações da Conta</li>
-                                <li>• Relatório detalhado de correções aplicadas</li>
-                            </ul>
-                        </div>
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white mb-1">📸 Upload de Avatar</p>
-                            <p class="text-xs text-gray-400 mb-2">Usuários podem fazer upload de foto de perfil</p>
-                            <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
-                                <li>• Suporte para imagens até 2MB</li>
-                                <li>• Armazenamento no Supabase Storage</li>
-                                <li>• Exibição em perfis e lista de amigos</li>
-                            </ul>
-                        </div>
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white">📋 Modal de Changelog</p>
-                            <p class="text-xs text-gray-400">Histórico completo de atualizações acessível no site</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Correções -->
-                <div class="space-y-3 mb-4">
-                    <h4 class="text-sm font-bold text-yellow-400 uppercase flex items-center gap-2">
-                        <i class="fa-solid fa-wrench"></i> Correções
-                    </h4>
-                    <div class="space-y-2">
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white mb-2">🤝 Sistema de Amigos</p>
-                            <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
-                                <li>• Corrigido mapeamento de dados (usernames e avatars corretos)</li>
-                                <li>• Real-time funcional para pedidos de amizade</li>
-                                <li>• Visualização de perfil de amigos corrigida</li>
-                                <li>• Removido problema de dados duplicados</li>
-                            </ul>
-                        </div>
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white mb-2">✨ Animações</p>
-                            <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
-                                <li>• Corrigido conflito de .animate-spin no CSS</li>
-                                <li>• Loading spinner agora gira corretamente</li>
-                                <li>• Animação D20 no loading screen</li>
-                                <li>• Modo low-performance preservado</li>
-                            </ul>
-                        </div>
-                        <div class="bg-black/30 rounded-lg p-3">
-                            <p class="text-sm font-bold text-white mb-2">👤 Modal de Perfil</p>
-                            <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
-                                <li>• Mostra dados corretos ao visualizar perfil de amigos</li>
-                                <li>• Esconde informações pessoais quando vendo perfil de outros</li>
-                                <li>• Avatar com botão de upload (hover)</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Melhorias -->
                 <div class="space-y-3">
-                    <h4 class="text-sm font-bold text-green-400 uppercase flex items-center gap-2">
-                        <i class="fa-solid fa-arrow-up"></i> Melhorias
-                    </h4>
                     <div class="bg-black/30 rounded-lg p-3">
-                        <ul class="text-xs text-gray-400 space-y-1">
-                            <li>• Loading screen com delay de 1.2s para melhor experiência</li>
-                            <li>• Logs detalhados no console para debug</li>
-                            <li>• Validações robustas em todo o sistema de amigos</li>
-                            <li>• Tratamento de erros aprimorado</li>
+                        <p class="text-sm font-bold text-white mb-1">✨ CloudCheck System</p>
+                        <ul class="text-[10px] text-gray-500 space-y-1 ml-4">
+                            <li>• Verifica integridade de perfis e personagens</li>
+                            <li>• Executa automaticamente ou manualmente</li>
+                            <li>• Relatório detalhado de correções</li>
                         </ul>
+                    </div>
+                    <div class="bg-black/30 rounded-lg p-3">
+                        <p class="text-sm font-bold text-white mb-1">📸 Upload de Avatar</p>
+                        <p class="text-xs text-gray-400">Foto de perfil personalizada até 2MB</p>
                     </div>
                 </div>
             </div>
             
-            <!-- v2.0.0 -->
-            <div class="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl p-5 border border-purple-500/30">
+            <!-- SISTEMA BASE -->
+            <div class="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-xl p-5 border border-purple-500/30">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-2xl">
                         🚀
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-white font-brand">v2.0.0 - SISTEMA BASE</h3>
-                        <p class="text-xs text-gray-400">Novembro, 2024</p>
+                        <h3 class="text-xl font-bold text-white font-brand">SISTEMA BASE</h3>
+                        <p class="text-xs text-gray-400">Funcionalidades Principais</p>
                     </div>
                 </div>
                 
-                <div class="space-y-3">
-                    <h4 class="text-sm font-bold text-purple-400 uppercase flex items-center gap-2">
-                        <i class="fa-solid fa-star"></i> Funcionalidades Principais
-                    </h4>
-                    <div class="bg-black/30 rounded-lg p-3">
-                        <ul class="text-xs text-gray-400 space-y-1">
-                            <li>• Sistema de personagens com fichas completas</li>
-                            <li>• Campanhas multiplayer com real-time</li>
-                            <li>• Sistema de dados (D4, D6, D8, D10, D12, D20, D100)</li>
-                            <li>• Chat de campanha com suporte a comandos</li>
-                            <li>• Inventário e gerenciamento de itens</li>
-                            <li>• Sistema de achievements</li>
-                            <li>• Temas customizáveis</li>
-                            <li>• Modo Hacker (CRT effect)</li>
-                            <li>• Suporte offline (Guest Mode)</li>
-                            <li>• Sincronização na nuvem via Supabase</li>
-                        </ul>
-                    </div>
+                <div class="bg-black/30 rounded-lg p-3">
+                    <ul class="text-xs text-gray-400 space-y-1">
+                        <li>• Sistema de personagens com fichas completas</li>
+                        <li>• Campanhas multiplayer com real-time</li>
+                        <li>• Sistema de dados (D4, D6, D8, D10, D12, D20, D100)</li>
+                        <li>• Chat de campanha com comandos</li>
+                        <li>• Inventário e gerenciamento de itens</li>
+                        <li>• Sistema de achievements</li>
+                        <li>• Temas customizáveis e Modo Hacker</li>
+                        <li>• Suporte offline (Guest Mode)</li>
+                        <li>• Sincronização na nuvem via Supabase</li>
+                    </ul>
                 </div>
             </div>
         </div>

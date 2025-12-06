@@ -5,24 +5,31 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   OTIMIZAÇÕES DE PERFORMANCE (PCs antigos / mobile)
+   OTIMIZAÇÕES DE PERFORMANCE - GPU Acceleration
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Reduzir complexidade de composição */
 * {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Hardware acceleration para elementos animados */
-.glass,
-[x-transition],
+/* GPU acceleration APENAS para elementos que realmente precisam */
 .modal-enter,
+.animate-spin,
 .animate-pulse,
-.transition-all,
-.transition-transform {
-    will-change: transform, opacity;
-    backface-visibility: hidden;
+.animate-bounce {
+    will-change: transform;
     transform: translateZ(0);
+}
+
+/* Transições suaves universais */
+* {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button,
+a,
+[role="button"] {
+    transition: all 0.15s ease;
 }
 
 /* Desabilitar animações para usuários que preferem movimento reduzido */
@@ -1342,21 +1349,33 @@ img {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   MODALS - Entrada suave estilo iOS
+   MODALS - Entrada suave estilo macOS
    ═══════════════════════════════════════════════════════════════════════════ */
 .modal-enter {
-    animation: modalEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes modalEnter {
     0% {
         opacity: 0;
-        transform: scale(0.98);
+        transform: scale(0.95) translateY(10px);
     }
     100% {
         opacity: 1;
-        transform: scale(1);
+        transform: scale(1) translateY(0);
     }
+}
+
+/* Backdrop fade suave */
+[x-show] {
+    transition: opacity 0.2s ease;
+}
+
+/* Glass effect suave */
+.glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    transition: backdrop-filter 0.3s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1768,4 +1787,139 @@ select:hover {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-3px); }
     75% { transform: translateX(3px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHAT MESSAGES - Animações suaves
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Mensagem entrando */
+.chat-message-enter {
+    animation: chatMessageEnter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes chatMessageEnter {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Mensagem enviando (otimista) */
+.chat-message-sending {
+    opacity: 0.7;
+}
+
+/* Typing indicator */
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+}
+
+.typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background: rgba(var(--neon-rgb), 0.5);
+    border-radius: 50%;
+    animation: typingBounce 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRIEND CARD - Hover effects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.friend-card {
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.friend-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Unread badge pulse */
+.unread-badge {
+    animation: unreadPulse 2s ease-in-out infinite;
+}
+
+@keyframes unreadPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTON MICRO-INTERACTIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Active press effect - SUAVE */
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+    transform: scale(0.96);
+    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover effects universais */
+button:not(:disabled):hover,
+[role="button"]:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+/* Focus visible suave */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid rgba(var(--neon-rgb), 0.5);
+    outline-offset: 2px;
+    transition: outline-offset 0.2s ease;
+}
+
+/* Disabled state suave */
+button:disabled,
+[role="button"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+    transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+/* Success flash */
+.success-flash {
+    animation: successFlash 0.3s ease;
+}
+
+@keyframes successFlash {
+    0% { background-color: rgba(34, 197, 94, 0); }
+    50% { background-color: rgba(34, 197, 94, 0.2); }
+    100% { background-color: rgba(34, 197, 94, 0); }
+}
+
+/* Error shake */
+.error-shake {
+    animation: errorShake 0.4s ease;
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
 }
