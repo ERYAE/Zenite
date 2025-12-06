@@ -159,6 +159,65 @@ body.low-perf {
     .modal-enter {
         animation: none !important;
     }
+    
+    /* Remove pseudo-elementos animados (partículas, shimmer, etc) */
+    &::before,
+    .glass::before,
+    .glass::after,
+    .bg-red-500::after,
+    .bg-blue-500::after,
+    .bg-purple-500::after,
+    .bg-green-500::after,
+    button::after,
+    [role="button"]::after {
+        display: none !important;
+        animation: none !important;
+    }
+    
+    /* Remove hover transforms em tudo */
+    *:hover {
+        transform: none !important;
+        filter: none !important;
+    }
+    
+    /* Remove glow effects */
+    .neon-glow,
+    .glow-hover:hover {
+        box-shadow: none !important;
+    }
+    
+    /* Simplifica ícones - remove animações específicas */
+    i.fa-solid,
+    i.fa-regular,
+    i.fa-brands,
+    .fa-dice-d20,
+    .fa-heart,
+    .fa-bolt,
+    .fa-shield,
+    .fa-shield-halved {
+        animation: none !important;
+        filter: none !important;
+    }
+    
+    /* Remove gradient text animation */
+    .font-brand {
+        background: none !important;
+        -webkit-background-clip: unset !important;
+        background-clip: unset !important;
+        -webkit-text-fill-color: var(--neon-core) !important;
+        color: var(--neon-core) !important;
+    }
+    
+    /* Simplifica modais */
+    .fixed.inset-0.bg-black\/95 {
+        background: rgba(0, 0, 0, 0.95) !important;
+        animation: none !important;
+    }
+    
+    /* Remove floating animations */
+    .dice-tray {
+        animation: none !important;
+    }
 }
 
 /* Indicador visual discreto de modo low-perf ativo */
