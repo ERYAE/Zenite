@@ -2170,15 +2170,13 @@
                 
                 <div class="border-t border-white/10 my-4"></div>
                 
-                <button x-show="hackerModeUnlocked" @click="toggleHackerMode()" class="w-full py-3 border border-green-500/30 text-green-500 font-bold rounded-lg text-xs hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2 mb-3" x-transition>
+                <button x-show="hackerModeUnlocked || isHackerMode" @click="toggleHackerMode()" class="w-full py-3 border border-green-500/30 text-green-500 font-bold rounded-lg text-xs hover:bg-green-500/10 transition-colors flex items-center justify-center gap-2 mb-3" x-transition>
                     <i class="fa-solid fa-terminal"></i> <span x-text="isHackerMode ? 'DESATIVAR HACKER MODE' : 'ATIVAR HACKER MODE'"></span>
                 </button>
 
                 <button @click="askHardReset()" class="w-full py-2 border border-red-500/30 text-red-500 rounded-lg text-[10px] font-bold hover:bg-red-500/10 transition-colors">LIMPAR CACHE LOCAL</button>
                 
                 <button @click="askClearAllChars()" class="w-full py-2 border border-orange-500/30 text-orange-500 rounded-lg text-[10px] font-bold hover:bg-orange-500/10 transition-colors mt-2">LIMPAR TODAS AS FICHAS</button>
-                
-                <button x-show="user && !isGuest" @click="askDeleteAccount()" class="w-full py-2 border border-red-700/50 text-red-700 rounded-lg text-[10px] font-bold hover:bg-red-700/10 transition-colors mt-2"><i class="fa-solid fa-skull mr-1"></i> APAGAR CONTA</button>
                 
                 <div class="text-[9px] text-gray-600 text-center mt-6 font-code">
                     <p>ZENITE OS v2.2 // HERO ACADEMY DATABASE</p>
@@ -3348,17 +3346,23 @@
                     
                     <!-- Volume Slider Estilizado -->
                     <div class="flex items-center gap-3">
-                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50; updateMusicVolume()" class="text-gray-400 hover:text-white transition-colors">
+                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50; updateMusicVolume()" class="text-gray-400 hover:text-white transition-colors flex-shrink-0">
                             <i class="fa-solid" :class="ambientMusic.volume == 0 ? 'fa-volume-xmark text-red-400' : (ambientMusic.volume < 50 ? 'fa-volume-low' : 'fa-volume-high')"></i>
                         </button>
-                        <div class="flex-1 relative h-4 bg-white/10 rounded-full overflow-hidden">
-                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all pointer-events-none"
-                                 :style="'width: ' + ambientMusic.volume + '%'"></div>
+                        <div class="flex-1 relative h-6 flex items-center">
+                            <div class="absolute inset-x-0 h-2 bg-white/10 rounded-full overflow-hidden top-1/2 -translate-y-1/2">
+                                <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all pointer-events-none"
+                                     :style="'width: ' + ambientMusic.volume + '%'"></div>
+                            </div>
                             <input type="range" x-model="ambientMusic.volume" min="0" max="100" step="5"
                                    @input="updateMusicVolume()"
-                                   class="absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer">
+                                   class="relative w-full h-6 cursor-pointer appearance-none bg-transparent z-10 
+                                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer
+                                          [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-runnable-track]:h-2
+                                          [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer
+                                          [&::-moz-range-track]:bg-transparent [&::-moz-range-track]:h-2">
                         </div>
-                        <span class="text-xs text-gray-400 w-10 text-right font-code" x-text="ambientMusic.volume + '%'"></span>
+                        <span class="text-xs text-gray-400 w-10 text-right font-code flex-shrink-0" x-text="ambientMusic.volume + '%'"></span>
                     </div>
                     
                     <!-- Info -->

@@ -701,6 +701,14 @@ export const uiLogic = {
         if (this.isHackerMode) {
             document.body.classList.add('theme-hacker');
             localStorage.setItem('zenite_hacker_mode', 'true');
+            
+            // Hacker mode automaticamente ativa CRT
+            if (!this.settings.crtMode) {
+                this.settings.crtMode = true;
+                document.body.classList.add('crt-mode');
+                this.saveSettings();
+            }
+            
             playSFX('success');
             this.notify(">>> HACKER MODE ACTIVATED <<<", "success");
             
@@ -713,6 +721,14 @@ export const uiLogic = {
         } else {
             document.body.classList.remove('theme-hacker');
             localStorage.removeItem('zenite_hacker_mode');
+            
+            // Desativa CRT junto com hacker mode
+            if (this.settings.crtMode) {
+                this.settings.crtMode = false;
+                document.body.classList.remove('crt-mode');
+                this.saveSettings();
+            }
+            
             playSFX('click');
             this.notify("System mode restored.", "info");
         }
