@@ -81,44 +81,12 @@ div:not(.no-transition) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SCROLL & OVERFLOW - Otimizado
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Scroll suave em containers */
+/* Otimizar scroll em containers */
 .custom-scrollbar,
 .overflow-y-auto,
 .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
-}
-
-/* Prevenir cortes em elementos com ring/outline */
-[class*="ring-"],
-[class*="outline-"] {
-    box-sizing: border-box;
-}
-
-/* Garantir que modais não cortem conteúdo */
-.modal-enter {
-    max-height: 90vh;
-    overflow: visible;
-}
-
-/* Containers com padding adequado para evitar cortes */
-.glass,
-[class*="rounded-xl"],
-[class*="rounded-lg"] {
-    box-sizing: border-box;
-    padding: clamp(12px, 2vw, 24px);
-}
-
-/* Limitar blur em mobile para melhor performance */
-@media (max-width: 768px) {
-    .backdrop-blur,
-    .backdrop-blur-xl {
-        backdrop-filter: blur(8px) !important;
-    }
 }
 
 :root {
@@ -1082,39 +1050,9 @@ textarea:disabled {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TOOLTIPS - Estilo premium
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+/* Tooltip styles */
 [title] {
     position: relative;
-    cursor: help;
-}
-
-/* Tooltip personalizado */
-.tooltip {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(-8px);
-    padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.95);
-    color: white;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 6px;
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s var(--ease-out-expo), transform 0.2s var(--ease-out-expo);
-    z-index: 10000;
-    border: 1px solid rgba(var(--neon-rgb), 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-}
-
-*:hover > .tooltip {
-    opacity: 1;
-    transform: translateX(-50%) translateY(-4px);
 }
 
 /* Pulse effect para notificações */
@@ -2265,153 +2203,6 @@ button:active:not(:disabled),
 
 .ripple:active::after {
     animation: ripple 0.6s var(--ease-out-expo) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   HOVER EFFECTS - Estilo macOS com glow e scale
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Botões primários - glow + scale */
-button:not(:disabled):hover,
-[role="button"]:not(:disabled):hover {
-    transform: translateY(-2px) scale(1.02) !important;
-    filter: brightness(1.15) !important;
-    box-shadow: 0 4px 20px rgba(var(--neon-rgb), 0.3) !important;
-}
-
-/* Links - underline suave */
-a:hover {
-    transform: translateY(-1px) !important;
-    filter: brightness(1.1) !important;
-    text-decoration-color: rgba(var(--neon-rgb), 0.8) !important;
-}
-
-/* Cards - lift + glow + border */
-[class*="rounded-xl"]:hover,
-[class*="rounded-lg"]:hover {
-    transform: translateY(-4px) scale(1.01) !important;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 
-                0 0 0 1px rgba(var(--neon-rgb), 0.2) !important;
-    border-color: rgba(var(--neon-rgb), 0.4) !important;
-}
-
-/* Inputs - glow no focus + padding adequado */
-input,
-textarea,
-select {
-    padding: 10px 14px !important;
-    min-height: 42px;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-    box-shadow: 0 0 0 3px rgba(var(--neon-rgb), 0.15),
-                0 4px 12px rgba(var(--neon-rgb), 0.1) !important;
-    border-color: rgba(var(--neon-rgb), 0.6) !important;
-    transform: scale(1.01) !important;
-    outline: none !important;
-}
-
-/* Placeholder suave */
-input::placeholder,
-textarea::placeholder {
-    color: rgba(156, 163, 175, 0.5);
-    transition: color 0.2s ease;
-}
-
-input:focus::placeholder,
-textarea:focus::placeholder {
-    color: rgba(156, 163, 175, 0.7);
-}
-
-/* Ícones - rotate + scale no hover */
-i:hover,
-[class*="fa-"]:hover {
-    transform: scale(1.15) rotate(5deg) !important;
-    filter: brightness(1.2) drop-shadow(0 0 8px rgba(var(--neon-rgb), 0.5)) !important;
-}
-
-/* Imagens - zoom suave */
-img:hover {
-    transform: scale(1.05) !important;
-    filter: brightness(1.05) !important;
-}
-
-/* Focus visible suave */
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-    outline: 2px solid rgba(var(--neon-rgb), 0.5);
-    outline-offset: 2px;
-    transition: outline-offset 0.2s ease;
-}
-
-/* Disabled state suave */
-button:disabled,
-[role="button"]:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    filter: grayscale(0.5);
-    transition: opacity 0.2s ease, filter 0.2s ease;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DROPDOWNS & MENUS - Estilo premium
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Dropdown container */
-[x-show][class*="absolute"] {
-    animation: dropdownEnter 0.2s var(--ease-out-expo) !important;
-}
-
-@keyframes dropdownEnter {
-    from {
-        opacity: 0;
-        transform: translateY(-8px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-/* Menu items com hover suave */
-[class*="hover:bg-white/5"],
-[class*="hover:bg-black/5"] {
-    transition: all 0.15s var(--ease-out-expo) !important;
-    position: relative;
-    overflow: hidden;
-}
-
-/* Ripple effect sutil em menu items */
-[class*="hover:bg-white/5"]::before,
-[class*="hover:bg-black/5"]::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 0;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(var(--neon-rgb), 0.1), transparent);
-    transition: width 0.3s var(--ease-out-expo);
-}
-
-[class*="hover:bg-white/5"]:hover::before,
-[class*="hover:bg-black/5"]:hover::before {
-    width: 100%;
-}
-
-/* Ícones em menu items */
-[class*="hover:bg-white/5"] i,
-[class*="hover:bg-black/5"] i {
-    transition: transform 0.2s var(--ease-out-expo), color 0.2s ease !important;
-}
-
-[class*="hover:bg-white/5"]:hover i,
-[class*="hover:bg-black/5"]:hover i {
-    transform: translateX(2px) scale(1.1) !important;
 }
 
 /* Success flash */

@@ -2184,17 +2184,17 @@
     </div>
 
     <div x-show="configModal && !systemLoading"
-         class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4 overflow-y-auto"
+         class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
          x-transition.opacity
          @mousedown.self="modalClickStartedOutside = true"
          @mouseup.self="if(modalClickStartedOutside) configModal = false; modalClickStartedOutside = false"
          @mouseup="modalClickStartedOutside = false">
-        <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md my-auto relative border border-white/10 shadow-2xl modal-enter">
+        <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-brand text-white">CONFIGURAÇÕES</h3>
                 <button @click="configModal=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-2">
+            <div class="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
                 <!-- Grid de Cores Expandido -->
                 <div>
                     <p class="text-[10px] text-gray-500 font-bold mb-2 uppercase">COR DE DESTAQUE</p>
