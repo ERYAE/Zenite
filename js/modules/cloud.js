@@ -950,10 +950,12 @@ export const cloudLogic = {
     
     // ═══════════════════════════════════════════════════════════════════════
     // CLOUDCHECK - SISTEMA DE VERIFICAÇÃO E MIGRAÇÃO DE DADOS
+    // ⚠️ IMPORTANTE: Sempre incrementar CLOUDCHECK_VERSION ao fazer mudanças!
+    // ⚠️ IMPORTANTE: Atualizar CHANGELOG.md e changelog.js quando houver updates!
     // ═══════════════════════════════════════════════════════════════════════
     
     // Versão atual do schema de dados
-    CLOUDCHECK_VERSION: 2,
+    CLOUDCHECK_VERSION: 3,
     
     /**
      * Executa verificação completa dos dados do usuário
@@ -1258,6 +1260,34 @@ export const cloudLogic = {
             // Check: notes é string
             if (fixedChar.notes && typeof fixedChar.notes !== 'string') {
                 fixedChar.notes = String(fixedChar.notes);
+                needsFix = true;
+            }
+            
+            // Check: history é array
+            if (fixedChar.history && !Array.isArray(fixedChar.history)) {
+                fixedChar.history = [];
+                needsFix = true;
+            }
+            
+            // Check: classe/raça são strings válidas
+            if (fixedChar.class && typeof fixedChar.class !== 'string') {
+                fixedChar.class = String(fixedChar.class);
+                needsFix = true;
+            }
+            if (fixedChar.race && typeof fixedChar.race !== 'string') {
+                fixedChar.race = String(fixedChar.race);
+                needsFix = true;
+            }
+            
+            // Check: experiência é número válido
+            if (fixedChar.exp !== undefined && (typeof fixedChar.exp !== 'number' || fixedChar.exp < 0)) {
+                fixedChar.exp = 0;
+                needsFix = true;
+            }
+            
+            // Check: dinheiro/moedas são números válidos
+            if (fixedChar.gold !== undefined && (typeof fixedChar.gold !== 'number' || fixedChar.gold < 0)) {
+                fixedChar.gold = 0;
                 needsFix = true;
             }
             

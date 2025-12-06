@@ -11,8 +11,13 @@ import { router } from './modules/router.js';
 function zeniteSystem() {
     return {
         // --- ESTADO DO SISTEMA ---
-        systemLoading: true, loadingProgress: 0, loadingText: 'BOOT',
-        loadingChar: false, rebooting: false,
+        // ⚠️ v2.3.0 - Loading com progresso real
+        systemLoading: true, 
+        loadingProgress: 0, 
+        loadingText: 'INITIALIZING',
+        loadingStage: 'init', // 'init', 'auth', 'sync', 'load', 'ready'
+        loadingChar: false, 
+        rebooting: false,
         isOffline: false, // Modo offline (sem conexão)
         
         // Feature Flags
@@ -295,37 +300,62 @@ function zeniteSystem() {
                 this.autoSaveEnabled = false; // Desativa após salvar
             }, 3000); // Aumentado para 3s
 
+            // ⚠️ v2.3.0 - Loading com progresso real
+            // Etapa 1: INIT (0-20%)
+            this.updateLoading(10, 'INITIALIZING', 'init');
+            
             // Carrega Banco de Dados
             const isGuest = localStorage.getItem('zenite_is_guest') === 'true';
             if (isGuest) {
                 this.isGuest = true;
                 this.loadLocal('zenite_guest_db');
+                this.updateLoading(20, 'OFFLINE MODE', 'init');
             } else {
                 this.loadLocal('zenite_cached_db');
+                this.updateLoading(20, 'CACHE LOADED', 'init');
+                
                 if(this.supabase) {
                     try {
+                        // Etapa 2: AUTH (20-40%)
+                        this.updateLoading(25, 'AUTHENTICATING', 'auth');
                         const { data: { session } } = await this.supabase.auth.getSession();
+                        
                         if (session) {
                             this.user = session.user;
-                            this.loadingText = 'SYNC CLOUD';
+                            this.updateLoading(40, 'AUTHENTICATED', 'auth');
+                            
+                            // Etapa 3: SYNC (40-70%)
+                            this.updateLoading(45, 'SYNCING CLOUD', 'sync');
                             await this.fetchCloud();
+                            this.updateLoading(60, 'CLOUD SYNCED', 'sync');
+                            
                             this.checkOnboarding();
-                            // Configura realtime de amizades
+                            
+                            // Etapa 4: LOAD (70-90%)
+                            this.updateLoading(70, 'LOADING FRIENDS', 'load');
                             this.setupFriendsRealtime();
-                            // CloudCheck automático (verifica integridade dos dados)
+                            this.updateLoading(80, 'CHECKING DATA', 'load');
                             this.autoCloudCheck();
+                            this.updateLoading(90, 'FINALIZING', 'load');
+                        } else {
+                            this.updateLoading(40, 'NOT AUTHENTICATED', 'auth');
                         }
+                    } catch(e) {
+                        console.warn("[AUTH] Erro na inicialização:", e);
+                        this.updateLoading(40, 'AUTH ERROR', 'auth');
+                    }
+                    
+                    // Setup auth state listener
+                    if (this.supabase) {
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
                             console.log('[AUTH] Event:', event);
                             
                             if (event === 'PASSWORD_RECOVERY') {
-                                // User clicked recover link from email
                                 console.log('[AUTH] Password recovery mode detected');
                                 this.recoverMode = true;
                                 if (session) {
                                     this.user = session.user;
                                 }
-                                // Navigate to recover page
                                 window.location.hash = '#/recover';
                             } else if (event === 'SIGNED_IN' && session) {
                                 if (this.user?.id === session.user.id) return;
@@ -334,21 +364,16 @@ function zeniteSystem() {
                                 localStorage.removeItem('zenite_is_guest');
                                 await this.fetchCloud();
                                 this.checkOnboarding();
-                                // Configura realtime de amizades
                                 this.setupFriendsRealtime();
-                                // CloudCheck automático (verifica integridade dos dados)
                                 this.autoCloudCheck();
                             } else if (event === 'SIGNED_OUT') {
                                 this.user = null;
                                 this.chars = {};
                                 this.currentView = 'dashboard';
                                 this.recoverMode = false;
-                                // Desconecta realtime de amizades
                                 this.disconnectFriendsRealtime();
                             }
                         });
-                    } catch(e) {
-                        console.warn("[AUTH] Erro na inicialização:", e);
                     }
                 }
             }
@@ -402,14 +427,17 @@ function zeniteSystem() {
             // Verifica se o usuário tem username definido
             this.checkUsername();
             
-            this.loadingProgress = 100;
-            this.loadingText = 'READY';
-            // Delay maior para mostrar a arte e garantir que tudo carregou
+            // Etapa 5: READY (90-100%)
+            this.updateLoading(95, 'ALMOST READY', 'ready');
+            await this.delay(200); // Pequeno delay para suavizar
+            this.updateLoading(100, 'READY', 'ready');
+            
+            // ⚠️ LOADING DELAY - 1500ms para mostrar "READY" e evitar flash
             setTimeout(() => { 
                 this.systemLoading = false;
                 // Inicializa o router após o sistema carregar
                 router.init(this);
-            }, 1200);
+            }, 1500);
             
             // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
             setInterval(() => { 
@@ -419,6 +447,19 @@ function zeniteSystem() {
             }, CONSTANTS.SAVE_INTERVAL);
         },
 
+        // ⚠️ v2.3.0 - Helper para atualizar loading com progresso real
+        updateLoading(progress, text, stage) {
+            this.loadingProgress = progress;
+            this.loadingText = text;
+            this.loadingStage = stage;
+            console.log(`[LOADING] ${progress}% - ${text} (${stage})`);
+        },
+        
+        // Helper para delay assíncrono
+        delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        },
+        
         async checkOnboarding() {
             // Verifica se já viu o welcome modal
             if (!this.user || !this.supabase) {

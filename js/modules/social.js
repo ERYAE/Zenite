@@ -311,6 +311,7 @@ export const socialLogic = {
     profileModalOpen: false,
     friendsModalOpen: false,
     achievementsModalOpen: false,
+    changelogModalOpen: false, // Modal de changelog
     viewingProfile: null, // Perfil de outro usuário sendo visualizado
     
     // Username System
@@ -554,6 +555,7 @@ export const socialLogic = {
     
     // ─────────────────────────────────────────────────────────────────────────
     // AMIGOS (cache local, sync sob demanda)
+    // ⚠️ REFATORADO v2.2.0 - Usa funções SQL otimizadas
     // ─────────────────────────────────────────────────────────────────────────
     
     async loadFriends(forceRefresh = false) {
@@ -565,79 +567,32 @@ export const socialLogic = {
         try {
             console.log('[SOCIAL] Carregando amigos para:', this.user.id);
             
-            // Busca amizades aceitas onde o usuário é user_id OU friend_id
-            const { data: friendships, error: friendshipsError } = await this.supabase
-                .from('friendships')
-                .select('id, friend_id, user_id, status, created_at')
-                .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`)
-                .eq('status', 'accepted');
+            // USA FUNÇÃO SQL OTIMIZADA - Uma única query com JOIN
+            const { data: friends, error: friendsError } = await this.supabase
+                .rpc('get_user_friends', { target_user_id: this.user.id });
             
-            if (friendshipsError) {
-                console.error('[SOCIAL] Erro ao buscar amizades:', friendshipsError);
-                throw friendshipsError;
+            if (friendsError) {
+                console.error('[SOCIAL] Erro ao buscar amigos:', friendsError);
+                throw friendsError;
             }
             
-            console.log('[SOCIAL] Amizades encontradas:', friendships?.length || 0);
+            console.log('[SOCIAL] Amigos carregados:', friends?.length || 0);
             
-            // Busca perfis dos amigos para obter username e avatar
-            if (friendships && friendships.length > 0) {
-                // Determina o ID do amigo (o outro usuário na relação)
-                const friendIds = friendships.map(f => {
-                    // Se eu sou o user_id, o amigo é friend_id
-                    // Se eu sou o friend_id, o amigo é user_id
-                    return f.user_id === this.user.id ? f.friend_id : f.user_id;
-                }).filter(id => id && id !== this.user.id); // Remove IDs inválidos ou próprio
-                
-                console.log('[SOCIAL] IDs dos amigos:', friendIds);
-                
-                if (friendIds.length === 0) {
-                    this.friends = [];
-                } else {
-                    const { data: profiles, error: profilesError } = await this.supabase
-                        .from('profiles')
-                        .select('id, username, avatar_url, display_name')
-                        .in('id', friendIds);
-                    
-                    if (profilesError) {
-                        console.error('[SOCIAL] Erro ao buscar perfis:', profilesError);
-                    }
-                    
-                    console.log('[SOCIAL] Perfis encontrados:', profiles);
-                    
-                    // Mapeia os perfis por ID
-                    const profileMap = new Map();
-                    if (profiles) {
-                        profiles.forEach(p => profileMap.set(p.id, p));
-                    }
-                    
-                    this.friends = friendships.map(f => {
-                        const friendId = f.user_id === this.user.id ? f.friend_id : f.user_id;
-                        const profile = profileMap.get(friendId);
-                        
-                        console.log('[SOCIAL] Mapeando amigo:', friendId, '-> perfil:', profile);
-                        
-                        return {
-                            id: f.id,
-                            friend_id: friendId,
-                            created_at: f.created_at,
-                            friend_username: profile?.username || 'desconhecido',
-                            friend_display_name: profile?.display_name || profile?.username || 'Usuário',
-                            friend_avatar: profile?.avatar_url || null
-                        };
-                    }).filter(f => f.friend_id && f.friend_id !== this.user.id);
-                }
-            } else {
-                this.friends = [];
-            }
+            // Mapeia para o formato esperado
+            this.friends = (friends || []).map(f => ({
+                id: f.friendship_id,
+                friend_id: f.friend_id,
+                friend_username: f.friend_username || 'desconhecido',
+                friend_display_name: f.friend_display_name || f.friend_username || 'Usuário',
+                friend_avatar: f.friend_avatar_url,
+                created_at: f.created_at
+            }));
             
             console.log('[SOCIAL] Lista final de amigos:', this.friends);
             
-            // Busca pedidos pendentes (onde EU sou o destinatário)
+            // USA FUNÇÃO SQL OTIMIZADA para pedidos
             const { data: requests, error: requestsError } = await this.supabase
-                .from('friendships')
-                .select('id, user_id, created_at')
-                .eq('friend_id', this.user.id)
-                .eq('status', 'pending');
+                .rpc('get_friend_requests', { target_user_id: this.user.id });
             
             if (requestsError) {
                 console.error('[SOCIAL] Erro ao buscar pedidos:', requestsError);
@@ -645,33 +600,15 @@ export const socialLogic = {
             
             console.log('[SOCIAL] Pedidos pendentes:', requests?.length || 0);
             
-            // Busca usernames dos remetentes
-            if (requests && requests.length > 0) {
-                const senderIds = requests.map(r => r.user_id).filter(Boolean);
-                
-                const { data: senderProfiles } = await this.supabase
-                    .from('profiles')
-                    .select('id, username, avatar_url')
-                    .in('id', senderIds);
-                
-                const senderMap = new Map();
-                if (senderProfiles) {
-                    senderProfiles.forEach(p => senderMap.set(p.id, p));
-                }
-                
-                this.friendRequests = requests.map(r => {
-                    const sender = senderMap.get(r.user_id);
-                    return {
-                        id: r.id,
-                        user_id: r.user_id,
-                        created_at: r.created_at,
-                        sender_username: sender?.username || 'desconhecido',
-                        sender_avatar: sender?.avatar_url || null
-                    };
-                });
-            } else {
-                this.friendRequests = [];
-            }
+            // Mapeia para o formato esperado
+            this.friendRequests = (requests || []).map(r => ({
+                id: r.request_id,
+                user_id: r.sender_id,
+                sender_username: r.sender_username || 'desconhecido',
+                sender_display_name: r.sender_display_name || r.sender_username || 'Usuário',
+                sender_avatar: r.sender_avatar_url,
+                created_at: r.created_at
+            }));
             
             this.friendsLoaded = true;
             
@@ -771,13 +708,9 @@ export const socialLogic = {
     
     async sendFriendRequest(usernameOrId) {
         if (!this.supabase || !this.user) return;
-        if (!usernameOrId || usernameOrId.trim().length < 2) {
-            this.notify('Digite um username válido.', 'error');
-            return;
-        }
         
         try {
-            // Remove @ se o usuário digitou
+            // Remove @ se houver e normaliza
             let searchTerm = usernameOrId.trim().replace(/^@/, '').toLowerCase();
             
             if (!searchTerm) {
@@ -785,59 +718,31 @@ export const socialLogic = {
                 return;
             }
             
-            console.log('[SOCIAL] Buscando usuário:', searchTerm);
-            
-            // Busca por username (case insensitive) - usando eq com lower
-            let { data: profiles, error: searchError } = await this.supabase
-                .from('profiles')
-                .select('id, username')
-                .ilike('username', searchTerm);
-            
-            if (searchError) {
-                console.error('[SOCIAL] Erro na busca:', searchError);
-                throw searchError;
-            }
-            
-            // Pega o primeiro resultado exato ou parcial
-            let profile = profiles?.find(p => p.username?.toLowerCase() === searchTerm) || profiles?.[0];
-            
-            if (!profile) {
-                this.notify('Usuário não encontrado. Verifique o username.', 'error');
-                return;
-            }
-            
-            if (profile.id === this.user.id) {
-                this.notify('Você não pode adicionar a si mesmo!', 'error');
-                return;
-            }
-            
-            // Verifica se já existe amizade
-            const { data: existing } = await this.supabase
-                .from('friendships')
-                .select('id, status')
-                .or(`and(user_id.eq.${this.user.id},friend_id.eq.${profile.id}),and(user_id.eq.${profile.id},friend_id.eq.${this.user.id})`);
-            
-            if (existing && existing.length > 0) {
-                const status = existing[0].status;
-                if (status === 'accepted') {
-                    this.notify('Vocês já são amigos!', 'warn');
-                } else {
-                    this.notify('Já existe um pedido pendente.', 'warn');
-                }
-                return;
-            }
-            
-            // Cria o pedido
-            const { error } = await this.supabase.from('friendships').insert({
-                user_id: this.user.id,
-                friend_id: profile.id,
-                status: 'pending'
-            });
+            // USA FUNÇÃO SQL OTIMIZADA com todas as validações
+            const { data: result, error } = await this.supabase
+                .rpc('send_friend_request', {
+                    sender_id: this.user.id,
+                    target_username: searchTerm
+                });
             
             if (error) throw error;
             
-            this.notify(`Pedido enviado para ${profile.username || 'usuário'}!`, 'success');
-            playSFX('success');
+            // Processa resultado
+            if (result.success) {
+                this.notify(result.message || 'Pedido enviado!', 'success');
+                playSFX('success');
+            } else {
+                // Mensagens de erro amigáveis
+                const errorMessages = {
+                    'user_not_found': 'Usuário não encontrado.',
+                    'self_request': 'Você não pode enviar pedido para si mesmo!',
+                    'already_exists': 'Já existe um pedido pendente ou vocês já são amigos.',
+                    'database_error': 'Erro no banco de dados. Tente novamente.'
+                };
+                
+                const message = errorMessages[result.error] || result.message || 'Erro ao enviar pedido.';
+                this.notify(message, result.error === 'already_exists' ? 'warn' : 'error');
+            }
             
         } catch (e) {
             console.error('[SOCIAL] Erro ao enviar pedido:', e);
