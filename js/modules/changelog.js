@@ -62,28 +62,59 @@ export const CHANGELOG = [
                 ]
             },
             {
-                title: 'Animações',
+                title: 'Animações Premium',
                 icon: 'fa-wand-magic-sparkles',
                 color: 'purple',
                 items: [
                     {
-                        title: 'Transições Suaves Universais',
+                        title: 'Feeling macOS/iOS',
+                        description: 'Easing curves premium e micro-interações',
                         details: [
-                            'Hover effects em todos os botões e cards',
-                            'Active press com scale suave',
-                            'Modal enter com movimento vertical',
-                            'Stagger animation em listas',
-                            'Glass effect com backdrop blur'
+                            'Ease-out-expo para transições suaves',
+                            'Ease-out-back para bounce sutil',
+                            'Hover com glow + scale + lift',
+                            'Active press com feedback instantâneo',
+                            'Ripple effect em botões'
                         ]
                     },
                     {
-                        title: 'Micro-interações',
+                        title: 'Modais & Overlays',
                         details: [
-                            'Focus visible com outline animado',
-                            'Disabled state com grayscale',
-                            'Success flash e error shake',
-                            'Unread badge pulse',
+                            'Modal enter com blur progressivo',
+                            'Glass effect com saturação dinâmica',
+                            'Backdrop fade suave',
+                            'Slide from right/bottom',
+                            'Fade in genérico'
+                        ]
+                    },
+                    {
+                        title: 'Notificações & Toasts',
+                        details: [
+                            'Slide + bounce no enter',
+                            'Toast bounce from top',
+                            'Shake para erros',
+                            'Wiggle para atenção',
+                            'Exit animation suave'
+                        ]
+                    },
+                    {
+                        title: 'Progress & Loading',
+                        details: [
+                            'Skeleton shimmer com cor neon',
+                            'Progress bars com shimmer effect',
+                            'Pulse crítico para alertas',
+                            'Stagger animation em listas',
                             'Typing indicator bounce'
+                        ]
+                    },
+                    {
+                        title: 'Hover Effects',
+                        details: [
+                            'Ícones com rotate + scale',
+                            'Imagens com zoom suave',
+                            'Cards com lift + glow + border',
+                            'Inputs com focus glow',
+                            'Links com underline animado'
                         ]
                     }
                 ]

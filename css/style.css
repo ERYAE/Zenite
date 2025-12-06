@@ -22,28 +22,45 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TRANSIÇÕES SUAVES - Aplicadas universalmente
+   TRANSIÇÕES SUAVES - Estilo macOS/iOS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Timing function padrão para todas as transições */
-* {
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+/* Easing curves do macOS */
+:root {
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Elementos interativos - transição suave */
+/* Transição universal suave */
+* {
+    transition-timing-function: var(--ease-in-out-smooth) !important;
+}
+
+/* Elementos interativos - transição premium */
 button:not(.no-transition),
 a:not(.no-transition),
-[role="button"]:not(.no-transition),
+[role="button"]:not(.no-transition) {
+    transition: all 0.25s var(--ease-out-expo) !important;
+}
+
+/* Inputs com feedback suave */
 input:not(.no-transition),
 select:not(.no-transition),
 textarea:not(.no-transition) {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition: all 0.2s var(--ease-in-out-smooth) !important;
 }
 
-/* Cards e containers */
+/* Cards e containers com bounce sutil */
 [class*="rounded"]:not(.no-transition),
 [class*="border"]:not(.no-transition) {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition: all 0.3s var(--ease-out-expo) !important;
+}
+
+/* Divs e containers genéricos */
+div:not(.no-transition) {
+    transition: opacity 0.2s var(--ease-in-out-smooth), 
+                transform 0.3s var(--ease-out-expo) !important;
 }
 
 /* Desabilitar animações para usuários que preferem movimento reduzido */
@@ -1002,19 +1019,43 @@ textarea:disabled {
     animation: loadingBar 1.5s ease-in-out infinite;
 }
 
-/* Skeleton loading */
+/* ═══════════════════════════════════════════════════════════════════════════
+   SKELETON LOADERS - Shimmer premium
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .skeleton {
-    background: linear-gradient(90deg, 
-        rgba(255,255,255,0.05) 25%, 
-        rgba(255,255,255,0.1) 50%, 
-        rgba(255,255,255,0.05) 75%);
+    background: linear-gradient(
+        110deg,
+        rgba(255,255,255,0.03) 0%,
+        rgba(255,255,255,0.03) 40%,
+        rgba(var(--neon-rgb), 0.08) 50%,
+        rgba(255,255,255,0.03) 60%,
+        rgba(255,255,255,0.03) 100%
+    );
     background-size: 200% 100%;
-    animation: skeleton-loading 1.5s ease-in-out infinite;
+    animation: skeleton-shimmer 2s ease-in-out infinite !important;
+    border-radius: 8px;
 }
 
-@keyframes skeleton-loading {
+@keyframes skeleton-shimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+}
+
+/* Skeleton pulse alternativo */
+.skeleton-pulse {
+    animation: skeletonPulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes skeletonPulse {
+    0%, 100% { 
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 1;
+        transform: scale(1.02);
+    }
 }
 
 /* Tooltip styles */
@@ -1391,7 +1432,11 @@ i.fa-solid, i.fa-regular, i.fa-brands {
 /* ═══════════════════════════════════════════════════════════════════════════
    STAT BARS - Transição suave de largura
    ═══════════════════════════════════════════════════════════════════════════ */
-/* Barras de progresso dentro de containers overflow-hidden */
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROGRESS BARS - Animação fluida estilo macOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Barras de progresso - transição suave + glow */
 .overflow-hidden > .bg-red-500,
 .overflow-hidden > .bg-blue-500,
 .overflow-hidden > .bg-purple-500,
@@ -1400,9 +1445,49 @@ i.fa-solid, i.fa-regular, i.fa-brands {
 .overflow-hidden > .bg-yellow-500,
 .overflow-hidden > .bg-pink-500,
 .overflow-hidden > [class*="bg-gradient"],
-.stat-bar {
-    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+.stat-bar,
+.progress-bar {
+    transition: width 0.8s var(--ease-out-expo) !important;
     will-change: width;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Shimmer effect nas barras de progresso */
+.progress-bar::after,
+.stat-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        transparent 100%
+    );
+    animation: progressShimmer 2s infinite !important;
+}
+
+@keyframes progressShimmer {
+    0% { left: -100%; }
+    100% { left: 200%; }
+}
+
+/* Pulse para barras críticas */
+.progress-critical {
+    animation: progressPulse 1s ease-in-out infinite !important;
+}
+
+@keyframes progressPulse {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% { 
+        box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1413,33 +1498,94 @@ img {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   MODALS - Entrada suave estilo macOS
+   MODALS & OVERLAYS - Entrada premium estilo macOS
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Modal enter - scale + fade + slide */
 .modal-enter {
-    animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    animation: modalEnter 0.4s var(--ease-out-expo) !important;
 }
 
 @keyframes modalEnter {
     0% {
         opacity: 0;
-        transform: scale(0.95) translateY(10px);
+        transform: scale(0.92) translateY(20px);
+        filter: blur(4px);
     }
     100% {
         opacity: 1;
         transform: scale(1) translateY(0);
+        filter: blur(0);
     }
 }
 
-/* Backdrop fade suave */
+/* Backdrop fade com blur progressivo */
 [x-show] {
-    transition: opacity 0.2s ease !important;
+    transition: opacity 0.3s var(--ease-in-out-smooth),
+                backdrop-filter 0.3s var(--ease-in-out-smooth) !important;
 }
 
-/* Glass effect suave */
+/* Glass effect premium com saturação */
 .glass {
-    backdrop-filter: blur(12px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-    transition: backdrop-filter 0.3s ease !important;
+    backdrop-filter: blur(16px) saturate(180%) brightness(1.1) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) brightness(1.1) !important;
+    transition: backdrop-filter 0.4s var(--ease-out-expo),
+                background-color 0.3s var(--ease-in-out-smooth) !important;
+}
+
+/* Glass hover - intensifica efeito */
+.glass:hover {
+    backdrop-filter: blur(20px) saturate(200%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(200%) brightness(1.15) !important;
+    background-color: rgba(20, 20, 25, 0.9) !important;
+}
+
+/* Fade in genérico */
+.fade-in {
+    animation: fadeIn 0.3s var(--ease-out-expo) !important;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Slide from right (notifications) */
+.slide-in-right {
+    animation: slideInRight 0.4s var(--ease-out-expo) !important;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Slide from bottom (sheets) */
+.slide-in-bottom {
+    animation: slideInBottom 0.4s var(--ease-out-expo) !important;
+}
+
+@keyframes slideInBottom {
+    from {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1455,21 +1601,83 @@ img {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   NOTIFICATIONS - Slide suave
+   NOTIFICATIONS & TOASTS - Estilo macOS/iOS
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Notification enter - slide + bounce */
 .notification-enter {
-    animation: notificationSlide 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    animation: notificationSlide 0.5s var(--ease-out-back) !important;
 }
 
 @keyframes notificationSlide {
     0% {
-        transform: translateX(20px);
         opacity: 0;
+        transform: translateX(120%) scale(0.9);
+    }
+    60% {
+        transform: translateX(-5%) scale(1);
     }
     100% {
-        transform: translateX(0);
         opacity: 1;
+        transform: translateX(0) scale(1);
     }
+}
+
+/* Notification exit - slide out */
+.notification-exit {
+    animation: notificationExit 0.3s var(--ease-in-out-smooth) !important;
+}
+
+@keyframes notificationExit {
+    0% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(120%) scale(0.9);
+    }
+}
+
+/* Toast bounce in from top */
+.toast-enter {
+    animation: toastBounce 0.5s var(--ease-out-back) !important;
+}
+
+@keyframes toastBounce {
+    0% {
+        opacity: 0;
+        transform: translateY(-100%) scale(0.8);
+    }
+    60% {
+        transform: translateY(10%) scale(1.05);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Shake para erros */
+.shake {
+    animation: shake 0.5s var(--ease-out-expo) !important;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+    20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+/* Wiggle para atenção */
+.wiggle {
+    animation: wiggle 0.8s var(--ease-out-expo) !important;
+}
+
+@keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1952,26 +2160,108 @@ select:hover {
    BUTTON MICRO-INTERACTIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Active press effect - SUAVE */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTIVE STATES - Press feedback estilo iOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Active press - scale down rápido */
 button:active:not(:disabled),
 [role="button"]:active:not(:disabled) {
-    transform: scale(0.96);
-    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(0.95) !important;
+    transition: transform 0.1s var(--ease-out-expo) !important;
+    filter: brightness(0.9) !important;
 }
 
-/* Hover effects universais - FORÇAR */
+/* Active para cards */
+[class*="rounded-xl"]:active,
+[class*="rounded-lg"]:active {
+    transform: scale(0.98) !important;
+    transition: transform 0.1s var(--ease-out-expo) !important;
+}
+
+/* Ripple effect sutil */
+@keyframes ripple {
+    0% {
+        transform: scale(0);
+        opacity: 0.6;
+    }
+    100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
+}
+
+.ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(var(--neon-rgb), 0.3) 0%, transparent 70%);
+    transform: translate(-50%, -50%) scale(0);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.ripple:active::after {
+    animation: ripple 0.6s var(--ease-out-expo) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOVER EFFECTS - Estilo macOS com glow e scale
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Botões primários - glow + scale */
 button:not(:disabled):hover,
-[role="button"]:not(:disabled):hover,
+[role="button"]:not(:disabled):hover {
+    transform: translateY(-2px) scale(1.02) !important;
+    filter: brightness(1.15) !important;
+    box-shadow: 0 4px 20px rgba(var(--neon-rgb), 0.3) !important;
+}
+
+/* Links - underline suave */
 a:hover {
     transform: translateY(-1px) !important;
     filter: brightness(1.1) !important;
+    text-decoration-color: rgba(var(--neon-rgb), 0.8) !important;
 }
 
-/* Hover para cards */
+/* Cards - lift + glow + border */
 [class*="rounded-xl"]:hover,
 [class*="rounded-lg"]:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-4px) scale(1.01) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 
+                0 0 0 1px rgba(var(--neon-rgb), 0.2) !important;
+    border-color: rgba(var(--neon-rgb), 0.4) !important;
+}
+
+/* Inputs - glow no focus */
+input:focus,
+textarea:focus,
+select:focus {
+    box-shadow: 0 0 0 3px rgba(var(--neon-rgb), 0.15),
+                0 4px 12px rgba(var(--neon-rgb), 0.1) !important;
+    border-color: rgba(var(--neon-rgb), 0.6) !important;
+    transform: scale(1.01) !important;
+}
+
+/* Ícones - rotate + scale no hover */
+i:hover,
+[class*="fa-"]:hover {
+    transform: scale(1.15) rotate(5deg) !important;
+    filter: brightness(1.2) drop-shadow(0 0 8px rgba(var(--neon-rgb), 0.5)) !important;
+}
+
+/* Imagens - zoom suave */
+img:hover {
+    transform: scale(1.05) !important;
+    filter: brightness(1.05) !important;
 }
 
 /* Focus visible suave */
