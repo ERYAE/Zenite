@@ -92,7 +92,7 @@
         </div>
     </div>
 
-    <div id="app-loader" x-show="systemLoading" x-transition.opacity.duration.500ms class="fixed inset-0 z-[9999] bg-[#050507] flex flex-col items-center justify-center">
+    <div id="app-loader" x-show="systemLoading" x-transition.opacity.duration.700ms class="fixed inset-0 z-[99999] bg-[#050507] flex flex-col items-center justify-center" style="will-change: opacity;">
         <!-- D20 Spinner Container -->
         <div class="relative w-28 h-28 mb-10 flex items-center justify-center">
             <!-- Outer spinning ring -->
@@ -3652,19 +3652,20 @@
                 <h3 class="text-[10px] text-pink-400 font-bold uppercase mb-2">Meus Amigos (<span x-text="friends.length"></span>)</h3>
                 <div class="space-y-2">
                     <template x-for="friendship in friends" :key="friendship.id">
-                        <div class="bg-black/40 rounded-lg p-3 border border-white/5 flex items-center gap-3 group hover:border-pink-500/30 transition-colors">
-                            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden">
+                        <div class="bg-black/40 rounded-lg p-3 border border-white/5 flex items-center gap-3 group hover:border-pink-500/30 transition-colors cursor-pointer"
+                             @click="viewProfile(friendship.friend_id, true)">
+                            <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden flex-shrink-0">
                                 <img x-show="friendship.friend_avatar" :src="friendship.friend_avatar" class="w-full h-full object-cover">
                                 <i x-show="!friendship.friend_avatar" class="fa-solid fa-user"></i>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm text-white font-bold truncate" x-text="friendship.friend_display_name || '@' + friendship.friend_username"></p>
+                                <p class="text-sm text-white font-bold truncate" x-text="friendship.friend_display_name || 'Usuário'"></p>
                                 <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (friendship.friend_username || 'usuário')"></p>
                             </div>
-                            <div class="flex gap-1">
+                            <div class="flex gap-1" @click.stop>
                                 <!-- Botão Convidar para Campanha (aparece se GM tem campanha ativa) -->
                                 <button x-show="activeCampaign && isGMOfActiveCampaign() && canInviteFriend(friendship.friend_id)"
-                                        @click="inviteFriendToCampaign(friendship.friend_id)"
+                                        @click.stop="inviteFriendToCampaign(friendship.friend_id)"
                                         class="w-8 h-8 rounded-lg text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 flex items-center justify-center transition-all"
                                         :title="'Convidar para ' + activeCampaign?.name">
                                     <i class="fa-solid fa-gamepad text-xs"></i>

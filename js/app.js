@@ -399,11 +399,13 @@ function zeniteSystem() {
             this.checkUsername();
             
             this.loadingProgress = 100;
+            this.loadingText = 'READY';
+            // Delay maior para mostrar a arte e garantir que tudo carregou
             setTimeout(() => { 
                 this.systemLoading = false;
                 // Inicializa o router após o sistema carregar
                 router.init(this);
-            }, 500);
+            }, 1200);
             
             // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
             setInterval(() => { 

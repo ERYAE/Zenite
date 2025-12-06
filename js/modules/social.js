@@ -589,11 +589,12 @@ export const socialLogic = {
                     const profile = profileMap.get(friendId);
                     return {
                         ...f,
-                        friend_username: profile?.username || null,
-                        friend_display_name: profile?.username || null,
+                        friend_id: friendId, // IMPORTANTE: ID do amigo para convites
+                        friend_username: profile?.username || 'usuário',
+                        friend_display_name: profile?.username || 'Usuário',
                         friend_avatar: profile?.avatar_url || null
                     };
-                });
+                }).filter(f => f.friend_username !== 'usuário' || f.friend_id); // Remove amigos sem dados válidos
             } else {
                 this.friends = [];
             }
@@ -700,29 +701,34 @@ export const socialLogic = {
     async sendFriendRequest(usernameOrId) {
         if (!this.supabase || !this.user) return;
         if (!usernameOrId || usernameOrId.trim().length < 2) {
-            this.notify('Digite um username ou ID válido.', 'error');
+            this.notify('Digite um username válido.', 'error');
             return;
         }
         
         try {
-            const searchTerm = usernameOrId.trim();
+            // Remove @ se o usuário digitou
+            let searchTerm = usernameOrId.trim().replace(/^@/, '').toLowerCase();
             
-            // Primeiro tenta buscar por username (case insensitive)
-            let { data: profile } = await this.supabase
+            if (!searchTerm) {
+                this.notify('Digite um username válido.', 'error');
+                return;
+            }
+            
+            console.log('[SOCIAL] Buscando usuário:', searchTerm);
+            
+            // Busca por username (case insensitive) - usando eq com lower
+            let { data: profiles, error: searchError } = await this.supabase
                 .from('profiles')
                 .select('id, username')
-                .ilike('username', searchTerm)
-                .single();
+                .ilike('username', searchTerm);
             
-            // Se não encontrou por username, tenta por ID exato
-            if (!profile) {
-                const { data: profileById } = await this.supabase
-                    .from('profiles')
-                    .select('id, username')
-                    .eq('id', searchTerm)
-                    .single();
-                profile = profileById;
+            if (searchError) {
+                console.error('[SOCIAL] Erro na busca:', searchError);
+                throw searchError;
             }
+            
+            // Pega o primeiro resultado exato ou parcial
+            let profile = profiles?.find(p => p.username?.toLowerCase() === searchTerm) || profiles?.[0];
             
             if (!profile) {
                 this.notify('Usuário não encontrado. Verifique o username.', 'error');
@@ -920,16 +926,31 @@ export const socialLogic = {
         }
     },
     
-    async viewProfile(userId) {
-        if (!this.supabase) return;
+    async viewProfile(userId, isFriend = false) {
+        if (!this.supabase || !userId) {
+            this.notify('Perfil não disponível.', 'warn');
+            return;
+        }
         
         try {
-            const { data } = await this.supabase
+            // Se é amigo, pode ver mesmo que não seja público
+            let query = this.supabase
                 .from('profiles')
                 .select('*')
-                .eq('id', userId)
-                .eq('is_public', true)
-                .single();
+                .eq('id', userId);
+            
+            // Se não é amigo, só mostra perfis públicos
+            if (!isFriend) {
+                query = query.eq('is_public', true);
+            }
+            
+            const { data, error } = await query.single();
+            
+            if (error) {
+                console.error('[SOCIAL] Erro ao buscar perfil:', error);
+                this.notify('Erro ao carregar perfil.', 'error');
+                return;
+            }
             
             if (data) {
                 this.viewingProfile = data;
@@ -939,6 +960,7 @@ export const socialLogic = {
             }
         } catch (e) {
             console.error('[SOCIAL] Erro ao ver perfil:', e);
+            this.notify('Erro ao carregar perfil.', 'error');
         }
     },
     
