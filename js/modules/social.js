@@ -353,14 +353,17 @@ export const socialLogic = {
     // ─────────────────────────────────────────────────────────────────────────
     
     initSocial() {
-        // Carrega stats do localStorage
-        const savedStats = localStorage.getItem('zenite_local_stats');
+        // Prefixo por usuário para evitar conflito entre contas
+        const userPrefix = this.user?.id ? `zenite_${this.user.id.slice(0,8)}_` : 'zenite_guest_';
+        
+        // Carrega stats do localStorage (por usuário)
+        const savedStats = localStorage.getItem(`${userPrefix}local_stats`) || localStorage.getItem('zenite_local_stats');
         if (savedStats) {
             this.localStats = { ...this.localStats, ...JSON.parse(savedStats) };
         }
         
-        // Carrega achievements desbloqueados
-        const savedAchievements = localStorage.getItem('zenite_achievements');
+        // Carrega achievements desbloqueados (por usuário)
+        const savedAchievements = localStorage.getItem(`${userPrefix}achievements`) || localStorage.getItem('zenite_achievements');
         if (savedAchievements) {
             try {
                 this.unlockedAchievements = JSON.parse(savedAchievements);
@@ -370,6 +373,9 @@ export const socialLogic = {
             }
         }
         this.achievementsLoaded = true;
+        
+        // Armazena prefixo para uso posterior
+        this._userPrefix = userPrefix;
         
         // Atualiza contagem de personagens
         this.localStats.charsCreated = Object.keys(this.chars || {}).length;
@@ -418,7 +424,8 @@ export const socialLogic = {
     },
     
     saveLocalStats() {
-        localStorage.setItem('zenite_local_stats', JSON.stringify(this.localStats));
+        const prefix = this._userPrefix || 'zenite_guest_';
+        localStorage.setItem(`${prefix}local_stats`, JSON.stringify(this.localStats));
     },
     
     // ─────────────────────────────────────────────────────────────────────────
@@ -464,8 +471,9 @@ export const socialLogic = {
             }
         });
         
-        // Salva no localStorage
-        localStorage.setItem('zenite_achievements', JSON.stringify(this.unlockedAchievements));
+        // Salva no localStorage (com prefixo por usuário)
+        const prefix = this._userPrefix || 'zenite_guest_';
+        localStorage.setItem(`${prefix}achievements`, JSON.stringify(this.unlockedAchievements));
         
         // Notifica apenas achievements realmente novos
         newUnlocks.forEach(achievement => {
@@ -1141,35 +1149,31 @@ export const socialLogic = {
     
     /**
      * Envia convite de campanha para amigo
+     * Usa função SQL segura para evitar problemas de RLS
      */
     async sendCampaignInvite(campaignId) {
         if (!this.inviteTargetFriend?.friendId || !campaignId) return;
         
         try {
-            // Verifica se já é membro
-            const { data: existing } = await this.supabase
-                .from('campaign_members')
-                .select('id')
-                .eq('campaign_id', campaignId)
-                .eq('user_id', this.inviteTargetFriend.friendId)
-                .single();
-            
-            if (existing) {
-                this.notify('Este amigo já está na campanha!', 'warn');
-                return;
-            }
-            
-            // Adiciona como membro pendente
-            const { error } = await this.supabase
-                .from('campaign_members')
-                .insert({
-                    campaign_id: campaignId,
-                    user_id: this.inviteTargetFriend.friendId,
-                    role: 'player',
-                    status: 'invited'
+            // Usa função SQL que valida GM e amizade
+            const { data, error } = await this.supabase
+                .rpc('send_campaign_invite', {
+                    p_campaign_id: campaignId,
+                    p_friend_id: this.inviteTargetFriend.friendId
                 });
             
             if (error) throw error;
+            
+            if (!data?.success) {
+                const errors = {
+                    'campaign_not_found': 'Campanha não encontrada.',
+                    'not_gm': 'Apenas o GM pode convidar jogadores.',
+                    'not_friends': 'Vocês não são amigos.',
+                    'already_member': 'Este amigo já está na campanha!'
+                };
+                this.notify(errors[data?.error] || 'Erro ao enviar convite.', 'warn');
+                return;
+            }
             
             this.notify(`Convite enviado para ${this.inviteTargetFriend.displayName}!`, 'success');
             playSFX('success');
@@ -1631,6 +1635,110 @@ export const socialLogic = {
             playSFX('error');
         } finally {
             this.usernameSaving = false;
+        }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAMPANHAS - Funções de gerenciamento
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Sai de uma campanha específica
+     */
+    async leaveCampaign(campaignId) {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('leave_campaign', { p_campaign_id: campaignId });
+            
+            if (error) throw error;
+            
+            this.notify('Você saiu da campanha.', 'success');
+            playSFX('save');
+            
+            // Recarrega lista de campanhas
+            if (typeof this.fetchCampaigns === 'function') {
+                await this.fetchCampaigns();
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[CAMPAIGN] Erro ao sair:', e);
+            this.notify('Erro ao sair da campanha.', 'error');
+            return false;
+        }
+    },
+    
+    /**
+     * Sai de TODAS as campanhas (exceto as que é GM)
+     */
+    async leaveAllCampaigns() {
+        if (!this.supabase || !this.user) return;
+        
+        if (!confirm('Tem certeza que deseja sair de TODAS as campanhas?\n\nIsso não afeta campanhas onde você é o Mestre.')) {
+            return false;
+        }
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('leave_all_campaigns');
+            
+            if (error) throw error;
+            
+            const count = data?.left_count || 0;
+            this.notify(`Você saiu de ${count} campanha(s).`, 'success');
+            playSFX('save');
+            
+            // Recarrega
+            if (typeof this.fetchCampaigns === 'function') {
+                await this.fetchCampaigns();
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[CAMPAIGN] Erro ao sair de todas:', e);
+            this.notify('Erro ao sair das campanhas.', 'error');
+            return false;
+        }
+    },
+    
+    /**
+     * Deleta TODAS as campanhas onde o usuário é GM
+     */
+    async deleteAllMyCampaigns() {
+        if (!this.supabase || !this.user) return;
+        
+        if (!confirm('⚠️ ATENÇÃO: Isso vai DELETAR PERMANENTEMENTE todas as campanhas onde você é o Mestre!\n\nTodos os jogadores serão removidos e os dados perdidos.\n\nDigite "DELETAR" para confirmar.')) {
+            return false;
+        }
+        
+        const confirmation = prompt('Digite DELETAR para confirmar:');
+        if (confirmation !== 'DELETAR') {
+            this.notify('Operação cancelada.', 'info');
+            return false;
+        }
+        
+        try {
+            const { data, error } = await this.supabase
+                .rpc('delete_all_my_campaigns');
+            
+            if (error) throw error;
+            
+            const count = data?.deleted_count || 0;
+            this.notify(`${count} campanha(s) deletada(s) permanentemente.`, 'success');
+            playSFX('save');
+            
+            // Recarrega
+            if (typeof this.fetchCampaigns === 'function') {
+                await this.fetchCampaigns();
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[CAMPAIGN] Erro ao deletar todas:', e);
+            this.notify('Erro ao deletar campanhas.', 'error');
+            return false;
         }
     }
 };

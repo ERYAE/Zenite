@@ -2238,6 +2238,17 @@
                 
                 <button @click="askClearAllChars()" class="w-full py-2 border border-orange-500/30 text-orange-500 rounded-lg text-[10px] font-bold hover:bg-orange-500/10 transition-colors mt-2">LIMPAR TODAS AS FICHAS</button>
                 
+                <div class="border-t border-white/10 my-4"></div>
+                <p class="text-[9px] text-gray-500 font-bold mb-2 uppercase">Campanhas</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button @click="leaveAllCampaigns()" class="py-2 border border-yellow-500/30 text-yellow-500 rounded-lg text-[9px] font-bold hover:bg-yellow-500/10 transition-colors">
+                        <i class="fa-solid fa-door-open mr-1"></i> SAIR DE TODAS
+                    </button>
+                    <button @click="deleteAllMyCampaigns()" class="py-2 border border-red-500/30 text-red-500 rounded-lg text-[9px] font-bold hover:bg-red-500/10 transition-colors">
+                        <i class="fa-solid fa-trash mr-1"></i> DELETAR MINHAS
+                    </button>
+                </div>
+                
                 <div class="text-[9px] text-gray-600 text-center mt-6 font-code">
                     <p>ZENITE OS v2.2 // HERO ACADEMY DATABASE</p>
                     <p class="mt-1 opacity-50">Desenvolvido com assistência de Inteligência Artificial.</p>

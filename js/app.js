@@ -358,6 +358,10 @@ function zeniteSystem() {
                                 }
                                 window.location.hash = '#/recover';
                             } else if (event === 'SIGNED_IN' && session) {
+                                // Reset loading state (importante para OAuth)
+                                this.authLoading = false;
+                                this.authMsg = '';
+                                
                                 if (this.user?.id === session.user.id) return;
                                 this.user = session.user;
                                 this.isGuest = false;
