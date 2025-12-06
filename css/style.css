@@ -1060,3 +1060,162 @@ img[loading="lazy"].loaded {
     box-shadow: 0 0 20px rgba(var(--neon-rgb), 0.3);
     border-color: var(--neon-core);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS & FEEDBACK ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Shake animation for errors */
+.animate-shake {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
+
+/* Bounce-in animation for success checkmarks */
+.animate-bounce-in {
+    animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Pulse glow for critical/success states */
+.animate-glow-pulse {
+    animation: glowPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 5px var(--neon-core), 0 0 10px var(--neon-core); }
+    50% { box-shadow: 0 0 20px var(--neon-core), 0 0 30px var(--neon-core); }
+}
+
+/* Dice roll animation */
+.animate-dice-roll {
+    animation: diceRoll 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes diceRoll {
+    0% { transform: scale(0.5) rotate(-180deg); opacity: 0; }
+    50% { transform: scale(1.2) rotate(10deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Critical hit effect */
+.animate-critical {
+    animation: criticalHit 0.8s ease-out;
+}
+
+@keyframes criticalHit {
+    0% { transform: scale(1); filter: brightness(1); }
+    25% { transform: scale(1.3); filter: brightness(2) drop-shadow(0 0 20px #22c55e); }
+    50% { transform: scale(0.9); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* Fumble effect */
+.animate-fumble {
+    animation: fumble 0.6s ease-out;
+}
+
+@keyframes fumble {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); filter: brightness(0.8); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); filter: hue-rotate(-20deg); }
+}
+
+/* Skeleton loader shimmer */
+.skeleton-loader {
+    background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0.05) 25%,
+        rgba(255,255,255,0.1) 50%,
+        rgba(255,255,255,0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* D20 spinner for loading */
+.animate-d20-spin {
+    animation: d20Spin 1s linear infinite;
+}
+
+@keyframes d20Spin {
+    0% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(90deg) scale(1.1); }
+    50% { transform: rotate(180deg) scale(1); }
+    75% { transform: rotate(270deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* Achievement unlock effect */
+.animate-achievement {
+    animation: achievementUnlock 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes achievementUnlock {
+    0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+    50% { transform: scale(1.2) rotate(10deg); }
+    70% { transform: scale(0.9) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Save indicator pulse */
+.animate-save-pulse {
+    animation: savePulse 1s ease-in-out infinite;
+}
+
+@keyframes savePulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* Holographic shimmer for RPG profile */
+.holographic-shimmer {
+    background: linear-gradient(
+        135deg,
+        rgba(14, 165, 233, 0.1) 0%,
+        rgba(217, 70, 239, 0.1) 25%,
+        rgba(14, 165, 233, 0.2) 50%,
+        rgba(217, 70, 239, 0.1) 75%,
+        rgba(14, 165, 233, 0.1) 100%
+    );
+    background-size: 400% 400%;
+    animation: holographic 8s ease infinite;
+}
+
+@keyframes holographic {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Scanline effect for cyber aesthetic */
+.scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.1) 2px,
+        rgba(0, 0, 0, 0.1) 4px
+    );
+    pointer-events: none;
+    opacity: 0.3;
+}

@@ -1,132 +1,142 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ZENITE ROUTER v2.0
+// ZENITE ROUTER v3.0
 // ═══════════════════════════════════════════════════════════════════════════
-// URLs compartilháveis com hash routing (compatível com qualquer host):
+// Hash routing compartilhável:
 // - /#/dashboard
 // - /#/sheet/abc123
 // - /#/netlink/XY7ABC
+// - /#/login
+// Foco em segurança de histórico: limpa login do histórico ao autenticar.
 // ═══════════════════════════════════════════════════════════════════════════
 
+const sanitizeRouteName = (raw) => {
+    if (!raw) return 'dashboard';
+    const safe = String(raw).toLowerCase();
+    if (['dashboard', 'sheet', 'netlink', 'login'].includes(safe)) return safe;
+    return 'dashboard';
+};
+
+const sanitizeParam = (route, param) => {
+    if (!param) return null;
+    if (route === 'netlink') {
+        return String(param).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    }
+    if (route === 'sheet') {
+        return String(param).trim();
+    }
+    return null;
+};
+
 export const router = {
-    // Referência ao app
     app: null,
-    
-    // Rota pendente após login
     pendingRoute: null,
-    
-    // Rotas disponíveis
     routes: {
         dashboard: { view: 'dashboard', title: 'Dashboard' },
         sheet: { view: 'sheet', title: 'Ficha', param: 'charId' },
         netlink: { view: 'campaign', title: 'NetLink', param: 'code' },
         login: { view: 'login', title: 'Login' }
     },
-    
+
     /**
      * Inicializa o router
      * @param {Object} app - Referência ao app Alpine
      */
     init(app) {
         this.app = app;
-        
-        // Escuta mudanças de hash
         window.addEventListener('hashchange', () => this.handleRoute());
-        
-        // Processa rota inicial
         this.handleRoute();
     },
-    
+
     /**
      * Navega para uma rota
-     * @param {string} route - Nome da rota
-     * @param {string|null} param - Parâmetro opcional (ID de ficha, código de campanha)
-     * @param {boolean} replace - Se true, substitui a entrada atual no histórico
-     * @param {boolean} skipProcess - Se true, apenas atualiza URL sem processar rota
+     * @param {string} route
+     * @param {string|null} param
+     * @param {boolean} replace
+     * @param {boolean} skipProcess
      */
     navigate(route, param = null, replace = false, skipProcess = false) {
-        // Constrói o hash
-        let hash = '#/' + route;
-        if (param) hash += '/' + param;
-        
-        // Dashboard pode ficar limpo ou com hash
-        if (route === 'dashboard') {
+        const safeRoute = sanitizeRouteName(route);
+        const safeParam = sanitizeParam(safeRoute, param);
+
+        let hash = '#/' + safeRoute;
+        if (safeParam) hash += '/' + safeParam;
+
+        if (safeRoute === 'dashboard') {
             hash = '#/dashboard';
         }
-        
+
         const currentHash = window.location.hash;
-        
-        // Evita navegação para a mesma rota
         if (currentHash === hash && !replace) {
             return;
         }
-        
+
         if (replace) {
-            // Substitui sem adicionar ao histórico
             const url = window.location.pathname + window.location.search + hash;
-            window.history.replaceState({ route, param }, '', url);
+            window.history.replaceState({ route: safeRoute, param: safeParam }, '', url);
         } else {
             window.location.hash = hash;
         }
-        
+
         if (!skipProcess) {
-            this.processRoute(route, param);
+            this.processRoute(safeRoute, safeParam);
         }
-        
-        this.updateTitle(route, param);
+
+        this.updateTitle(safeRoute, safeParam);
     },
-    
+
     /**
      * Processa a rota atual baseada no hash
      */
     handleRoute() {
         const hash = window.location.hash;
-        
-        // Se não tem hash, vai para dashboard
+
         if (!hash || hash === '#' || hash === '#/') {
             this.navigate('dashboard', null, true);
             return;
         }
-        
-        // Parse do hash: #/route/param
-        const parts = hash.slice(2).split('/').filter(p => p); // Remove #/
-        const routeName = parts[0] || 'dashboard';
-        const param = parts[1] || null;
-        
+
+        const parts = hash.slice(2).split('/').filter((p) => p);
+        const routeName = sanitizeRouteName(parts[0] || 'dashboard');
+        const param = sanitizeParam(routeName, parts[1] || null);
+
         console.log('[ROUTER] HandleRoute -', routeName, param);
-        
+
         this.processRoute(routeName, param);
     },
-    
+
     /**
      * Processa uma rota específica
      */
     async processRoute(routeName, param) {
         console.log('[ROUTER] Processando:', routeName, param);
-        
-        // Se não estiver autenticado e tentar acessar algo diferente de login
+
+        // Guarda tentativa de rota antes do login
         if (!this.app.user && !this.app.isGuest && routeName !== 'login') {
-            // Salva a rota pretendida para redirecionar após login
             this.pendingRoute = { route: routeName, param };
+            // Garante hash de login com replace para evitar histórico de volta
+            const loginUrl = window.location.pathname + window.location.search + '#/login';
+            window.history.replaceState({ route: 'login' }, '', loginUrl);
+            this.app.currentView = 'login';
             this.updateTitle('login');
-            return; // Fica na tela de login
+            return;
         }
-        
+
         switch (routeName) {
             case 'dashboard':
                 this.app.currentView = 'dashboard';
                 this.updateTitle('dashboard');
+                // Limpa pendência ao chegar no dashboard
+                this.pendingRoute = null;
+                this.updateUrl('dashboard');
                 break;
-                
+
             case 'sheet':
                 if (param) {
-                    // Aguarda chars carregarem se necessário
                     await this.waitForChars();
-                    
+
                     if (this.app.chars && this.app.chars[param]) {
-                        // Usa loadCharacter (skipPush=true para não duplicar navegação)
                         const success = this.app.loadCharacter(param, true);
                         if (success) {
-                            // Atualiza URL após carregar
                             this.updateUrl('sheet', param);
                             this.updateTitle('sheet', this.app.char?.name);
                         } else {
@@ -141,13 +151,14 @@ export const router = {
                     this.navigate('dashboard', null, true);
                 }
                 break;
-                
+
             case 'netlink':
                 if (param && this.app.netlinkEnabled) {
                     try {
                         const success = await this.app.joinByCode(param);
                         if (success) {
                             this.updateTitle('netlink', this.app.activeCampaign?.name);
+                            this.updateUrl('netlink', param);
                         }
                     } catch (e) {
                         console.error('[ROUTER] Erro ao entrar na campanha:', e);
@@ -158,19 +169,22 @@ export const router = {
                     this.navigate('dashboard', null, true);
                 }
                 break;
-                
+
             case 'login':
-                // Se já estiver logado, vai para dashboard
                 if (this.app.user || this.app.isGuest) {
+                    // Limpa histórico de login para não voltar
                     this.navigate('dashboard', null, true);
+                } else {
+                    this.app.currentView = 'login';
+                    this.updateUrl('login');
                 }
                 break;
-                
+
             default:
                 this.navigate('dashboard', null, true);
         }
     },
-    
+
     /**
      * Aguarda os chars carregarem
      */
@@ -186,27 +200,25 @@ export const router = {
             check();
         });
     },
-    
+
     /**
      * Redireciona para rota pendente após login
+     * Limpando histórico de login para evitar back unsafe.
      */
     redirectAfterLogin() {
-        if (this.pendingRoute) {
-            const { route, param } = this.pendingRoute;
-            this.pendingRoute = null;
-            this.navigate(route, param, true);
-        } else {
-            this.navigate('dashboard', null, true);
-        }
+        const target = this.pendingRoute || { route: 'dashboard', param: null };
+        this.pendingRoute = null;
+        // Replace para não deixar login no histórico
+        this.navigate(target.route, target.param, true);
     },
-    
+
     /**
      * Retorna a URL compartilhável atual
      */
     getShareableUrl() {
         return window.location.href;
     },
-    
+
     /**
      * Copia a URL atual para a área de transferência
      */
@@ -216,29 +228,32 @@ export const router = {
         this.app.notify('Link copiado!', 'success');
         return url;
     },
-    
+
     /**
      * Atualiza a URL sem disparar navegação
      */
     updateUrl(route, param = null) {
-        let hash = '#/' + route;
-        if (param) hash += '/' + param;
-        
+        const safeRoute = sanitizeRouteName(route);
+        const safeParam = sanitizeParam(safeRoute, param);
+
+        let hash = '#/' + safeRoute;
+        if (safeParam) hash += '/' + safeParam;
+
         const url = window.location.pathname + window.location.search + hash;
-        window.history.replaceState({ route, param }, '', url);
+        window.history.replaceState({ route: safeRoute, param: safeParam }, '', url);
     },
-    
+
     /**
      * Atualiza o título da aba do navegador
      */
     updateTitle(route, subtitle = null) {
         const routeConfig = this.routes[route];
         let title = routeConfig?.title || 'ZENITE OS';
-        
+
         if (subtitle) {
             title = subtitle;
         }
-        
+
         document.title = `ZENITE OS // ${title}`;
     }
 };

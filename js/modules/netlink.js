@@ -361,38 +361,79 @@ export const netlinkLogic = {
     },
     
     /**
+     * Sanitiza e normaliza código de convite
+     * Remove caracteres inválidos, extrai código de URLs, etc.
+     * @param {string} rawCode - Código bruto (pode ser URL ou código direto)
+     * @returns {string|null} Código sanitizado ou null se inválido
+     */
+    sanitizeInviteCode(rawCode) {
+        if (!rawCode || typeof rawCode !== 'string') return null;
+        
+        let code = rawCode.trim();
+        
+        // Se for uma URL, extrai o código do path
+        if (code.includes('://') || code.includes('#/netlink/')) {
+            const urlMatch = code.match(/(?:netlink\/|code=)([A-Z0-9]{4,8})/i);
+            if (urlMatch) {
+                code = urlMatch[1];
+            }
+        }
+        
+        // Remove caracteres especiais e espaços
+        code = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        
+        // Valida comprimento (códigos são 6 caracteres por padrão)
+        if (code.length < 4 || code.length > 8) {
+            return null;
+        }
+        
+        return code;
+    },
+    
+    /**
      * Entra em uma campanha diretamente pelo código (usado pelo router)
      * Se já for membro, apenas entra. Se não for, mostra modal de seleção de personagem.
-     * @param {string} code - Código de convite
+     * @param {string} code - Código de convite (pode ser URL ou código direto)
      */
     async joinByCode(code) {
-        if (!code) return false;
+        // Sanitiza o código de entrada
+        const sanitizedCode = this.sanitizeInviteCode(code);
+        
+        if (!sanitizedCode) {
+            this.notify('Código de convite inválido. Use 4-8 caracteres alfanuméricos.', 'error');
+            return false;
+        }
+        
+        console.log('[NETLINK] Tentando entrar com código:', sanitizedCode);
         
         // Evita re-entrar se já estiver na campanha com o mesmo código
-        if (this.activeCampaign?.invite_code?.toUpperCase() === code.toUpperCase()) {
-            console.log('[NETLINK] Já está na campanha:', code);
+        if (this.activeCampaign?.invite_code?.toUpperCase() === sanitizedCode) {
+            console.log('[NETLINK] Já está na campanha:', sanitizedCode);
             return true;
         }
         
         if (!this.supabase || !this.user) {
             // Salva o código para entrar depois do login
-            sessionStorage.setItem('zenite_pending_campaign', code);
+            sessionStorage.setItem('zenite_pending_campaign', sanitizedCode);
             this.notify('Faça login para entrar na campanha.', 'warn');
             return false;
         }
         
         try {
-            // Busca a campanha pelo código
+            // Busca a campanha pelo código (case insensitive)
             const { data: campaign, error } = await this.supabase
                 .from('campaigns')
                 .select('*')
-                .eq('invite_code', code.toUpperCase())
+                .ilike('invite_code', sanitizedCode)
                 .single();
             
             if (error || !campaign) {
-                this.notify('Campanha não encontrada.', 'error');
+                console.warn('[NETLINK] Campanha não encontrada para código:', sanitizedCode, error);
+                this.notify('Código de convite inválido ou campanha não encontrada.', 'error');
                 return false;
             }
+            
+            console.log('[NETLINK] Campanha encontrada:', campaign.name);
             
             // Verifica se já é membro
             const { data: member } = await this.supabase
@@ -2438,6 +2479,220 @@ export const netlinkLogic = {
         } catch (e) {
             console.warn('[MUSIC] Erro ao fazer seek:', e);
         }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONVITES DE AMIGOS PARA CAMPANHA
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    // Lista de convites pendentes para campanhas
+    pendingCampaignInvites: [],
+    
+    /**
+     * Convida um amigo para a campanha ativa
+     * Cria um registro em campaign_members com status 'pending'
+     * @param {string} friendUserId - ID do usuário amigo
+     */
+    async inviteFriendToCampaign(friendUserId) {
+        if (!this.supabase || !this.activeCampaign || !this.user) {
+            this.notify('Erro: Não foi possível enviar convite.', 'error');
+            return false;
+        }
+        
+        // Apenas GM pode convidar
+        if (!this.isGMOfActiveCampaign()) {
+            this.notify('Apenas o Mestre pode convidar jogadores.', 'error');
+            return false;
+        }
+        
+        try {
+            // Verifica se já é membro ou tem convite pendente
+            const { data: existing } = await this.supabase
+                .from('campaign_members')
+                .select('id, status')
+                .eq('campaign_id', this.activeCampaign.id)
+                .eq('user_id', friendUserId)
+                .single();
+            
+            if (existing) {
+                if (existing.status === NETLINK_CONFIG.MEMBER_STATUS.ACTIVE) {
+                    this.notify('Este jogador já está na campanha.', 'warn');
+                } else if (existing.status === NETLINK_CONFIG.MEMBER_STATUS.PENDING) {
+                    this.notify('Convite já enviado para este jogador.', 'warn');
+                }
+                return false;
+            }
+            
+            // Cria convite pendente
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .insert([{
+                    campaign_id: this.activeCampaign.id,
+                    user_id: friendUserId,
+                    role: NETLINK_CONFIG.ROLES.PLAYER,
+                    status: NETLINK_CONFIG.MEMBER_STATUS.PENDING,
+                    invited_by: this.user.id,
+                    char_data: null
+                }]);
+            
+            if (error) throw error;
+            
+            playSFX('success');
+            this.notify('Convite enviado com sucesso!', 'success');
+            
+            // Tenta enviar notificação realtime para o amigo
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'campaign_invite',
+                    payload: {
+                        targetUserId: friendUserId,
+                        campaignName: this.activeCampaign.name,
+                        campaignId: this.activeCampaign.id,
+                        invitedBy: this.settings?.displayName || this.settings?.username || 'Mestre'
+                    }
+                });
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[NETLINK] Erro ao convidar amigo:', e);
+            this.notify('Erro ao enviar convite.', 'error');
+            return false;
+        }
+    },
+    
+    /**
+     * Carrega convites pendentes de campanhas para o usuário atual
+     */
+    async loadPendingCampaignInvites() {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            const { data, error } = await this.supabase
+                .from('campaign_members')
+                .select(`
+                    id,
+                    campaign_id,
+                    invited_by,
+                    created_at,
+                    campaigns:campaign_id (
+                        id,
+                        name,
+                        description,
+                        gm_id,
+                        invite_code
+                    )
+                `)
+                .eq('user_id', this.user.id)
+                .eq('status', NETLINK_CONFIG.MEMBER_STATUS.PENDING);
+            
+            if (error) throw error;
+            
+            this.pendingCampaignInvites = (data || []).map(invite => ({
+                id: invite.id,
+                campaignId: invite.campaign_id,
+                campaignName: invite.campaigns?.name || 'Campanha',
+                campaignDesc: invite.campaigns?.description || '',
+                inviteCode: invite.campaigns?.invite_code,
+                invitedBy: invite.invited_by,
+                createdAt: invite.created_at
+            }));
+            
+            // Se tem convites, mostra notificação
+            if (this.pendingCampaignInvites.length > 0) {
+                this.notify(`Você tem ${this.pendingCampaignInvites.length} convite(s) de campanha pendente(s)!`, 'info');
+            }
+        } catch (e) {
+            console.error('[NETLINK] Erro ao carregar convites:', e);
+        }
+    },
+    
+    /**
+     * Aceita um convite de campanha
+     * @param {string} inviteId - ID do registro do convite em campaign_members
+     */
+    async acceptCampaignInvite(inviteId) {
+        if (!this.supabase || !this.user) return false;
+        
+        try {
+            // Atualiza status para ativo
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .update({ 
+                    status: NETLINK_CONFIG.MEMBER_STATUS.ACTIVE,
+                    joined_at: new Date().toISOString()
+                })
+                .eq('id', inviteId)
+                .eq('user_id', this.user.id);
+            
+            if (error) throw error;
+            
+            // Remove da lista de pendentes
+            const invite = this.pendingCampaignInvites.find(i => i.id === inviteId);
+            this.pendingCampaignInvites = this.pendingCampaignInvites.filter(i => i.id !== inviteId);
+            
+            // Recarrega campanhas
+            await this.loadCampaigns();
+            
+            playSFX('success');
+            this.notify('Convite aceito! Você agora faz parte da campanha.', 'success');
+            
+            // Se temos o código de convite, entra na campanha
+            if (invite?.inviteCode) {
+                await this.joinByCode(invite.inviteCode);
+            }
+            
+            return true;
+        } catch (e) {
+            console.error('[NETLINK] Erro ao aceitar convite:', e);
+            this.notify('Erro ao aceitar convite.', 'error');
+            return false;
+        }
+    },
+    
+    /**
+     * Recusa um convite de campanha
+     * @param {string} inviteId - ID do registro do convite em campaign_members
+     */
+    async declineCampaignInvite(inviteId) {
+        if (!this.supabase || !this.user) return false;
+        
+        try {
+            // Remove o registro de convite
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .delete()
+                .eq('id', inviteId)
+                .eq('user_id', this.user.id);
+            
+            if (error) throw error;
+            
+            // Remove da lista de pendentes
+            this.pendingCampaignInvites = this.pendingCampaignInvites.filter(i => i.id !== inviteId);
+            
+            playSFX('click');
+            this.notify('Convite recusado.', 'info');
+            
+            return true;
+        } catch (e) {
+            console.error('[NETLINK] Erro ao recusar convite:', e);
+            this.notify('Erro ao recusar convite.', 'error');
+            return false;
+        }
+    },
+    
+    /**
+     * Verifica se um amigo pode ser convidado para a campanha atual
+     * @param {string} friendUserId - ID do usuário amigo
+     * @returns {boolean} true se pode convidar
+     */
+    canInviteFriend(friendUserId) {
+        if (!this.activeCampaign || !this.isGMOfActiveCampaign()) return false;
+        
+        // Verifica se já é membro
+        const isMember = this.campaignMembers?.some(m => m.user_id === friendUserId);
+        return !isMember;
     }
 };
 

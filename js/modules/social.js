@@ -430,17 +430,64 @@ export const socialLogic = {
         
         // Efeito especial para Platina
         if (achievement.isPlatinum) {
-            // Notificação especial
-            this.notify(`🏆✨ PLATINA CONQUISTADA! ✨🏆`, 'success');
-            
-            // Efeito visual de confete/celebração
             this.triggerPlatinumEffect();
-        } else if (achievement.secret) {
-            // Achievement secreto - revela o nome
-            this.notify(`🔓 Achievement Secreto: ${achievement.name}!`, 'success');
         } else {
-            this.notify(`🏆 Achievement: ${achievement.name}!`, 'success');
+            // Cria toast de achievement estilizado
+            this.showAchievementToast(achievement);
         }
+    },
+    
+    /**
+     * Exibe toast animado para achievement desbloqueado
+     */
+    showAchievementToast(achievement) {
+        // Remove toast anterior se existir
+        const existingToast = document.getElementById('achievement-toast');
+        if (existingToast) existingToast.remove();
+        
+        const isSecret = achievement.secret;
+        const color = achievement.color || 'yellow';
+        
+        const toast = document.createElement('div');
+        toast.id = 'achievement-toast';
+        toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100000] animate-achievement pointer-events-auto';
+        toast.innerHTML = `
+            <div class="relative bg-gradient-to-br from-black/95 to-${color}-900/20 border-2 border-${color}-500/50 rounded-2xl p-4 shadow-[0_0_40px_rgba(234,179,8,0.3)] backdrop-blur-xl min-w-[280px] max-w-sm">
+                <!-- Glow effect -->
+                <div class="absolute inset-0 rounded-2xl bg-gradient-to-r from-${color}-500/10 via-transparent to-${color}-500/10 animate-pulse"></div>
+                
+                <!-- Content -->
+                <div class="relative flex items-center gap-4">
+                    <!-- Icon -->
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-${color}-500/30 to-${color}-600/20 border border-${color}-500/50 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(234,179,8,0.3)]">
+                        <i class="fa-solid ${achievement.icon || 'fa-trophy'} text-2xl text-${color}-400"></i>
+                    </div>
+                    
+                    <!-- Text -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[9px] font-bold uppercase tracking-wider text-${color}-400 mb-1 flex items-center gap-1">
+                            ${isSecret ? '<i class="fa-solid fa-key"></i> SECRETO DESBLOQUEADO' : '<i class="fa-solid fa-trophy"></i> ACHIEVEMENT'}
+                        </p>
+                        <p class="text-sm font-bold text-white truncate">${achievement.name}</p>
+                        <p class="text-[10px] text-gray-400 truncate">${achievement.description}</p>
+                    </div>
+                </div>
+                
+                <!-- Stars decoration -->
+                <div class="absolute -top-2 -right-2 text-yellow-400 animate-ping text-sm">✦</div>
+                <div class="absolute -bottom-1 -left-1 text-${color}-400 animate-bounce text-xs">★</div>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto-remove após 4 segundos
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translate(-50%, -20px)';
+            toast.style.transition = 'all 0.5s ease-out';
+            setTimeout(() => toast.remove(), 500);
+        }, 4000);
     },
     
     // Efeito especial quando ganha a Platina

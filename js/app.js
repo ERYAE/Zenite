@@ -314,7 +314,7 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) this.applyCompactMode();
             }
 
-            // CORREÇÃO: Watcher agora apenas marca como alterado
+            // ENHANCED: Watcher with autosave to localStorage + visual indicator
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
                 
@@ -324,7 +324,20 @@ function zeniteSystem() {
                 }
                 
                 this.unsavedChanges = true;
-                // Save manual continua mandatório para FICHA
+                this.saveStatus = 'pending';
+                
+                // Debounced autosave to localStorage (2s delay) - backup local
+                if (this._localSaveTimeout) clearTimeout(this._localSaveTimeout);
+                this._localSaveTimeout = setTimeout(() => {
+                    this.saveStatus = 'saving';
+                    this.saveLocal();
+                    // Mark as locally saved but not synced to cloud
+                    setTimeout(() => {
+                        if (this.unsavedChanges) {
+                            this.saveStatus = 'local'; // Saved locally, pending cloud sync
+                        }
+                    }, 500);
+                }, 2000);
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
@@ -389,6 +402,15 @@ function zeniteSystem() {
 
         setupListeners() {
             window.addEventListener('pageshow', (event) => { if (event.persisted) window.location.reload(); });
+            
+            // CRITICAL: Warn user before leaving with unsaved changes
+            window.addEventListener('beforeunload', (e) => {
+                if (this.unsavedChanges && this.currentView === 'sheet') {
+                    e.preventDefault();
+                    e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
+                    return e.returnValue;
+                }
+            });
             // Debounce para evitar múltiplas chamadas durante resize
             let resizeTimeout;
             window.addEventListener('resize', () => {
@@ -472,7 +494,10 @@ function zeniteSystem() {
         async manualSave() {
             if (!this.unsavedChanges) return;
             
-            this.notify('Salvando...', 'info');
+            // Clear any pending local save timeout
+            if (this._localSaveTimeout) clearTimeout(this._localSaveTimeout);
+            
+            this.saveStatus = 'saving';
             this.isSyncing = true;
             
             // 1. Salva no histórico de versões
@@ -490,6 +515,14 @@ function zeniteSystem() {
             this.isSyncing = false;
             this.unsavedChanges = false;
             this.autoSaveEnabled = false;
+            this.saveStatus = 'synced';
+            
+            // Reset status after a few seconds
+            setTimeout(() => {
+                if (this.saveStatus === 'synced') {
+                    this.saveStatus = 'idle';
+                }
+            }, 3000);
             
             // 4. Feedback final para o usuário
             this.notify('Salvo com sucesso!', 'success');

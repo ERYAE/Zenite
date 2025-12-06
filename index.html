@@ -78,16 +78,33 @@
     </div>
 
     <div id="app-loader" x-show="systemLoading" x-transition.opacity.duration.500ms class="fixed inset-0 z-[9999] bg-[#050507] flex flex-col items-center justify-center">
-        <div class="relative w-24 h-24 mb-10 flex items-center justify-center">
+        <!-- D20 Spinner Container -->
+        <div class="relative w-28 h-28 mb-10 flex items-center justify-center">
+            <!-- Outer spinning ring -->
             <div class="absolute inset-0 border-2 border-[var(--neon-core)] border-t-transparent rounded-full animate-spin"></div>
-            <img src="images/zenite_logo.svg" class="w-14 h-14 animate-pulse relative z-10" style="filter: drop-shadow(0 0 15px var(--neon-core));">
+            <!-- Inner pulsing ring -->
+            <div class="absolute inset-2 border border-purple-500/50 border-b-transparent rounded-full animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
+            <!-- D20 Icon -->
+            <div class="relative z-10 animate-d20-spin">
+                <i class="fa-solid fa-dice-d20 text-4xl text-[var(--neon-core)]" style="filter: drop-shadow(0 0 15px var(--neon-core));"></i>
+            </div>
+            <!-- Orbiting particles -->
+            <div class="absolute inset-0 animate-spin" style="animation-duration: 3s;">
+                <div class="absolute top-0 left-1/2 w-2 h-2 bg-cyan-400 rounded-full -translate-x-1/2 shadow-[0_0_10px_cyan]"></div>
+            </div>
+            <div class="absolute inset-0 animate-spin" style="animation-duration: 4s; animation-direction: reverse;">
+                <div class="absolute bottom-0 left-1/2 w-1.5 h-1.5 bg-purple-400 rounded-full -translate-x-1/2 shadow-[0_0_8px_purple]"></div>
+            </div>
         </div>
-        <div class="w-64 h-1 bg-white/5 rounded-full overflow-hidden relative">
-            <div class="h-full bg-[var(--neon-core)] transition-all duration-300 ease-out shadow-[0_0_15px_var(--neon-core)]" :style="`width: ${loadingProgress}%`"></div>
+        <!-- Progress bar with glow -->
+        <div class="w-64 h-1.5 bg-white/5 rounded-full overflow-hidden relative shadow-inner">
+            <div class="h-full bg-gradient-to-r from-[var(--neon-core)] to-purple-500 transition-all duration-300 ease-out shadow-[0_0_15px_var(--neon-core)]" :style="`width: ${loadingProgress}%`"></div>
         </div>
-        <p class="mt-4 text-[10px] font-code text-[var(--neon-core)] tracking-[0.3em] uppercase animate-pulse">
-            <span x-text="loadingText">BOOTING</span> <span x-text="loadingProgress + '%'"></span>
+        <p class="mt-4 text-[10px] font-code text-[var(--neon-core)] tracking-[0.3em] uppercase">
+            <span x-text="loadingText" class="animate-pulse">BOOTING</span> <span x-text="loadingProgress + '%'" class="text-white/60"></span>
         </p>
+        <!-- Random flavor text -->
+        <p class="mt-2 text-[9px] text-gray-600 font-code" x-text="['Carregando universos...', 'Invocando dados...', 'Preparando aventura...', 'Sincronizando magia...', 'Acordando dragões...'][Math.floor(loadingProgress / 20)]"></p>
     </div>
 
     <!-- Notificações via Teleport (sempre no topo do DOM) -->
@@ -103,8 +120,8 @@
         </div>
     </template>
 
-    <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-2xl p-8 shadow-[0_0_50px_rgba(14,165,233,0.15)] text-center relative overflow-hidden">
+    <div x-show="!user && !isGuest && !systemLoading" class="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4 overflow-y-auto">
+        <div class="w-full max-w-md bg-[#0a0a0a] border border-[var(--neon-core)] rounded-2xl p-6 md:p-8 shadow-[0_0_50px_rgba(14,165,233,0.15)] text-center relative overflow-hidden my-auto max-h-[95vh] overflow-y-auto custom-scrollbar">
             <div class="mb-8">
                 <img src="images/zenite_logo.svg" class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_10px_var(--neon-core)]">
                 <h1 class="text-4xl font-brand text-white mb-2 tracking-widest">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
@@ -161,39 +178,82 @@
                     
                     <!-- Login/Register Form -->
                     <template x-if="authMode !== 'forgot'">
-                        <form @submit.prevent="authMode === 'login' ? signInWithEmail() : signUpWithEmail()">
-                            <!-- Email -->
-                            <div class="mb-3">
-                                <input type="email" x-model="authEmail" placeholder="Email..." autocomplete="email"
+                        <form @submit.prevent="authMode === 'login' ? signInWithEmail() : signUpWithEmail()" x-data="{ showPassword: false, showConfirmPassword: false }">
+                            <!-- Email with autocomplete datalist -->
+                            <div class="mb-3 relative">
+                                <input type="email" x-model="authEmail" placeholder="Email..." autocomplete="email" list="email-domains"
+                                       @input="if(authEmail.includes('@') && !authEmail.includes('.')) { $el.setAttribute('list', 'email-domains'); }"
                                        class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                                <datalist id="email-domains">
+                                    <option :value="authEmail.split('@')[0] + '@gmail.com'"></option>
+                                    <option :value="authEmail.split('@')[0] + '@outlook.com'"></option>
+                                    <option :value="authEmail.split('@')[0] + '@hotmail.com'"></option>
+                                    <option :value="authEmail.split('@')[0] + '@yahoo.com'"></option>
+                                    <option :value="authEmail.split('@')[0] + '@icloud.com'"></option>
+                                </datalist>
                             </div>
                             <!-- Username (só no registro) -->
                             <div x-show="authMode === 'register'" class="relative mb-3">
                                 <input type="text" x-model="authUsername" 
                                        @input.debounce.500ms="checkUsernameAvailable(authUsername)"
                                        placeholder="Username (único)..." autocomplete="username"
-                                       class="w-full px-4 py-2.5 bg-black/60 border rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
-                                       :class="usernameCheckResult === 'available' ? 'border-green-500' : usernameCheckResult === 'taken' ? 'border-red-500' : 'border-white/10 focus:border-[var(--neon-core)]'">
+                                       class="w-full px-4 py-2.5 bg-black/60 border rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-all"
+                                       :class="{
+                                           'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]': usernameCheckResult === 'available',
+                                           'border-red-500 animate-shake': usernameCheckResult === 'taken',
+                                           'border-white/10 focus:border-[var(--neon-core)]': !usernameCheckResult
+                                       }">
                                 
-                                <!-- Feedback visual -->
+                                <!-- Feedback visual com animações -->
                                 <div x-show="authUsername && authUsername.length >= 2" class="absolute right-3 top-1/2 -translate-y-1/2">
-                                    <i x-show="usernameChecking" class="fa-solid fa-spinner fa-spin text-gray-500"></i>
-                                    <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check text-green-500"></i>
-                                    <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-xmark text-red-500"></i>
+                                    <i x-show="usernameChecking" class="fa-solid fa-circle-notch fa-spin text-[var(--neon-core)]"></i>
+                                    <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check-circle text-green-500 text-lg animate-bounce-in"></i>
+                                    <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-times-circle text-red-500 text-lg"></i>
                                 </div>
                             </div>
-                            <!-- Senha -->
-                            <div class="mb-3">
-                                <input type="password" x-model="authPassword" placeholder="Senha..." 
+                            <!-- Senha com toggle de visibilidade -->
+                            <div class="mb-3 relative">
+                                <input :type="showPassword ? 'text' : 'password'" x-model="authPassword" placeholder="Senha..." 
                                        autocomplete="current-password"
-                                       class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                                       class="w-full px-4 py-2.5 pr-20 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                                <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                    <button type="button" @click="showPassword = !showPassword" 
+                                            class="text-gray-500 hover:text-white transition-colors w-6 h-6 flex items-center justify-center" title="Mostrar/Ocultar">
+                                        <i class="fa-solid" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                    </button>
+                                    <button type="button" x-show="authMode === 'register'" @click="authPassword = generateStrongPassword(); authPasswordConfirm = authPassword; showPassword = true;" 
+                                            class="text-gray-500 hover:text-[var(--neon-core)] transition-colors w-6 h-6 flex items-center justify-center" title="Gerar senha forte">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Password Strength Meter (só no registro) -->
+                            <div x-show="authMode === 'register' && authPassword.length > 0" class="mb-3">
+                                <div class="flex gap-1 mb-1">
+                                    <div class="h-1 flex-1 rounded-full transition-all" :class="authPassword.length >= 6 ? 'bg-red-500' : 'bg-white/10'"></div>
+                                    <div class="h-1 flex-1 rounded-full transition-all" :class="authPassword.length >= 8 && /[A-Z]/.test(authPassword) ? 'bg-yellow-500' : 'bg-white/10'"></div>
+                                    <div class="h-1 flex-1 rounded-full transition-all" :class="authPassword.length >= 10 && /[0-9]/.test(authPassword) ? 'bg-green-500' : 'bg-white/10'"></div>
+                                    <div class="h-1 flex-1 rounded-full transition-all" :class="authPassword.length >= 12 && /[^A-Za-z0-9]/.test(authPassword) ? 'bg-cyan-500' : 'bg-white/10'"></div>
+                                </div>
+                                <p class="text-[9px] text-gray-500" x-text="
+                                    authPassword.length < 6 ? 'Muito curta' :
+                                    authPassword.length < 8 ? 'Fraca' :
+                                    authPassword.length < 10 || !/[A-Z]/.test(authPassword) ? 'Razoável' :
+                                    authPassword.length < 12 || !/[0-9]/.test(authPassword) ? 'Boa' : 'Excelente!'
+                                "></p>
                             </div>
                             <!-- Confirmar Senha (só no registro) -->
-                            <div x-show="authMode === 'register'" class="mb-3">
-                                <input type="password" x-model="authPasswordConfirm" placeholder="Confirmar senha..."
+                            <div x-show="authMode === 'register'" class="mb-3 relative">
+                                <input :type="showConfirmPassword ? 'text' : 'password'" x-model="authPasswordConfirm" placeholder="Confirmar senha..."
                                        autocomplete="new-password"
                                        @keydown.enter="signUpWithEmail()"
-                                       class="w-full px-4 py-2.5 bg-black/60 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none transition-colors">
+                                       class="w-full px-4 py-2.5 pr-10 bg-black/60 border rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
+                                       :class="authPasswordConfirm && authPassword !== authPasswordConfirm ? 'border-red-500' : 'border-white/10 focus:border-[var(--neon-core)]'">
+                                <button type="button" @click="showConfirmPassword = !showConfirmPassword" 
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
+                                    <i class="fa-solid" :class="showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                                <p x-show="authPasswordConfirm && authPassword !== authPasswordConfirm" class="text-[9px] text-red-400 mt-1">Senhas não coincidem</p>
                             </div>
                             
                             <!-- Botão de Ação -->
@@ -284,15 +344,43 @@
                 </template>
             </div>
         </div>
-        <div class="flex gap-3 items-center justify-center w-full md:w-auto">
-            <button x-show="isGuest" @click="askSwitchToOnline()" class="px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded-lg hover:bg-yellow-500/20 flex items-center gap-2"><i class="fa-solid fa-cloud"></i> <span class="hidden md:inline">ONLINE</span></button>
-            <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-3 animate-pulse">SYNC...</div>
-            <!-- NetLink Button -->
-            <button x-show="user && !isGuest" @click="netlinkModal = true; loadCampaigns()" class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-purple-500 flex items-center justify-center transition-colors text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" title="NetLink - Campanhas Online">
-                <i class="fa-solid fa-network-wired"></i>
+        <!-- Action buttons - flex-centered with 44px min touch targets on mobile -->
+        <div class="flex gap-2 md:gap-3 items-center justify-center w-full md:w-auto flex-wrap md:flex-nowrap">
+            <!-- Online mode for guests -->
+            <button x-show="isGuest" @click="askSwitchToOnline()" 
+                    class="min-w-[44px] min-h-[44px] px-3 py-2 bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-bold rounded-xl hover:bg-yellow-500/20 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                <i class="fa-solid fa-cloud"></i> 
+                <span class="hidden md:inline">ONLINE</span>
             </button>
-            <button @click="configModal=true" class="w-10 h-10 rounded-lg glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-colors"><i class="fa-solid fa-gear"></i></button>
-            <button x-show="currentView === 'dashboard'" @click="openWizard()" class="px-6 py-2 rounded-lg bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 transition-all flex items-center gap-2"><i class="fa-solid fa-plus"></i> <span class="hidden md:inline">NOVO AGENTE</span></button>
+            
+            <!-- Sync indicator -->
+            <div x-show="isSyncing" class="flex items-center text-[10px] font-bold text-[var(--neon-core)] px-2 animate-pulse">
+                <i class="fa-solid fa-sync fa-spin mr-1"></i>SYNC
+            </div>
+            
+            <!-- NetLink Button - 44px touch target -->
+            <button x-show="user && !isGuest" @click="netlinkModal = true; loadCampaigns(); loadPendingCampaignInvites()" 
+                    class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl glass border border-white/10 hover:border-purple-500 flex items-center justify-center transition-all text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 active:scale-95 relative" 
+                    title="NetLink - Campanhas Online">
+                <i class="fa-solid fa-network-wired"></i>
+                <!-- Badge for pending invites -->
+                <span x-show="pendingCampaignInvites && pendingCampaignInvites.length > 0" 
+                      class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center animate-pulse"
+                      x-text="pendingCampaignInvites.length"></span>
+            </button>
+            
+            <!-- Settings Button - 44px touch target -->
+            <button @click="configModal=true" 
+                    class="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl glass border border-white/10 hover:border-[var(--neon-core)] flex items-center justify-center transition-all active:scale-95">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            
+            <!-- New Agent Button - 44px touch target -->
+            <button x-show="currentView === 'dashboard'" @click="openWizard()" 
+                    class="min-h-[44px] px-4 md:px-6 py-2.5 rounded-xl bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-plus"></i> 
+                <span class="hidden md:inline">NOVO AGENTE</span>
+            </button>
         </div>
     </header>
 
@@ -657,18 +745,30 @@
                     <div class="w-full lg:w-64 flex-shrink-0 bg-black/40 rounded-xl p-3 border border-white/10">
                         <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Rolar Dados</div>
                         
-                        <!-- Display do resultado (aparece após rolar) -->
-                        <div x-show="playerLastRoll" x-transition class="mb-3 p-3 rounded-lg text-center transition-all"
-                             :class="playerLastRoll?.isCrit ? 'bg-green-500/20 border border-green-500/50 animate-pulse' : 
-                                     playerLastRoll?.isFumble ? 'bg-red-500/20 border border-red-500/50' : 
+                        <!-- Display do resultado (aparece após rolar) com animações -->
+                        <div x-show="playerLastRoll" x-transition class="mb-3 p-3 rounded-xl text-center transition-all relative overflow-hidden"
+                             :class="playerLastRoll?.isCrit ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/10 border-2 border-green-500/50 animate-critical' : 
+                                     playerLastRoll?.isFumble ? 'bg-gradient-to-br from-red-500/20 to-rose-500/10 border-2 border-red-500/50 animate-fumble' : 
                                      'bg-cyan-500/10 border border-cyan-500/20'">
-                            <div class="text-[10px] font-bold uppercase mb-1"
-                                 :class="playerLastRoll?.isCrit ? 'text-green-400' : playerLastRoll?.isFumble ? 'text-red-400' : 'text-cyan-400'"
-                                 x-text="playerLastRoll?.isCrit ? 'CRÍTICO!' : playerLastRoll?.isFumble ? 'FALHA CRÍTICA!' : playerLastRoll?.formula"></div>
-                            <div class="text-3xl font-bold font-code text-white" x-text="playerLastRoll?.total"></div>
-                            <div class="text-[10px] text-gray-500 mt-1" 
-                                 x-text="'(' + playerLastRoll?.natural + (playerLastRoll?.modifier !== 0 ? (playerLastRoll?.modifier > 0 ? '+' : '') + playerLastRoll?.modifier : '') + ')'"></div>
-                            <div x-show="playerLastRoll?.reason" class="text-[9px] text-gray-600 mt-1 italic" x-text="playerLastRoll?.reason"></div>
+                            <!-- Dice roll animation container -->
+                            <div class="animate-dice-roll">
+                                <div class="text-[10px] font-bold uppercase mb-1 tracking-wider"
+                                     :class="playerLastRoll?.isCrit ? 'text-green-400' : playerLastRoll?.isFumble ? 'text-red-400' : 'text-cyan-400'"
+                                     x-text="playerLastRoll?.isCrit ? '✨ CRÍTICO! ✨' : playerLastRoll?.isFumble ? '💀 FALHA CRÍTICA!' : playerLastRoll?.formula"></div>
+                                <div class="text-4xl font-bold font-code transition-all"
+                                     :class="playerLastRoll?.isCrit ? 'text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,0.8)]' : 
+                                             playerLastRoll?.isFumble ? 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'text-white'"
+                                     x-text="playerLastRoll?.total"></div>
+                                <div class="text-[10px] text-gray-400 mt-1 font-code" 
+                                     x-text="'(' + playerLastRoll?.natural + (playerLastRoll?.modifier !== 0 ? (playerLastRoll?.modifier > 0 ? '+' : '') + playerLastRoll?.modifier : '') + ')'"></div>
+                                <div x-show="playerLastRoll?.reason" class="text-[9px] text-gray-500 mt-1 italic" x-text="playerLastRoll?.reason"></div>
+                            </div>
+                            <!-- Critical/Fumble particle effects -->
+                            <div x-show="playerLastRoll?.isCrit" class="absolute inset-0 pointer-events-none">
+                                <div class="absolute top-1 left-1 text-yellow-400 text-xs animate-ping">⭐</div>
+                                <div class="absolute top-2 right-2 text-green-400 text-xs animate-bounce">✦</div>
+                                <div class="absolute bottom-1 left-3 text-emerald-400 text-[10px] animate-pulse">✧</div>
+                            </div>
                         </div>
                         
                         <!-- Dado customizável -->
@@ -1694,13 +1794,32 @@
                     <i class="fa-solid fa-rotate-left"></i>
                 </button>
                 
+                <!-- Save Status Indicator -->
+                <div x-show="saveStatus && saveStatus !== 'idle'" class="flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider"
+                     :class="{
+                         'bg-yellow-500/10 text-yellow-400': saveStatus === 'pending',
+                         'bg-cyan-500/10 text-cyan-400 animate-save-pulse': saveStatus === 'saving',
+                         'bg-green-500/10 text-green-400': saveStatus === 'local',
+                         'bg-green-500/20 text-green-400': saveStatus === 'synced'
+                     }">
+                    <i class="fa-solid text-[8px]" :class="{
+                        'fa-pen': saveStatus === 'pending',
+                        'fa-spinner fa-spin': saveStatus === 'saving',
+                        'fa-hard-drive': saveStatus === 'local',
+                        'fa-cloud-check': saveStatus === 'synced'
+                    }"></i>
+                    <span x-text="saveStatus === 'pending' ? 'Editando' : saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'local' ? 'Backup Local' : 'Sincronizado'"></span>
+                </div>
+                
                 <!-- BOTÃO SALVAR MANUAL -->
                 <button @click.stop="manualSave()" 
                         :disabled="isSyncing"
-                        class="px-5 py-1.5 bg-[var(--neon-core)] text-black text-xs md:text-sm font-bold rounded-full hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span x-show="!isSyncing">SALVAR</span>
-                    <i x-show="!isSyncing" class="fa-solid fa-cloud-arrow-up"></i>
-                    <span x-show="isSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i> SALVANDO...</span>
+                        class="px-5 py-1.5 text-xs md:text-sm font-bold rounded-full transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                        :class="unsavedChanges ? 'bg-[var(--neon-core)] text-black hover:bg-white hover:shadow-[0_0_15px_var(--neon-core)] animate-glow-pulse' : 'bg-white/10 text-gray-400 hover:bg-white/20'">
+                    <span x-show="!isSyncing" x-text="unsavedChanges ? 'SALVAR' : 'SALVO'"></span>
+                    <i x-show="!isSyncing && unsavedChanges" class="fa-solid fa-cloud-arrow-up"></i>
+                    <i x-show="!isSyncing && !unsavedChanges" class="fa-solid fa-check"></i>
+                    <span x-show="isSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i> SINCRONIZANDO...</span>
                 </button>
             </div>
         </div>
@@ -3082,6 +3201,38 @@
                 </div>
             </div>
             
+            <!-- Convites de Campanhas Pendentes -->
+            <div x-show="pendingCampaignInvites && pendingCampaignInvites.length > 0" class="mb-4">
+                <h3 class="text-[10px] text-purple-400 font-bold uppercase mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-envelope-open-text"></i> Convites de Campanha (<span x-text="pendingCampaignInvites.length"></span>)
+                </h3>
+                <div class="space-y-2">
+                    <template x-for="invite in pendingCampaignInvites" :key="invite.id">
+                        <div class="bg-purple-500/10 rounded-lg p-3 border border-purple-500/20">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
+                                    <i class="fa-solid fa-gamepad"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-white font-bold truncate" x-text="invite.campaignName"></p>
+                                    <p class="text-[9px] text-purple-400/70" x-text="invite.campaignDesc || 'Você foi convidado para esta campanha'"></p>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 mt-3">
+                                <button @click="acceptCampaignInvite(invite.id)" 
+                                        class="flex-1 py-2 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold hover:bg-green-500/30 transition-colors flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-check"></i> Aceitar
+                                </button>
+                                <button @click="declineCampaignInvite(invite.id)" 
+                                        class="flex-1 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold hover:bg-red-500/30 transition-colors flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-xmark"></i> Recusar
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
             <!-- Lista de amigos -->
             <div>
                 <h3 class="text-[10px] text-pink-400 font-bold uppercase mb-2">Meus Amigos (<span x-text="friends.length"></span>)</h3>
@@ -3096,10 +3247,19 @@
                                 <p class="text-sm text-white font-bold truncate" x-text="friendship.friend_display_name || '@' + friendship.friend_username"></p>
                                 <p class="text-[9px] text-pink-400/70 font-code" x-text="'@' + (friendship.friend_username || 'usuário')"></p>
                             </div>
-                            <button @click="removeFriend(friendship.id)" 
-                                    class="w-7 h-7 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                                <i class="fa-solid fa-user-minus text-xs"></i>
-                            </button>
+                            <div class="flex gap-1">
+                                <!-- Botão Convidar para Campanha (aparece se GM tem campanha ativa) -->
+                                <button x-show="activeCampaign && isGMOfActiveCampaign() && canInviteFriend(friendship.friend_id)"
+                                        @click="inviteFriendToCampaign(friendship.friend_id)"
+                                        class="w-8 h-8 rounded-lg text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 flex items-center justify-center transition-all"
+                                        :title="'Convidar para ' + activeCampaign?.name">
+                                    <i class="fa-solid fa-gamepad text-xs"></i>
+                                </button>
+                                <button @click="removeFriend(friendship.id)" 
+                                        class="w-8 h-8 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                    <i class="fa-solid fa-user-minus text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                     </template>
                     
@@ -3110,179 +3270,252 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Info sobre convites (quando GM tem campanha ativa) -->
+            <div x-show="activeCampaign && isGMOfActiveCampaign()" class="mt-4 bg-purple-500/10 rounded-lg p-3 border border-purple-500/20">
+                <p class="text-[10px] text-purple-400 flex items-center gap-2">
+                    <i class="fa-solid fa-info-circle"></i>
+                    <span>Clique em <i class="fa-solid fa-gamepad mx-1"></i> para convidar amigos para "<span x-text="activeCampaign?.name" class="font-bold"></span>"</span>
+                </p>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Modal: Meu Perfil -->
+<!-- Modal: Meu Perfil - Holographic RPG Character Stats Screen -->
 <div x-show="profileModalOpen" style="display: none" 
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="profileModalOpen = false"
      @click.self="profileModalOpen = false; viewingProfile = null">
-    <div class="glass rounded-2xl w-full max-w-md border border-[var(--neon-core)]/30 shadow-2xl modal-enter overflow-hidden">
-        <!-- Header -->
-        <div class="p-4 border-b border-white/10 flex justify-between items-center">
-            <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
-                <i class="fa-solid fa-id-card text-[var(--neon-core)]"></i> 
-                <span x-text="viewingProfile ? 'PERFIL' : 'MEU PERFIL'"></span>
-            </h2>
-            <button @click="profileModalOpen = false; viewingProfile = null" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
+    <div class="w-full max-w-lg border border-[var(--neon-core)]/40 rounded-2xl shadow-[0_0_60px_rgba(var(--neon-rgb),0.15)] modal-enter overflow-hidden relative">
+        <!-- Holographic Background Effect -->
+        <div class="absolute inset-0 holographic-shimmer opacity-30"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-[#0a0a12] via-[#0d0d18] to-[#080810]"></div>
         
-        <!-- Content -->
-        <div class="p-4 space-y-4" x-data="{ editMode: false, tempUsername: '', tempBio: '', tempPublic: false }">
-            <!-- Avatar e Info Principal -->
-            <div class="text-center">
-                <div class="w-20 h-20 rounded-full bg-[var(--neon-core)]/20 mx-auto flex items-center justify-center border-2 border-[var(--neon-core)]/50 mb-3">
-                    <i class="fa-solid fa-user text-[var(--neon-core)] text-3xl"></i>
-                </div>
-                <h3 class="text-xl font-bold text-white" x-text="viewingProfile?.username || publicProfile?.username || settings.username || user?.email?.split('@')[0]"></h3>
-                <p class="text-xs text-gray-500" x-text="viewingProfile ? '' : user?.email"></p>
-            </div>
-            
-            <!-- Username Editing (Meu Perfil apenas) -->
-            <div x-show="!viewingProfile && user" class="bg-black/40 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <p class="text-[10px] text-gray-500 font-bold uppercase">NOME DE USUÁRIO</p>
-                    <div x-show="!canChangeUsername" class="flex items-center gap-1.5 text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full">
-                        <i class="fa-solid fa-lock text-[9px]"></i>
-                        <span class="text-[9px] font-bold"><span x-text="usernameCooldownDays"></span> dias</span>
+        <!-- Scanlines Overlay -->
+        <div class="absolute inset-0 scanlines pointer-events-none"></div>
+        
+        <!-- Content Layer -->
+        <div class="relative z-10">
+            <!-- Header - Holographic Top Bar -->
+            <div class="p-4 border-b border-[var(--neon-core)]/20 flex justify-between items-center bg-gradient-to-r from-[var(--neon-core)]/5 via-transparent to-purple-500/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-[var(--neon-core)]/10 border border-[var(--neon-core)]/30 flex items-center justify-center animate-glow-pulse">
+                        <i class="fa-solid fa-microchip text-[var(--neon-core)]"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-white font-brand tracking-wider flex items-center gap-2">
+                            <span class="text-[var(--neon-core)]">//</span> AGENT PROFILE
+                        </h2>
+                        <p class="text-[9px] text-gray-500 font-code">CLEARANCE LEVEL: <span class="text-[var(--neon-core)]">ALPHA</span></p>
                     </div>
                 </div>
-                
-                <!-- Input com feedback visual completo -->
-                <div class="relative">
-                    <input type="text" 
-                           x-model="usernameInput" 
-                           @input.debounce.400ms="checkUsernameAvailable(usernameInput)"
-                           :disabled="!canChangeUsername"
-                           placeholder="seu_username"
-                           maxlength="20"
-                           class="w-full bg-black/60 border-2 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all pr-12 font-code"
-                           :class="{
-                               'opacity-50 cursor-not-allowed border-white/5': !canChangeUsername,
-                               'border-green-500/50 bg-green-500/5': canChangeUsername && usernameCheckResult === 'available',
-                               'border-red-500/50 bg-red-500/5': usernameCheckResult === 'taken' || usernameCheckResult === 'invalid',
-                               'border-white/10 focus:border-[var(--neon-core)]': canChangeUsername && !usernameCheckResult
-                           }">
-                    
-                    <!-- Indicador de status -->
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                        <i x-show="usernameChecking" class="fa-solid fa-circle-notch fa-spin text-gray-400"></i>
-                        <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check-circle text-green-500 text-lg"></i>
-                        <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-times-circle text-red-500 text-lg"></i>
-                        <i x-show="!usernameChecking && usernameCheckResult === 'invalid'" class="fa-solid fa-exclamation-circle text-amber-500 text-lg"></i>
-                    </div>
-                </div>
-                
-                <!-- Mensagem de feedback -->
-                <div class="mt-2 min-h-[20px]">
-                    <p x-show="usernameCheckMessage" 
-                       class="text-[11px] font-medium flex items-center gap-1"
-                       :class="{
-                           'text-green-400': usernameCheckResult === 'available',
-                           'text-red-400': usernameCheckResult === 'taken',
-                           'text-amber-400': usernameCheckResult === 'invalid'
-                       }">
-                        <span x-text="usernameCheckMessage"></span>
-                    </p>
-                    <p x-show="!usernameCheckMessage && canChangeUsername" class="text-[10px] text-gray-600">
-                        Letras, números e _ • 2-20 caracteres
-                    </p>
-                    <p x-show="!canChangeUsername" class="text-[10px] text-amber-400/70">
-                        <i class="fa-solid fa-info-circle mr-1"></i>
-                        Cooldown de 14 dias após última alteração
-                    </p>
-                </div>
-                
-                <!-- Botão de salvar -->
-                <button x-show="canChangeUsername && usernameCheckResult === 'available' && usernameInput?.length >= 2"
-                        @click="saveUsername()"
-                        :disabled="usernameSaving"
-                        class="mt-3 w-full py-2.5 bg-gradient-to-r from-[var(--neon-core)] to-[var(--neon-core)]/80 text-black text-xs font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                    <i x-show="usernameSaving" class="fa-solid fa-circle-notch fa-spin"></i>
-                    <i x-show="!usernameSaving" class="fa-solid fa-save"></i>
-                    <span x-text="usernameSaving ? 'SALVANDO...' : 'SALVAR USERNAME'"></span>
+                <button @click="profileModalOpen = false; viewingProfile = null" 
+                        class="text-gray-500 hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/30">
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             
-            <!-- Stats Rápidos -->
-            <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="bg-black/40 rounded-lg p-2">
-                    <p class="text-lg font-bold text-[var(--neon-core)]" x-text="localStats.totalRolls"></p>
-                    <p class="text-[9px] text-gray-500">Rolagens</p>
-                </div>
-                <div class="bg-black/40 rounded-lg p-2">
-                    <p class="text-lg font-bold text-yellow-400" x-text="localStats.charsCreated"></p>
-                    <p class="text-[9px] text-gray-500">Personagens</p>
-                </div>
-                <div class="bg-black/40 rounded-lg p-2">
-                    <p class="text-lg font-bold text-pink-400" x-text="localStats.friendsCount"></p>
-                    <p class="text-[9px] text-gray-500">Amigos</p>
-                </div>
-            </div>
-            
-            <!-- Display Name (alterável a qualquer momento) -->
-            <div x-show="!viewingProfile" class="bg-black/40 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-2">
-                    <label class="text-[10px] text-gray-500 font-bold uppercase">NOME DE EXIBIÇÃO</label>
-                    <span class="text-[9px] text-green-400 flex items-center gap-1">
-                        <i class="fa-solid fa-unlock"></i> Sem restrições
-                    </span>
-                </div>
-                <input type="text" x-model="settings.displayName" 
-                       placeholder="Como você quer ser chamado?" maxlength="30"
-                       class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none"
-                       @change="saveLocal(); syncCloud(true)">
-                <p class="text-[9px] text-gray-600 mt-1">Esse nome aparece no chat e nas campanhas (pode alterar quando quiser)</p>
-            </div>
-            
-            <!-- Bio -->
-            <div x-show="!viewingProfile">
-                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-2">Bio</label>
-                <textarea x-model="settings.bio" placeholder="Conte um pouco sobre você..." rows="2"
-                          class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none resize-none"
-                          @change="saveLocal()"></textarea>
-            </div>
-            
-            <!-- Achievements Preview -->
-            <div class="bg-black/40 rounded-lg p-3">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-[10px] text-gray-500 font-bold uppercase">Achievements</span>
-                    <button @click="achievementsModalOpen = true; profileModalOpen = false" class="text-[10px] text-[var(--neon-core)] hover:underline">
-                        Ver todos →
-                    </button>
-                </div>
-                <div class="flex gap-1">
-                    <template x-for="achId in unlockedAchievements.slice(0, 6)" :key="achId">
-                        <div class="w-8 h-8 rounded bg-yellow-500/20 flex items-center justify-center text-yellow-400 text-xs"
-                             :title="ACHIEVEMENTS[achId]?.name">
-                            <i class="fa-solid" :class="ACHIEVEMENTS[achId]?.icon"></i>
+            <!-- Main Content -->
+            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar" x-data="{ editMode: false }">
+                <!-- Agent Identity Card -->
+                <div class="relative bg-gradient-to-br from-black/60 to-black/40 rounded-xl p-4 border border-white/10 overflow-hidden">
+                    <!-- Corner Decorations -->
+                    <div class="absolute top-0 left-0 w-4 h-4 border-l-2 border-t-2 border-[var(--neon-core)]/50"></div>
+                    <div class="absolute top-0 right-0 w-4 h-4 border-r-2 border-t-2 border-[var(--neon-core)]/50"></div>
+                    <div class="absolute bottom-0 left-0 w-4 h-4 border-l-2 border-b-2 border-[var(--neon-core)]/50"></div>
+                    <div class="absolute bottom-0 right-0 w-4 h-4 border-r-2 border-b-2 border-[var(--neon-core)]/50"></div>
+                    
+                    <div class="flex items-center gap-4">
+                        <!-- Holographic Avatar -->
+                        <div class="relative">
+                            <div class="w-20 h-20 rounded-xl bg-gradient-to-br from-[var(--neon-core)]/20 to-purple-500/20 flex items-center justify-center border-2 border-[var(--neon-core)]/40 shadow-[0_0_20px_rgba(var(--neon-rgb),0.3)]">
+                                <i class="fa-solid fa-user text-[var(--neon-core)] text-3xl"></i>
+                            </div>
+                            <!-- Status Indicator -->
+                            <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-black flex items-center justify-center">
+                                <i class="fa-solid fa-signal text-[8px] text-black"></i>
+                            </div>
                         </div>
-                    </template>
-                    <div x-show="unlockedAchievements.length > 6" 
-                         class="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-gray-500 text-[10px]">
-                        +<span x-text="unlockedAchievements.length - 6"></span>
+                        
+                        <!-- Identity Info -->
+                        <div class="flex-1">
+                            <p class="text-[9px] text-[var(--neon-core)] font-code mb-1">CODENAME</p>
+                            <h3 class="text-xl font-bold text-white font-brand tracking-wide" 
+                                x-text="viewingProfile?.username || publicProfile?.username || settings.username || user?.email?.split('@')[0] || 'AGENT_NULL'"></h3>
+                            <p class="text-[10px] text-gray-500 font-code mt-1" x-text="viewingProfile ? '' : user?.email"></p>
+                            
+                            <!-- Copy Username -->
+                            <div x-show="!viewingProfile && settings?.username" class="mt-2 flex items-center gap-2">
+                                <code class="text-xs text-[var(--neon-core)] bg-black/40 px-2 py-0.5 rounded border border-[var(--neon-core)]/20">@<span x-text="settings?.username"></span></code>
+                                <button @click="navigator.clipboard.writeText(settings?.username); notify('Username copiado!', 'success')" 
+                                        class="text-gray-500 hover:text-[var(--neon-core)] transition-colors">
+                                    <i class="fa-solid fa-copy text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div x-show="unlockedAchievements.length === 0" class="text-[10px] text-gray-600">
-                        Nenhum achievement ainda
+                </div>
+                
+                <!-- Stats Grid - RPG Style -->
+                <div class="grid grid-cols-4 gap-2">
+                    <!-- Total Rolls -->
+                    <div class="bg-black/40 rounded-xl p-3 border border-cyan-500/20 text-center group hover:border-cyan-500/50 transition-all hover:bg-cyan-500/5">
+                        <div class="w-8 h-8 mx-auto rounded-lg bg-cyan-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-dice-d20 text-cyan-400"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white font-code" x-text="localStats.totalRolls"></p>
+                        <p class="text-[8px] text-gray-500 uppercase tracking-wider">ROLLS</p>
+                    </div>
+                    <!-- Critical Hits -->
+                    <div class="bg-black/40 rounded-xl p-3 border border-green-500/20 text-center group hover:border-green-500/50 transition-all hover:bg-green-500/5">
+                        <div class="w-8 h-8 mx-auto rounded-lg bg-green-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-burst text-green-400"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white font-code" x-text="localStats.criticalRolls"></p>
+                        <p class="text-[8px] text-gray-500 uppercase tracking-wider">CRITS</p>
+                    </div>
+                    <!-- Characters -->
+                    <div class="bg-black/40 rounded-xl p-3 border border-yellow-500/20 text-center group hover:border-yellow-500/50 transition-all hover:bg-yellow-500/5">
+                        <div class="w-8 h-8 mx-auto rounded-lg bg-yellow-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-users text-yellow-400"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white font-code" x-text="localStats.charsCreated"></p>
+                        <p class="text-[8px] text-gray-500 uppercase tracking-wider">AGENTS</p>
+                    </div>
+                    <!-- Friends -->
+                    <div class="bg-black/40 rounded-xl p-3 border border-pink-500/20 text-center group hover:border-pink-500/50 transition-all hover:bg-pink-500/5">
+                        <div class="w-8 h-8 mx-auto rounded-lg bg-pink-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-heart text-pink-400"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white font-code" x-text="localStats.friendsCount"></p>
+                        <p class="text-[8px] text-gray-500 uppercase tracking-wider">ALLIES</p>
+                    </div>
+                </div>
+                
+                <!-- Experience Bar -->
+                <div class="bg-black/40 rounded-xl p-4 border border-white/10">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ACHIEVEMENT PROGRESS</span>
+                        <span class="text-xs text-[var(--neon-core)] font-code" x-text="getAchievementProgress().percentage + '%'"></span>
+                    </div>
+                    <div class="h-3 bg-black/60 rounded-full overflow-hidden border border-white/5">
+                        <div class="h-full bg-gradient-to-r from-[var(--neon-core)] via-purple-500 to-pink-500 transition-all duration-500 relative"
+                             :style="'width: ' + getAchievementProgress().percentage + '%'">
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-2">
+                        <span class="text-[9px] text-gray-500 font-code"><span x-text="getAchievementProgress().unlocked"></span> UNLOCKED</span>
+                        <button @click="achievementsModalOpen = true; profileModalOpen = false" 
+                                class="text-[9px] text-[var(--neon-core)] hover:text-white transition-colors flex items-center gap-1">
+                            <i class="fa-solid fa-trophy"></i> VIEW ALL
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Recent Achievements -->
+                <div class="bg-black/40 rounded-xl p-4 border border-yellow-500/20">
+                    <p class="text-[10px] text-yellow-400 font-bold uppercase mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-medal"></i> RECENT ACHIEVEMENTS
+                    </p>
+                    <div class="flex gap-2 flex-wrap">
+                        <template x-for="achId in unlockedAchievements.slice(0, 8)" :key="achId">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/10 border border-yellow-500/30 flex items-center justify-center text-yellow-400 group hover:scale-110 hover:border-yellow-400 transition-all cursor-pointer"
+                                 :title="ACHIEVEMENTS[achId]?.name + ' - ' + ACHIEVEMENTS[achId]?.description">
+                                <i class="fa-solid text-sm" :class="ACHIEVEMENTS[achId]?.icon"></i>
+                            </div>
+                        </template>
+                        <div x-show="unlockedAchievements.length > 8" 
+                             class="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-500 text-xs font-bold">
+                            +<span x-text="unlockedAchievements.length - 8"></span>
+                        </div>
+                        <div x-show="unlockedAchievements.length === 0" class="text-[10px] text-gray-600 italic">
+                            No achievements unlocked yet
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Username Management (Meu Perfil apenas) -->
+                <div x-show="!viewingProfile && user" class="bg-black/40 rounded-xl p-4 border border-[var(--neon-core)]/20">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-[10px] text-[var(--neon-core)] font-bold uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-at"></i> USERNAME CONFIG
+                        </p>
+                        <div x-show="!canChangeUsername" class="flex items-center gap-1.5 text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full">
+                            <i class="fa-solid fa-lock text-[9px]"></i>
+                            <span class="text-[9px] font-bold"><span x-text="usernameCooldownDays"></span>d COOLDOWN</span>
+                        </div>
+                    </div>
+                    
+                    <div class="relative">
+                        <input type="text" 
+                               x-model="usernameInput" 
+                               @input.debounce.400ms="checkUsernameAvailable(usernameInput)"
+                               :disabled="!canChangeUsername"
+                               placeholder="new_username"
+                               maxlength="20"
+                               class="w-full bg-black/60 border-2 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all pr-12 font-code"
+                               :class="{
+                                   'opacity-50 cursor-not-allowed border-white/5': !canChangeUsername,
+                                   'border-green-500/50 bg-green-500/5 shadow-[0_0_15px_rgba(34,197,94,0.2)]': canChangeUsername && usernameCheckResult === 'available',
+                                   'border-red-500/50 bg-red-500/5 animate-shake': usernameCheckResult === 'taken',
+                                   'border-white/10 focus:border-[var(--neon-core)]': canChangeUsername && !usernameCheckResult
+                               }">
+                        <div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                            <i x-show="usernameChecking" class="fa-solid fa-circle-notch fa-spin text-[var(--neon-core)]"></i>
+                            <i x-show="!usernameChecking && usernameCheckResult === 'available'" class="fa-solid fa-check-circle text-green-500 text-lg animate-bounce-in"></i>
+                            <i x-show="!usernameChecking && usernameCheckResult === 'taken'" class="fa-solid fa-times-circle text-red-500 text-lg"></i>
+                        </div>
+                    </div>
+                    
+                    <p x-show="usernameCheckMessage" class="text-[10px] mt-2 font-code"
+                       :class="{ 'text-green-400': usernameCheckResult === 'available', 'text-red-400': usernameCheckResult === 'taken' }"
+                       x-text="usernameCheckMessage"></p>
+                    <p x-show="!canChangeUsername" class="text-[9px] text-amber-400/70 mt-2">
+                        <i class="fa-solid fa-info-circle mr-1"></i> 14-day cooldown after last change
+                    </p>
+                    
+                    <button x-show="canChangeUsername && usernameCheckResult === 'available' && usernameInput?.length >= 2"
+                            @click="saveUsername()"
+                            :disabled="usernameSaving"
+                            class="mt-3 w-full py-2.5 bg-gradient-to-r from-[var(--neon-core)] to-cyan-400 text-black text-xs font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]">
+                        <i x-show="usernameSaving" class="fa-solid fa-circle-notch fa-spin"></i>
+                        <i x-show="!usernameSaving" class="fa-solid fa-save"></i>
+                        <span x-text="usernameSaving ? 'SYNCING...' : 'SAVE USERNAME'"></span>
+                    </button>
+                </div>
+                
+                <!-- Display Name & Bio -->
+                <div x-show="!viewingProfile" class="bg-black/40 rounded-xl p-4 border border-white/10 space-y-3">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase">DISPLAY NAME</label>
+                            <span class="text-[8px] text-green-400/70"><i class="fa-solid fa-unlock mr-1"></i>NO COOLDOWN</span>
+                        </div>
+                        <input type="text" x-model="settings.displayName" 
+                               placeholder="How should we call you?"
+                               maxlength="30"
+                               class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors"
+                               @change="saveLocal(); syncCloud(true)">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 font-bold uppercase block mb-2">BIO</label>
+                        <textarea x-model="settings.bio" placeholder="Tell us about yourself..."
+                                  rows="2"
+                                  class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none resize-none transition-colors"
+                                  @change="saveLocal()"></textarea>
                     </div>
                 </div>
             </div>
             
-            <!-- Seu @username para amigos -->
-            <div x-show="!viewingProfile && settings?.username" class="bg-black/40 rounded-lg p-3">
-                <p class="text-[10px] text-gray-500 font-bold uppercase mb-1">Seu @username</p>
-                <div class="flex items-center gap-2">
-                    <code class="flex-1 bg-black/60 px-2 py-1 rounded text-xs text-[var(--neon-core)]">@<span x-text="settings?.username"></span></code>
-                    <button @click="navigator.clipboard.writeText(settings?.username); notify('Username copiado!', 'success')" 
-                            class="px-2 py-1 bg-white/5 text-gray-400 rounded text-xs hover:bg-white/10 transition-colors">
-                        <i class="fa-solid fa-copy"></i>
-                    </button>
+            <!-- Footer -->
+            <div class="p-3 border-t border-white/5 bg-black/40 flex items-center justify-between">
+                <p class="text-[8px] text-gray-600 font-code">ZENITE OS v2.0 // SECURE CONNECTION</p>
+                <div class="flex items-center gap-1 text-green-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                    <span class="text-[8px] font-code">ONLINE</span>
                 </div>
-                <p class="text-[9px] text-gray-600 mt-1">Compartilhe para que amigos possam te adicionar</p>
             </div>
         </div>
     </div>
