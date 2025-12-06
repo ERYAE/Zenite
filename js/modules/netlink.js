@@ -2666,7 +2666,28 @@ export const netlinkLogic = {
         const player = document.getElementById('ambient-music-player');
         if (!player) return;
         
-        player.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+        const newSrc = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+        
+        // Adiciona tratamento de erro para detectar bloqueio por adblocker
+        player.onerror = () => {
+            this.notify('⚠️ Não foi possível carregar a música. Desative o AdBlock para ouvir.', 'warn');
+            this.ambientMusic.blocked = true;
+        };
+        
+        // Timer para verificar se o player carregou (fallback para detectar bloqueio)
+        const checkTimer = setTimeout(() => {
+            if (!player.contentWindow || player.src !== newSrc) {
+                this.notify('⚠️ Música bloqueada. Desative o AdBlock para ouvir a música do mestre.', 'warn');
+                this.ambientMusic.blocked = true;
+            }
+        }, 5000);
+        
+        player.onload = () => {
+            clearTimeout(checkTimer);
+            this.ambientMusic.blocked = false;
+        };
+        
+        player.src = newSrc;
         player.style.display = 'block';
     },
     

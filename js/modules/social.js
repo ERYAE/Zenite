@@ -925,12 +925,8 @@ export const socialLogic = {
         // Carrega mensagens
         await this.loadChatMessages(friend.friendId);
         
-        // Marca como lidas e atualiza contador
-        if (this.unreadCounts[friend.friendId]) {
-            this.totalUnreadMessages -= this.unreadCounts[friend.friendId];
-            this.unreadCounts[friend.friendId] = 0;
-            friend.unreadMessages = 0;
-        }
+        // Marca mensagens como lidas no banco E atualiza contadores locais
+        await this.markMessagesAsRead(friend.friendId);
         
         this.chatLoading = false;
     },
@@ -997,9 +993,42 @@ export const socialLogic = {
                 createdAt: m.created_at,
                 isRead: m.is_read
             }));
+            
+            // Marca mensagens recebidas como lidas
+            await this.markMessagesAsRead(friendId);
         } catch (e) {
             console.error('[CHAT] Fallback falhou:', e);
             this.chatMessages = [];
+        }
+    },
+    
+    /**
+     * Marca todas as mensagens do amigo como lidas
+     */
+    async markMessagesAsRead(friendId) {
+        if (!this.supabase || !friendId) return;
+        
+        try {
+            await this.supabase
+                .from('friend_messages')
+                .update({ is_read: true })
+                .eq('sender_id', friendId)
+                .eq('receiver_id', this.user.id)
+                .eq('is_read', false);
+            
+            // Atualiza contadores locais
+            if (this.unreadCounts[friendId]) {
+                this.totalUnreadMessages -= this.unreadCounts[friendId];
+                if (this.totalUnreadMessages < 0) this.totalUnreadMessages = 0;
+                this.unreadCounts[friendId] = 0;
+            }
+            
+            // Atualiza o amigo na lista
+            const friend = this.friends.find(f => f.friendId === friendId);
+            if (friend) friend.unreadMessages = 0;
+            
+        } catch (e) {
+            console.warn('[CHAT] Erro ao marcar como lidas:', e);
         }
     },
     
@@ -1081,21 +1110,68 @@ export const socialLogic = {
                     table: 'friend_messages',
                     filter: `receiver_id=eq.${this.user.id}`
                 },
-                (payload) => {
+                async (payload) => {
                     const msg = payload.new;
                     if (msg.sender_id === friendId) {
+                        // Garante que a mensagem é exibida mesmo se o fetch falhar
                         this.chatMessages.push({
                             id: msg.id,
                             content: msg.content,
                             isMine: false,
                             createdAt: msg.created_at,
-                            isRead: true
+                            isRead: false
                         });
-                        playSFX('notification');
+                        
+                        // Atualiza UI scroll
+                        this.$nextTick(() => {
+                            const container = document.getElementById('chat-messages-container');
+                            if (container) container.scrollTop = container.scrollHeight;
+                        });
+
+                        // Se o chat estiver aberto, marca como lida imediatamente
+                        if (this.chatModalOpen && this.activeChatFriendId === friendId) {
+                            playSFX('notification');
+                            await this.markMessagesAsRead(friendId);
+                        } else {
+                            playSFX('notification');
+                            // Atualiza contador se o chat não estiver focado
+                            this.incrementUnreadCount(friendId);
+                        }
+                    }
+                }
+            )
+            .on('postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'friend_messages',
+                    filter: `sender_id=eq.${this.user.id}` // Minhas mensagens que foram alteradas (lidas)
+                },
+                (payload) => {
+                    const msg = payload.new;
+                    // Atualiza status de lido localmente
+                    const localMsg = this.chatMessages.find(m => m.id === msg.id);
+                    if (localMsg) {
+                        localMsg.isRead = msg.is_read;
                     }
                 }
             )
             .subscribe();
+    },
+    
+    /**
+     * Incrementa contador de não lidas localmente
+     */
+    incrementUnreadCount(friendId) {
+        if (!this.unreadCounts[friendId]) this.unreadCounts[friendId] = 0;
+        this.unreadCounts[friendId]++;
+        this.totalUnreadMessages++;
+        
+        // Atualiza na lista de amigos visualmente
+        const friend = this.friends.find(f => f.friendId === friendId);
+        if (friend) {
+            friend.unreadMessages = this.unreadCounts[friendId];
+        }
     },
     
     /**
