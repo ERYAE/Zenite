@@ -119,9 +119,9 @@ CREATE OR REPLACE FUNCTION get_friend_conversation(
     p_offset integer DEFAULT 0
 )
 RETURNS TABLE (
-    id uuid,
-    sender_id uuid,
-    receiver_id uuid,
+    msg_id uuid,
+    msg_sender_id uuid,
+    msg_receiver_id uuid,
     content text,
     is_read boolean,
     created_at timestamptz,
@@ -131,22 +131,22 @@ DECLARE
     v_user_id uuid := auth.uid();
 BEGIN
     -- Marca mensagens como lidas
-    UPDATE public.friend_messages
+    UPDATE public.friend_messages fm
     SET is_read = true
-    WHERE receiver_id = v_user_id 
-    AND sender_id = p_friend_id 
-    AND is_read = false;
+    WHERE fm.receiver_id = v_user_id 
+    AND fm.sender_id = p_friend_id 
+    AND fm.is_read = false;
     
     -- Retorna conversa
     RETURN QUERY
     SELECT 
-        m.id,
-        m.sender_id,
-        m.receiver_id,
+        m.id AS msg_id,
+        m.sender_id AS msg_sender_id,
+        m.receiver_id AS msg_receiver_id,
         m.content,
         m.is_read,
         m.created_at,
-        (m.sender_id = v_user_id) as is_mine
+        (m.sender_id = v_user_id) AS is_mine
     FROM public.friend_messages m
     WHERE (m.sender_id = v_user_id AND m.receiver_id = p_friend_id)
        OR (m.sender_id = p_friend_id AND m.receiver_id = v_user_id)

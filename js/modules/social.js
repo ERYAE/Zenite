@@ -960,7 +960,7 @@ export const socialLogic = {
             
             // Inverte para ordem cronológica (mais antigas primeiro)
             this.chatMessages = (data || []).reverse().map(m => ({
-                id: m.id,
+                id: m.msg_id || m.id,
                 content: m.content,
                 isMine: m.is_mine,
                 createdAt: m.created_at,
