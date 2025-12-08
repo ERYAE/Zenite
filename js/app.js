@@ -12,6 +12,8 @@ function zeniteSystem() {
     return {
         // --- ESTADO DO SISTEMA ---
         // ⚠️ v2.3.0 - Loading com progresso real
+        // Em js/app.js, dentro de Alpine.data('zeniteSystem', () => ({ ..
+        migrationModalOpen: false, 
         systemLoading: true, 
         loadingProgress: 0, 
         loadingText: 'INITIALIZING',
