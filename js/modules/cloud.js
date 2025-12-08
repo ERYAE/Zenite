@@ -606,6 +606,7 @@ export const cloudLogic = {
 
             this.currentView = 'dashboard';
             window.location.hash = '#/dashboard';
+            setTimeout(() => { this.migrationModalOpen = true; }, 1000);
         } catch (e) {
             console.error('[CLOUD] Erro no login:', e);
             this.authMsg = this.translateAuthError(e.message);
@@ -748,6 +749,8 @@ export const cloudLogic = {
             setTimeout(() => {
                 window.location.hash = '#/dashboard';
             }, 1500);
+
+            setTimeout(() => { this.migrationModalOpen = true; }, 1000);
             
             return true;
         } catch (e) {
