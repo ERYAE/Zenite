@@ -571,6 +571,8 @@ export const netlinkLogic = {
             return;
         }
         
+        let memberRemoved = false;
+        
         try {
             // Remove o membro
             const { error } = await this.supabase
@@ -581,18 +583,29 @@ export const netlinkLogic = {
             
             if (error) throw error;
             
+            // Marca que a remoção foi bem-sucedida
+            memberRemoved = true;
+            
             // Remove da lista local
             this.joinedCampaigns = this.joinedCampaigns.filter(c => c.id !== this.activeCampaign.id);
-            
-            playSFX('success');
-            this.notify('Você saiu da campanha.', 'success');
-            
-            // Volta para a lista
-            await this.leaveCampaign();
             
         } catch (e) {
             console.error('[NETLINK] Erro ao sair da campanha:', e);
             this.notify('Erro ao sair da campanha.', 'error');
+            return; // Sai aqui se a remoção falhou
+        }
+        
+        // Se chegou aqui, a remoção foi bem-sucedida
+        // Notifica sucesso ANTES de limpar estado (que pode falhar silenciosamente)
+        playSFX('success');
+        this.notify('Você saiu da campanha.', 'success');
+        
+        // Volta para a lista - erros aqui são silenciosos pois a saída já ocorreu
+        try {
+            await this.leaveCampaign();
+        } catch (cleanupError) {
+            console.warn('[NETLINK] Erro ao limpar estado (saída já concluída):', cleanupError);
+            // Não mostra erro ao usuário pois a operação principal foi bem-sucedida
         }
     },
     
@@ -2589,6 +2602,41 @@ export const netlinkLogic = {
     // MÚSICA AMBIENTE (GM ONLY)
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Detecta Safari/iOS para tratamento especial de autoplay
+    _isSafariOrIOS: null,
+    _musicUserInteracted: false,
+    
+    /**
+     * Detecta se o navegador é Safari ou iOS
+     * Safari e iOS bloqueiam autoplay de mídia sem interação do usuário
+     */
+    isSafariOrIOS() {
+        if (this._isSafariOrIOS !== null) return this._isSafariOrIOS;
+        
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+        const isIOSChrome = /CriOS/.test(ua);
+        const isIOSFirefox = /FxiOS/.test(ua);
+        
+        // iOS browsers (Safari, Chrome, Firefox) todos usam WebKit e têm mesmas restrições
+        this._isSafariOrIOS = isIOS || isSafari || isIOSChrome || isIOSFirefox;
+        
+        if (this._isSafariOrIOS) {
+            console.log('[MUSIC] Safari/iOS detectado - autoplay requer interação do usuário');
+        }
+        
+        return this._isSafariOrIOS;
+    },
+    
+    /**
+     * Marca que o usuário interagiu (clicou em play)
+     * Necessário para Safari/iOS permitir reprodução
+     */
+    markMusicUserInteraction() {
+        this._musicUserInteracted = true;
+    },
+
     openMusicModal() {
         this.musicModalOpen = true;
     },
@@ -2603,6 +2651,8 @@ export const netlinkLogic = {
 
     // Inicia/para a música
     toggleMusic() {
+        // Marca interação do usuário (necessário para Safari/iOS)
+        this.markMusicUserInteraction();
         if (!this.ambientMusic.url) {
             this.notify('Insira uma URL do YouTube primeiro!', 'warn');
             return;
@@ -2666,7 +2716,25 @@ export const netlinkLogic = {
         const player = document.getElementById('ambient-music-player');
         if (!player) return;
         
-        const newSrc = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+        // Safari/iOS: verifica se houve interação do usuário
+        if (this.isSafariOrIOS() && !this._musicUserInteracted) {
+            console.warn('[MUSIC] Safari/iOS: aguardando interação do usuário');
+            this.notify('🎵 Toque no botão de play para ativar a música (Safari/iOS)', 'info');
+            this.ambientMusic.safariBlocked = true;
+            return;
+        }
+        
+        // Parâmetros do embed - mute=0 para som, mas Safari pode bloquear
+        // playsinline=1 é necessário para iOS
+        let embedParams = `autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1&playsinline=1`;
+        
+        // Safari/iOS: tenta com mute primeiro se não houver interação recente
+        if (this.isSafariOrIOS()) {
+            // Adiciona origin para melhor compatibilidade com postMessage
+            embedParams += `&origin=${encodeURIComponent(window.location.origin)}`;
+        }
+        
+        const newSrc = `https://www.youtube.com/embed/${videoId}?${embedParams}`;
         
         // Adiciona tratamento de erro para detectar bloqueio por adblocker
         player.onerror = () => {
@@ -2677,18 +2745,34 @@ export const netlinkLogic = {
         // Timer para verificar se o player carregou (fallback para detectar bloqueio)
         const checkTimer = setTimeout(() => {
             if (!player.contentWindow || player.src !== newSrc) {
-                this.notify('⚠️ Música bloqueada. Desative o AdBlock para ouvir a música do mestre.', 'warn');
-                this.ambientMusic.blocked = true;
+                if (this.isSafariOrIOS()) {
+                    this.notify('🎵 Safari/iOS: toque no player para ativar o som', 'info');
+                    this.ambientMusic.safariBlocked = true;
+                } else {
+                    this.notify('⚠️ Música bloqueada. Desative o AdBlock para ouvir a música do mestre.', 'warn');
+                    this.ambientMusic.blocked = true;
+                }
             }
         }, 5000);
         
         player.onload = () => {
             clearTimeout(checkTimer);
             this.ambientMusic.blocked = false;
+            this.ambientMusic.safariBlocked = false;
+            
+            // Safari/iOS: tenta unmute após carregar
+            if (this.isSafariOrIOS() && this._musicUserInteracted) {
+                setTimeout(() => {
+                    this.setIframeVolume(player, this.ambientMusic.volume);
+                }, 500);
+            }
         };
         
         player.src = newSrc;
         player.style.display = 'block';
+        
+        // Para Safari/iOS: adiciona allow para autoplay
+        player.allow = 'autoplay; encrypted-media; picture-in-picture';
     },
     
     // Pausa música localmente (mantém src para poder retomar)

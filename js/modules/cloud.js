@@ -211,14 +211,30 @@ export const cloudLogic = {
         }
     },
 
-    async syncCloud(silent = false) {
+    // Timeout para resetar isSyncing caso trave
+    _syncTimeout: null,
+    _syncRetryCount: 0,
+    _maxSyncRetries: 3,
+    
+    async syncCloud(silent = false, retryAttempt = 0) {
         if (!this.user || this.isGuest || !this.supabase) return;
+        
+        // Timeout de segurança: reseta isSyncing após 30 segundos
         if (this.isSyncing) {
-            console.log('[CLOUD] Sincronização já em andamento, ignorando...');
-            return;
+            const syncStartTime = this._syncStartTime || 0;
+            const elapsed = Date.now() - syncStartTime;
+            
+            if (elapsed > 30000) {
+                console.warn('[CLOUD] Sync travada detectada, resetando...');
+                this.isSyncing = false;
+            } else {
+                console.log('[CLOUD] Sincronização já em andamento, ignorando...');
+                return;
+            }
         }
 
         this.isSyncing = true;
+        this._syncStartTime = Date.now();
         if (!silent) this.notify('Sincronizando...', 'info');
 
         try {
@@ -255,6 +271,7 @@ export const cloudLogic = {
             this.unsavedChanges = false;
             this.saveStatus = 'success';
             this.lastManualSave = new Date();
+            this._syncRetryCount = 0; // Reseta contador de retry em sucesso
 
             console.log('[CLOUD] Sincronização bem-sucedida');
 
@@ -266,16 +283,34 @@ export const cloudLogic = {
             console.error('[CLOUD] Sync Exception:', e);
             this.saveStatus = 'error';
 
+            // Retry automático para erros de rede (até 3 tentativas)
+            const isNetworkError = e.message?.includes('network') || 
+                                   e.message?.includes('fetch') ||
+                                   e.message?.includes('Failed to fetch') ||
+                                   e.name === 'TypeError';
+            
+            if (isNetworkError && retryAttempt < this._maxSyncRetries) {
+                const delay = Math.pow(2, retryAttempt) * 1000; // Backoff exponencial: 1s, 2s, 4s
+                console.log(`[CLOUD] Retry ${retryAttempt + 1}/${this._maxSyncRetries} em ${delay}ms...`);
+                
+                this.isSyncing = false;
+                setTimeout(() => {
+                    this.syncCloud(silent, retryAttempt + 1);
+                }, delay);
+                return;
+            }
+
             let errorMsg = 'Erro ao salvar na nuvem.';
             if (e.message?.includes('JWT')) {
                 errorMsg = 'Sessão expirada. Faça login novamente.';
-            } else if (e.message?.includes('network')) {
-                errorMsg = 'Sem conexão com a internet.';
+            } else if (isNetworkError) {
+                errorMsg = 'Sem conexão com a internet. Tentativas esgotadas.';
             }
 
             if (!silent) this.notify(errorMsg, 'error');
         } finally {
             this.isSyncing = false;
+            this._syncStartTime = null;
         }
     },
 

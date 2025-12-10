@@ -84,15 +84,15 @@
         </div>
 
         <div class="p-6 pt-4 flex flex-col gap-3 relative z-10">
-            <button @click="window.location.href='https://zenitev2.vercel.app'" 
-                    class="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold rounded-xl text-sm hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-all flex items-center justify-center gap-3 group">
-                <i class="fa-solid fa-rocket group-hover:animate-bounce"></i>
-                ACESSAR A NOVA VERSÃO
-            </button>
+            <div class="w-full py-4 bg-gradient-to-r from-gray-600 to-gray-700 text-white/60 font-bold rounded-xl text-sm flex items-center justify-center gap-3 cursor-not-allowed">
+                <i class="fa-solid fa-clock animate-pulse"></i>
+                EM BREVE
+            </div>
+            <p class="text-[10px] text-gray-500 text-center">A nova versão ainda está em desenvolvimento. Fique atento às novidades!</p>
             
             <button @click="migrationModalOpen = false" 
                     class="text-xs text-gray-500 hover:text-white transition-colors py-2">
-                Continuar na versão legada por enquanto
+                Fechar
             </button>
         </div>
     </div>
@@ -4087,38 +4087,32 @@
     </div>
 </div>
 
-<!-- Modal: Meu Perfil - Holographic RPG Character Stats Screen -->
+<!-- Modal: Meu Perfil - Otimizado para Performance -->
 <div x-show="profileModalOpen"  
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="profileModalOpen = false"
+     class="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
+     x-transition.opacity.duration.200ms @keydown.escape.window="profileModalOpen = false"
      @mousedown.self="modalClickStartedOutside = true"
      @mouseup.self="if(modalClickStartedOutside) { profileModalOpen = false; viewingProfile = null; } modalClickStartedOutside = false"
      @mouseup="modalClickStartedOutside = false">
-    <div class="w-full max-w-lg border border-[var(--neon-core)]/40 rounded-2xl shadow-[0_0_60px_rgba(var(--neon-rgb),0.15)] modal-enter overflow-hidden relative">
-        <!-- Holographic Background Effect -->
-        <div class="absolute inset-0 holographic-shimmer opacity-30"></div>
-        <div class="absolute inset-0 bg-gradient-to-br from-[#0a0a12] via-[#0d0d18] to-[#080810]"></div>
-        
-        <!-- Scanlines Overlay -->
-        <div class="absolute inset-0 scanlines pointer-events-none"></div>
+    <div class="w-full max-w-lg bg-[#0d0d14] border border-[var(--neon-core)]/30 rounded-2xl shadow-lg overflow-hidden">
         
         <!-- Content Layer -->
-        <div class="relative z-10">
-            <!-- Header - Holographic Top Bar -->
-            <div class="p-4 border-b border-[var(--neon-core)]/20 flex justify-between items-center bg-gradient-to-r from-[var(--neon-core)]/5 via-transparent to-purple-500/5">
+        <div>
+            <!-- Header - Simplificado -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-[var(--neon-core)]/10 border border-[var(--neon-core)]/30 flex items-center justify-center animate-glow-pulse">
-                        <i class="fa-solid fa-microchip text-[var(--neon-core)]"></i>
+                    <div class="w-10 h-10 rounded-lg bg-[var(--neon-core)]/10 border border-[var(--neon-core)]/30 flex items-center justify-center">
+                        <i class="fa-solid fa-user text-[var(--neon-core)]"></i>
                     </div>
                     <div>
-                        <h2 class="text-sm font-bold text-white font-brand tracking-wider flex items-center gap-2">
-                            <span class="text-[var(--neon-core)]">//</span> AGENT PROFILE
+                        <h2 class="text-sm font-bold text-white font-brand tracking-wider">
+                            MEU PERFIL
                         </h2>
-                        <p class="text-[9px] text-gray-500 font-code">CLEARANCE LEVEL: <span class="text-[var(--neon-core)]">ALPHA</span></p>
+                        <p class="text-[9px] text-gray-500 font-code" x-text="viewingProfile ? 'Visualizando perfil' : 'Configurações da conta'"></p>
                     </div>
                 </div>
                 <button @click="profileModalOpen = false; viewingProfile = null" 
-                        class="text-gray-500 hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/30">
+                        class="text-gray-500 hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 transition-colors">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -4331,21 +4325,36 @@
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-[10px] text-gray-400 font-bold uppercase">DISPLAY NAME</label>
-                            <span class="text-[8px] text-green-400/70"><i class="fa-solid fa-unlock mr-1"></i>NO COOLDOWN</span>
+                            <span class="text-[8px] text-gray-500"><i class="fa-solid fa-pen mr-1"></i><span x-text="(settings.displayName || '').length"></span>/30</span>
                         </div>
                         <input type="text" x-model="settings.displayName" 
-                               placeholder="How should we call you?"
+                               placeholder="Como devemos te chamar?"
                                maxlength="30"
                                class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none transition-colors"
-                               @change="saveLocal(); syncCloud(true)">
+                               :class="displayNameDirty ? 'border-yellow-500/50' : ''"
+                               @input="markDisplayNameDirty()">
                     </div>
                     <div>
-                        <label class="text-[10px] text-gray-400 font-bold uppercase block mb-2">BIO</label>
-                        <textarea x-model="settings.bio" placeholder="Tell us about yourself..."
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase">BIO</label>
+                            <span class="text-[8px] text-gray-500"><span x-text="(settings.bio || '').length"></span>/200</span>
+                        </div>
+                        <textarea x-model="settings.bio" placeholder="Conte um pouco sobre você..."
                                   rows="2"
+                                  maxlength="200"
                                   class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[var(--neon-core)] focus:outline-none resize-none transition-colors"
-                                  @change="saveLocal()"></textarea>
+                                  :class="bioDirty ? 'border-yellow-500/50' : ''"
+                                  @input="markBioDirty()"></textarea>
                     </div>
+                    
+                    <!-- Botão Salvar Perfil -->
+                    <button @click="saveProfile()" 
+                            :disabled="profileSaving || (!displayNameDirty && !bioDirty)"
+                            class="w-full py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
+                            :class="(displayNameDirty || bioDirty) ? 'bg-[var(--neon-core)] text-black hover:opacity-90' : 'bg-white/5 text-gray-500 cursor-not-allowed'">
+                        <i class="fa-solid" :class="profileSaving ? 'fa-spinner animate-spin' : 'fa-save'"></i>
+                        <span x-text="profileSaving ? 'Salvando...' : (displayNameDirty || bioDirty) ? 'Salvar Alterações' : 'Nenhuma alteração'"></span>
+                    </button>
                 </div>
             </div>
             

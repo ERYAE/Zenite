@@ -432,22 +432,79 @@ export const socialLogic = {
     // ACHIEVEMENTS (100% local, sem banco)
     // ─────────────────────────────────────────────────────────────────────────
     
-    checkAchievements() {
+    // Debounce timer para evitar chamadas múltiplas
+    _achievementCheckTimer: null,
+    _achievementCheckPending: false,
+    
+    /**
+     * Verifica achievements com debounce para evitar chamadas excessivas
+     * @param {boolean} immediate - Se true, executa imediatamente sem debounce
+     */
+    checkAchievements(immediate = false) {
         // Guard: não verifica antes de carregar do localStorage
         if (!this.achievementsLoaded) {
             console.log('[ACHIEVEMENTS] Aguardando carregamento...');
             return [];
         }
         
+        // Debounce: agrupa múltiplas chamadas em uma só
+        if (!immediate) {
+            if (this._achievementCheckTimer) {
+                this._achievementCheckPending = true;
+                return [];
+            }
+            
+            this._achievementCheckTimer = setTimeout(() => {
+                this._achievementCheckTimer = null;
+                if (this._achievementCheckPending) {
+                    this._achievementCheckPending = false;
+                    this._executeAchievementCheck();
+                }
+            }, 500); // 500ms debounce
+            
+            return this._executeAchievementCheck();
+        }
+        
+        return this._executeAchievementCheck();
+    },
+    
+    /**
+     * Execução real da verificação de achievements
+     * @private
+     */
+    _executeAchievementCheck() {
         let newUnlocks = [];
         const achievements = Object.values(ACHIEVEMENTS);
         const totalCount = achievements.filter(a => !a.isPlatinum).length;
         const currentUnlocked = this.unlockedAchievements.filter(id => id !== 'platinum').length;
         
-        // Usa flag de sessão para evitar mostrar duplicados na mesma sessão
+        // Inicializa Set de achievements já mostrados (persiste na sessão)
         if (!window._achievementsShownThisSession) {
             window._achievementsShownThisSession = new Set();
         }
+        
+        // Carrega achievements já mostrados do localStorage para persistir entre refreshes
+        const prefix = this._userPrefix || 'zenite_guest_';
+        const shownKey = `${prefix}achievements_shown`;
+        const lastShownData = localStorage.getItem(shownKey);
+        let shownWithTimestamp = {};
+        
+        if (lastShownData) {
+            try {
+                shownWithTimestamp = JSON.parse(lastShownData);
+            } catch (e) {
+                shownWithTimestamp = {};
+            }
+        }
+        
+        // Limpa achievements mostrados há mais de 24h
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        Object.keys(shownWithTimestamp).forEach(id => {
+            if (now - shownWithTimestamp[id] > ONE_DAY) {
+                delete shownWithTimestamp[id];
+            }
+        });
         
         achievements.forEach(achievement => {
             const isUnlocked = this.unlockedAchievements.includes(achievement.id);
@@ -463,21 +520,31 @@ export const socialLogic = {
             if (!isUnlocked && shouldUnlock) {
                 this.unlockedAchievements.push(achievement.id);
                 
-                // Só adiciona à lista de notificações se não foi mostrado nesta sessão
-                if (!window._achievementsShownThisSession.has(achievement.id)) {
+                // Só mostra se:
+                // 1. Não foi mostrado nesta sessão E
+                // 2. Não foi mostrado nas últimas 24h
+                const wasShownThisSession = window._achievementsShownThisSession.has(achievement.id);
+                const wasShownRecently = shownWithTimestamp[achievement.id] !== undefined;
+                
+                if (!wasShownThisSession && !wasShownRecently) {
                     newUnlocks.push(achievement);
                     window._achievementsShownThisSession.add(achievement.id);
+                    shownWithTimestamp[achievement.id] = now;
                 }
             }
         });
         
-        // Salva no localStorage (com prefixo por usuário)
-        const prefix = this._userPrefix || 'zenite_guest_';
+        // Salva achievements desbloqueados
         localStorage.setItem(`${prefix}achievements`, JSON.stringify(this.unlockedAchievements));
         
-        // Notifica apenas achievements realmente novos
-        newUnlocks.forEach(achievement => {
-            this.showAchievementUnlock(achievement);
+        // Salva timestamps de achievements mostrados
+        localStorage.setItem(shownKey, JSON.stringify(shownWithTimestamp));
+        
+        // Notifica apenas achievements realmente novos (com delay entre cada)
+        newUnlocks.forEach((achievement, index) => {
+            setTimeout(() => {
+                this.showAchievementUnlock(achievement);
+            }, index * 4500); // 4.5s entre cada para não sobrepor
         });
         
         return newUnlocks;
@@ -497,6 +564,7 @@ export const socialLogic = {
     
     /**
      * Exibe toast animado para achievement desbloqueado
+     * Otimizado para não cortar em telas estreitas
      */
     showAchievementToast(achievement) {
         // Remove toast anterior se existir
@@ -508,43 +576,46 @@ export const socialLogic = {
         
         const toast = document.createElement('div');
         toast.id = 'achievement-toast';
-        toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[100000] animate-achievement pointer-events-auto';
+        // Usar padding lateral para evitar corte em telas estreitas
+        toast.className = 'fixed top-16 left-4 right-4 z-[100000] pointer-events-auto flex justify-center';
         toast.innerHTML = `
-            <div class="relative bg-gradient-to-br from-black/95 to-${color}-900/20 border-2 border-${color}-500/50 rounded-2xl p-4 shadow-[0_0_40px_rgba(234,179,8,0.3)] backdrop-blur-xl min-w-[280px] max-w-sm">
-                <!-- Glow effect -->
-                <div class="absolute inset-0 rounded-2xl bg-gradient-to-r from-${color}-500/10 via-transparent to-${color}-500/10 animate-pulse"></div>
-                
+            <div class="relative bg-black/95 border-2 border-${color}-500/50 rounded-xl p-3 shadow-lg max-w-sm w-full">
                 <!-- Content -->
-                <div class="relative flex items-center gap-4">
+                <div class="flex items-center gap-3">
                     <!-- Icon -->
-                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-${color}-500/30 to-${color}-600/20 border border-${color}-500/50 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(234,179,8,0.3)]">
-                        <i class="fa-solid ${achievement.icon || 'fa-trophy'} text-2xl text-${color}-400"></i>
+                    <div class="w-12 h-12 rounded-lg bg-${color}-500/20 border border-${color}-500/40 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid ${achievement.icon || 'fa-trophy'} text-xl text-${color}-400"></i>
                     </div>
                     
                     <!-- Text -->
                     <div class="flex-1 min-w-0">
-                        <p class="text-[9px] font-bold uppercase tracking-wider text-${color}-400 mb-1 flex items-center gap-1">
-                            ${isSecret ? '<i class="fa-solid fa-key"></i> SECRETO DESBLOQUEADO' : '<i class="fa-solid fa-trophy"></i> ACHIEVEMENT'}
+                        <p class="text-[9px] font-bold uppercase tracking-wider text-${color}-400 mb-0.5 flex items-center gap-1">
+                            ${isSecret ? '<i class="fa-solid fa-key"></i> SECRETO' : '<i class="fa-solid fa-trophy"></i> ACHIEVEMENT'}
                         </p>
                         <p class="text-sm font-bold text-white truncate">${achievement.name}</p>
                         <p class="text-[10px] text-gray-400 truncate">${achievement.description}</p>
                     </div>
                 </div>
-                
-                <!-- Stars decoration -->
-                <div class="absolute -top-2 -right-2 text-yellow-400 animate-ping text-sm">✦</div>
-                <div class="absolute -bottom-1 -left-1 text-${color}-400 animate-bounce text-xs">★</div>
             </div>
         `;
         
+        // Animação de entrada
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
         document.body.appendChild(toast);
+        
+        // Trigger animação
+        requestAnimationFrame(() => {
+            toast.style.transition = 'all 0.3s ease-out';
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
         
         // Auto-remove após 4 segundos
         setTimeout(() => {
             toast.style.opacity = '0';
-            toast.style.transform = 'translate(-50%, -20px)';
-            toast.style.transition = 'all 0.5s ease-out';
-            setTimeout(() => toast.remove(), 500);
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => toast.remove(), 300);
         }, 4000);
     },
     
@@ -590,39 +661,80 @@ export const socialLogic = {
     // SISTEMA DE AMIGOS (Refatorado - Usa funções SQL otimizadas)
     // ─────────────────────────────────────────────────────────────────────────
     
+    // Estado de loading de amigos
+    friendsLoading: false,
+    friendsError: null,
+    
     /**
      * Carrega lista completa de amigos com dados do perfil
      * Usa função SQL get_friends_full() para performance
+     * Com fallback robusto e tratamento de erros melhorado
      */
     async loadFriends(forceRefresh = false) {
-        if (!this.supabase || !this.user) return;
-        if (this.friendsLoaded && !forceRefresh) return;
+        if (!this.supabase || !this.user) {
+            console.warn('[FRIENDS] Supabase ou usuário não disponível');
+            return;
+        }
+        
+        // Evita recarregar se já carregou (exceto forceRefresh)
+        if (this.friendsLoaded && !forceRefresh) {
+            console.log('[FRIENDS] Já carregado, pulando...');
+            return;
+        }
+        
+        // Evita chamadas simultâneas
+        if (this.friendsLoading) {
+            console.log('[FRIENDS] Carregamento já em andamento...');
+            return;
+        }
+        
+        this.friendsLoading = true;
+        this.friendsError = null;
         
         try {
-            // USA FUNÇÃO SQL OTIMIZADA com todos os dados
-            const { data: friends, error: friendsError } = await this.supabase
-                .rpc('get_friends_full');
+            let friendsData = null;
+            let usedFallback = false;
             
-            if (friendsError) {
-                console.error('[FRIENDS] Erro ao buscar:', friendsError);
+            // Tenta função SQL otimizada primeiro
+            try {
+                const { data: friends, error: friendsError } = await this.supabase
+                    .rpc('get_friends_full');
+                
+                if (friendsError) {
+                    // Verifica se é erro de função não existente
+                    const isFunctionMissing = friendsError.message?.includes('function') || 
+                                               friendsError.code === '42883' ||
+                                               friendsError.code === 'PGRST202';
+                    
+                    if (isFunctionMissing) {
+                        console.warn('[FRIENDS] Função SQL não existe, usando fallback...');
+                    } else {
+                        console.error('[FRIENDS] Erro na função SQL:', friendsError);
+                    }
+                    throw friendsError;
+                }
+                
+                friendsData = friends;
+            } catch (rpcError) {
                 // Fallback para query tradicional
-                await this.loadFriendsFallback();
-                return;
+                console.log('[FRIENDS] Usando fallback de query tradicional...');
+                usedFallback = true;
+                friendsData = await this._loadFriendsDirectQuery();
             }
             
             // Mapeia para formato esperado
-            this.friends = (friends || []).map(f => ({
-                id: f.friendship_id,
-                friendId: f.friend_id,
+            this.friends = (friendsData || []).map(f => ({
+                id: f.friendship_id || f.id,
+                friendId: f.friend_id || f.friendId,
                 username: f.username || 'desconhecido',
-                displayName: f.display_name || f.username || 'Usuário',
-                avatar: f.avatar_url,
-                bio: f.bio,
+                displayName: f.display_name || f.displayName || f.username || 'Usuário',
+                avatar: f.avatar_url || f.avatar,
+                bio: f.bio || '',
                 isOnline: f.is_online || false,
                 lastSeen: f.last_seen,
-                friendshipDate: f.friendship_date,
-                unreadMessages: f.unread_messages || 0,
-                achievementsCount: f.achievements_count || 0
+                friendshipDate: f.friendship_date || f.friendshipDate,
+                unreadMessages: f.unread_messages || f.unreadMessages || 0,
+                achievementsCount: f.achievements_count || f.achievementsCount || 0
             }));
             
             // Calcula total de mensagens não lidas
@@ -636,13 +748,96 @@ export const socialLogic = {
                 }
             });
             
-            // USA FUNÇÃO SQL para pedidos pendentes
+            // Carrega pedidos pendentes
+            await this._loadPendingRequests();
+            
+            this.friendsLoaded = true;
+            this.localStats.friendsCount = this.friends.length;
+            this.saveLocalStats();
+            this.checkAchievements();
+            
+            if (usedFallback) {
+                console.log('[FRIENDS] Carregado via fallback:', this.friends.length, 'amigos');
+            } else {
+                console.log('[FRIENDS] Carregado via SQL:', this.friends.length, 'amigos');
+            }
+            
+        } catch (e) {
+            console.error('[FRIENDS] Erro ao carregar:', e);
+            this.friendsError = e.message || 'Erro ao carregar amigos';
+            
+            // Tenta fallback final
+            try {
+                await this.loadFriendsFallback();
+            } catch (fallbackError) {
+                console.error('[FRIENDS] Fallback também falhou:', fallbackError);
+                this.friends = [];
+                this.friendRequests = [];
+            }
+        } finally {
+            this.friendsLoading = false;
+        }
+    },
+    
+    /**
+     * Query direta para amigos (usado quando RPC falha)
+     * @private
+     */
+    async _loadFriendsDirectQuery() {
+        const { data: friendships, error } = await this.supabase
+            .from('friendships')
+            .select('id, user_id, friend_id, status, created_at')
+            .or(`user_id.eq.${this.user.id},friend_id.eq.${this.user.id}`)
+            .eq('status', 'accepted');
+        
+        if (error) throw error;
+        
+        // Busca perfis dos amigos
+        const friendIds = (friendships || []).map(f => 
+            f.user_id === this.user.id ? f.friend_id : f.user_id
+        );
+        
+        if (friendIds.length === 0) return [];
+        
+        const { data: profiles } = await this.supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url, bio')
+            .in('id', friendIds);
+        
+        const profileMap = {};
+        (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        
+        return (friendships || []).map(f => {
+            const friendId = f.user_id === this.user.id ? f.friend_id : f.user_id;
+            const profile = profileMap[friendId] || {};
+            
+            return {
+                friendship_id: f.id,
+                friend_id: friendId,
+                username: profile.username || 'desconhecido',
+                display_name: profile.display_name || profile.username || 'Usuário',
+                avatar_url: profile.avatar_url,
+                bio: profile.bio,
+                friendship_date: f.created_at,
+                unread_messages: 0,
+                achievements_count: 0
+            };
+        });
+    },
+    
+    /**
+     * Carrega pedidos de amizade pendentes
+     * @private
+     */
+    async _loadPendingRequests() {
+        try {
+            // Tenta RPC primeiro
             const { data: requests, error: requestsError } = await this.supabase
                 .rpc('get_pending_requests');
             
-            if (!requestsError) {
-                this.friendRequests = (requests || []).map(r => ({
-                    id: r.request_id,
+            if (!requestsError && requests) {
+                this.friendRequests = requests.map(r => ({
+                    id: r.request_id || r.id,
                     senderId: r.sender_id,
                     username: r.username || 'desconhecido',
                     displayName: r.display_name || r.username || 'Usuário',
@@ -650,16 +845,49 @@ export const socialLogic = {
                     bio: r.bio,
                     sentAt: r.sent_at
                 }));
+                return;
+            }
+        } catch (e) {
+            console.warn('[FRIENDS] RPC get_pending_requests falhou, usando fallback...');
+        }
+        
+        // Fallback: query direta
+        try {
+            const { data: requests } = await this.supabase
+                .from('friendships')
+                .select('id, user_id, created_at')
+                .eq('friend_id', this.user.id)
+                .eq('status', 'pending');
+            
+            if (!requests || requests.length === 0) {
+                this.friendRequests = [];
+                return;
             }
             
-            this.friendsLoaded = true;
-            this.localStats.friendsCount = this.friends.length;
-            this.saveLocalStats();
-            this.checkAchievements();
+            // Busca perfis dos remetentes
+            const senderIds = requests.map(r => r.user_id);
+            const { data: profiles } = await this.supabase
+                .from('profiles')
+                .select('id, username, display_name, avatar_url')
+                .in('id', senderIds);
             
+            const profileMap = {};
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+            
+            this.friendRequests = requests.map(r => {
+                const profile = profileMap[r.user_id] || {};
+                return {
+                    id: r.id,
+                    senderId: r.user_id,
+                    username: profile.username || 'desconhecido',
+                    displayName: profile.display_name || profile.username || 'Usuário',
+                    avatar: profile.avatar_url,
+                    sentAt: r.created_at
+                };
+            });
         } catch (e) {
-            console.error('[FRIENDS] Erro ao carregar:', e);
-            await this.loadFriendsFallback();
+            console.error('[FRIENDS] Erro ao carregar pedidos pendentes:', e);
+            this.friendRequests = [];
         }
     },
     
@@ -1712,6 +1940,102 @@ export const socialLogic = {
         } finally {
             this.usernameSaving = false;
         }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // DISPLAY NAME & BIO - Funções de perfil
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    // Estado para controle de edição
+    displayNameDirty: false,
+    bioDirty: false,
+    profileSaving: false,
+    
+    /**
+     * Marca display name como modificado
+     */
+    markDisplayNameDirty() {
+        this.displayNameDirty = true;
+    },
+    
+    /**
+     * Marca bio como modificada
+     */
+    markBioDirty() {
+        this.bioDirty = true;
+    },
+    
+    /**
+     * Salva display name e bio no perfil do Supabase
+     */
+    async saveProfile() {
+        if (!this.supabase || !this.user) {
+            // Modo offline - salva localmente
+            this.saveLocal();
+            this.displayNameDirty = false;
+            this.bioDirty = false;
+            this.notify('Perfil salvo localmente!', 'success');
+            playSFX('save');
+            return true;
+        }
+        
+        this.profileSaving = true;
+        
+        try {
+            const displayName = this.settings?.displayName?.trim() || '';
+            const bio = this.settings?.bio?.trim() || '';
+            
+            // Validação
+            if (displayName.length > 30) {
+                this.notify('Display name muito longo (máx 30 caracteres)', 'error');
+                return false;
+            }
+            
+            if (bio.length > 200) {
+                this.notify('Bio muito longa (máx 200 caracteres)', 'error');
+                return false;
+            }
+            
+            // Atualiza no Supabase
+            const { error } = await this.supabase
+                .from('profiles')
+                .update({
+                    display_name: displayName || null,
+                    bio: bio || null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', this.user.id);
+            
+            if (error) throw error;
+            
+            // Salva localmente também
+            this.saveLocal();
+            
+            // Sincroniza dados gerais
+            await this.syncCloud(true);
+            
+            this.displayNameDirty = false;
+            this.bioDirty = false;
+            
+            this.notify('Perfil salvo!', 'success');
+            playSFX('save');
+            
+            return true;
+        } catch (e) {
+            console.error('[PROFILE] Erro ao salvar:', e);
+            this.notify('Erro ao salvar perfil', 'error');
+            playSFX('error');
+            return false;
+        } finally {
+            this.profileSaving = false;
+        }
+    },
+    
+    /**
+     * Verifica se há alterações não salvas no perfil
+     */
+    hasUnsavedProfileChanges() {
+        return this.displayNameDirty || this.bioDirty;
     },
     
     // ─────────────────────────────────────────────────────────────────────────
