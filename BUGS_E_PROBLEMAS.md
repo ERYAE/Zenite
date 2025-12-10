@@ -22,6 +22,32 @@ As seguintes correções foram implementadas:
 | 7 | Sistema de amigos | ✅ MELHORADO | `social.js` - Fallbacks robustos, prevenção de chamadas simultâneas |
 | 8 | Menu de Perfil lento | ✅ OTIMIZADO | `index.html` - Removidos efeitos pesados (backdrop-blur, holographic, scanlines) |
 | 9 | Toast de achievements cortado | ✅ CORRIGIDO | `social.js` - Posicionamento responsivo com padding lateral |
+| 10 | Cropper não abre no Wizard | ✅ CORRIGIDO | `index.html` - z-index aumentado de 10000 para 12000 (wizard usa 11000) |
+
+---
+
+## ⚠️ FUNÇÕES SQL NECESSÁRIAS (NÃO INCLUÍDAS NO SCHEMA)
+
+O código JavaScript depende das seguintes funções SQL que **NÃO estão no schema fornecido**:
+
+| Função | Arquivo | Uso |
+|--------|---------|-----|
+| `get_friends_full()` | `social.js` | Retorna lista de amigos com todos os dados do perfil |
+| `get_pending_requests()` | `social.js` | Retorna pedidos de amizade pendentes |
+| `send_friend_request(sender_id, target_username)` | `social.js` | Envia pedido de amizade |
+| `get_friend_conversation(p_friend_id, p_limit, p_offset)` | `social.js` | Carrega mensagens do chat |
+| `send_friend_message(p_receiver_id, p_content)` | `social.js` | Envia mensagem para amigo |
+| `send_campaign_invite(p_campaign_id, p_friend_id)` | `social.js` | Envia convite de campanha |
+| `change_username(new_username)` | `social.js`, `ui.js` | Altera username com validação |
+| `is_username_available(new_username, current_user_id)` | `social.js` | Verifica disponibilidade |
+| `check_username_available(check_username, current_user_id)` | `social.js`, `cloud.js` | Verifica disponibilidade (registro) |
+| `get_username_cooldown_days(user_id)` | `social.js` | Retorna dias restantes de cooldown |
+| `check_email_oauth_provider(email_to_check)` | `cloud.js` | Verifica provedor OAuth |
+| `leave_campaign(p_campaign_id)` | `social.js` | Sai de uma campanha |
+| `leave_all_campaigns()` | `social.js` | Sai de todas as campanhas |
+| `delete_all_my_campaigns()` | `social.js` | Deleta campanhas onde é GM |
+
+**IMPORTANTE:** Se essas funções não existirem no banco, o código usará fallbacks (queries diretas) onde disponíveis, mas algumas funcionalidades podem falhar.
 
 ---
 
@@ -584,6 +610,133 @@ E também:
 4. **Backup antes de alterações:** O sistema tem dados de usuários reais
 5. **Modo Guest:** Testar também funcionalidades offline
 6. **Console do browser:** Muitos erros são logados lá
+
+---
+
+## 🗄️ Análise do Schema SQL do Supabase
+
+### ✅ Tabelas Compatíveis com o Código
+
+| Tabela | Status | Uso no Código |
+|--------|--------|---------------|
+| `profiles` | ✅ OK | Armazena dados do usuário, settings, username, display_name, bio, avatar |
+| `campaigns` | ✅ OK | Campanhas de RPG com GM, código de convite, configurações |
+| `campaign_members` | ✅ OK | Membros das campanhas com dados do personagem |
+| `campaign_logs` | ✅ OK | Log de mensagens e eventos da campanha |
+| `dice_logs` | ✅ OK | Histórico de rolagens de dados |
+| `friendships` | ✅ OK | Relações de amizade com status (pending/accepted) |
+| `friend_messages` | ✅ OK | Mensagens entre amigos |
+| `user_achievements` | ⚠️ NÃO USADO | Código usa localStorage, não esta tabela |
+| `user_stats` | ⚠️ NÃO USADO | Código usa localStorage para stats |
+| `characters` | ⚠️ PARCIAL | Existe mas código usa `campaign_members.char_data` |
+
+### ⚠️ Observações Importantes
+
+1. **`dice_logs.user_id` referencia `profiles.id`** - OK, mas diferente das outras tabelas que referenciam `auth.users(id)`
+
+2. **Falta de índices no schema** - Para performance, adicionar:
+   ```sql
+   CREATE INDEX idx_friendships_user_id ON friendships(user_id);
+   CREATE INDEX idx_friendships_friend_id ON friendships(friend_id);
+   CREATE INDEX idx_campaign_members_campaign ON campaign_members(campaign_id);
+   CREATE INDEX idx_campaign_members_user ON campaign_members(user_id);
+   ```
+
+3. **Row Level Security (RLS)** - O schema não mostra políticas RLS. Verificar se estão configuradas para:
+   - `profiles`: usuário só edita próprio perfil
+   - `friendships`: usuário só vê próprias amizades
+   - `campaigns`: GM pode editar, membros só leem
+   - `friend_messages`: só remetente/destinatário veem
+
+4. **Campos nullable** - Alguns campos importantes podem ser null:
+   - `profiles.username` - pode causar problemas de display
+   - `profiles.display_name` - fallback para username existe no código
+
+5. **`characters` vs `campaign_members.char_data`** - Existe redundância:
+   - Tabela `characters` existe mas não é usada no código principal
+   - Dados do personagem ficam em `campaign_members.char_data` (jsonb)
+
+### 📋 Funções SQL Recomendadas
+
+Para funcionalidade completa, implementar as seguintes funções no Supabase:
+
+```sql
+-- Verificar disponibilidade de username
+CREATE OR REPLACE FUNCTION check_username_available(check_username TEXT, current_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN NOT EXISTS (
+        SELECT 1 FROM profiles 
+        WHERE LOWER(username) = LOWER(check_username) 
+        AND id != COALESCE(current_user_id, '00000000-0000-0000-0000-000000000000')
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Obter lista de amigos completa
+CREATE OR REPLACE FUNCTION get_friends_full()
+RETURNS TABLE (
+    friendship_id UUID,
+    friend_id UUID,
+    username TEXT,
+    display_name TEXT,
+    avatar_url TEXT,
+    bio TEXT,
+    is_online BOOLEAN,
+    last_seen TIMESTAMPTZ,
+    friendship_date TIMESTAMPTZ,
+    unread_messages BIGINT,
+    achievements_count BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        f.id AS friendship_id,
+        CASE WHEN f.user_id = auth.uid() THEN f.friend_id ELSE f.user_id END AS friend_id,
+        p.username,
+        p.display_name,
+        p.avatar_url,
+        p.bio,
+        FALSE AS is_online, -- Implementar presença separadamente
+        p.updated_at AS last_seen,
+        f.created_at AS friendship_date,
+        0::BIGINT AS unread_messages, -- Calcular separadamente se necessário
+        0::BIGINT AS achievements_count
+    FROM friendships f
+    JOIN profiles p ON p.id = CASE WHEN f.user_id = auth.uid() THEN f.friend_id ELSE f.user_id END
+    WHERE (f.user_id = auth.uid() OR f.friend_id = auth.uid())
+    AND f.status = 'accepted';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Obter pedidos pendentes
+CREATE OR REPLACE FUNCTION get_pending_requests()
+RETURNS TABLE (
+    request_id UUID,
+    sender_id UUID,
+    username TEXT,
+    display_name TEXT,
+    avatar_url TEXT,
+    bio TEXT,
+    sent_at TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        f.id AS request_id,
+        f.user_id AS sender_id,
+        p.username,
+        p.display_name,
+        p.avatar_url,
+        p.bio,
+        f.created_at AS sent_at
+    FROM friendships f
+    JOIN profiles p ON p.id = f.user_id
+    WHERE f.friend_id = auth.uid()
+    AND f.status = 'pending';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
 
 ---
 

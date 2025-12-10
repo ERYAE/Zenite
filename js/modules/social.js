@@ -396,6 +396,13 @@ export const socialLogic = {
         
         // Verifica achievements
         this.checkAchievements();
+        
+        // Sincroniza com banco de dados (se logado)
+        if (this.supabase && this.user) {
+            // Carrega stats e achievements do banco em background
+            this.loadStatsFromCloud();
+            this.loadAchievementsFromCloud();
+        }
     },
     
     // Atualiza stats baseadas nos personagens
@@ -426,10 +433,89 @@ export const socialLogic = {
     saveLocalStats() {
         const prefix = this._userPrefix || 'zenite_guest_';
         localStorage.setItem(`${prefix}local_stats`, JSON.stringify(this.localStats));
+        
+        // Sincroniza com banco de dados (debounced)
+        this._syncStatsToCloud();
+    },
+    
+    // Debounce para sincronização de stats
+    _statsSyncTimer: null,
+    
+    /**
+     * Sincroniza stats com o banco de dados (debounced)
+     */
+    _syncStatsToCloud() {
+        if (!this.supabase || !this.user) return;
+        
+        // Debounce de 5 segundos para evitar muitas chamadas
+        if (this._statsSyncTimer) {
+            clearTimeout(this._statsSyncTimer);
+        }
+        
+        this._statsSyncTimer = setTimeout(async () => {
+            try {
+                await this.supabase.rpc('sync_user_stats', {
+                    p_total_rolls: this.localStats.totalRolls || 0,
+                    p_critical_rolls: this.localStats.criticalRolls || 0,
+                    p_fumble_rolls: this.localStats.fumbleRolls || 0,
+                    p_characters_created: this.localStats.charsCreated || 0,
+                    p_messages_sent: this.localStats.messagesSent || 0,
+                    p_friends_count: this.localStats.friendsCount || 0,
+                    p_max_level: this.localStats.maxLevel || 1,
+                    p_night_owl: this.localStats.nightOwl || false,
+                    p_early_bird: this.localStats.earlyBird || false,
+                    p_hacker_mode: this.localStats.hackerMode || false,
+                    p_konami_activated: this.localStats.konamiActivated || false,
+                    p_system_failure: this.localStats.systemFailure || false
+                });
+                console.log('[STATS] Sincronizado com banco');
+            } catch (e) {
+                // Silencioso - stats são secundários
+                console.warn('[STATS] Erro ao sincronizar:', e.message);
+            }
+        }, 5000);
+    },
+    
+    /**
+     * Carrega stats do banco de dados
+     */
+    async loadStatsFromCloud() {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            const { data, error } = await this.supabase.rpc('get_user_stats');
+            
+            if (error) throw error;
+            
+            if (data) {
+                // Merge com stats locais (mantém o maior valor)
+                this.localStats.totalRolls = Math.max(this.localStats.totalRolls || 0, data.total_rolls || 0);
+                this.localStats.criticalRolls = Math.max(this.localStats.criticalRolls || 0, data.critical_rolls || 0);
+                this.localStats.fumbleRolls = Math.max(this.localStats.fumbleRolls || 0, data.fumble_rolls || 0);
+                this.localStats.charsCreated = Math.max(this.localStats.charsCreated || 0, data.characters_created || 0);
+                this.localStats.messagesSent = Math.max(this.localStats.messagesSent || 0, data.messages_sent || 0);
+                this.localStats.maxLevel = Math.max(this.localStats.maxLevel || 1, data.max_level || 1);
+                
+                // Booleans - OR
+                this.localStats.nightOwl = this.localStats.nightOwl || data.night_owl || false;
+                this.localStats.earlyBird = this.localStats.earlyBird || data.early_bird || false;
+                this.localStats.hackerMode = this.localStats.hackerMode || data.hacker_mode || false;
+                this.localStats.konamiActivated = this.localStats.konamiActivated || data.konami_activated || false;
+                this.localStats.systemFailure = this.localStats.systemFailure || data.system_failure || false;
+                
+                // Salva localmente o merge
+                const prefix = this._userPrefix || 'zenite_guest_';
+                localStorage.setItem(`${prefix}local_stats`, JSON.stringify(this.localStats));
+                
+                console.log('[STATS] Carregado do banco');
+            }
+        } catch (e) {
+            console.warn('[STATS] Erro ao carregar do banco:', e.message);
+        }
     },
     
     // ─────────────────────────────────────────────────────────────────────────
-    // ACHIEVEMENTS (100% local, sem banco)
+    // ACHIEVEMENTS (com sincronização para banco)
     // ─────────────────────────────────────────────────────────────────────────
     
     // Debounce timer para evitar chamadas múltiplas
@@ -540,6 +626,11 @@ export const socialLogic = {
         // Salva timestamps de achievements mostrados
         localStorage.setItem(shownKey, JSON.stringify(shownWithTimestamp));
         
+        // Sincroniza novos achievements com o banco
+        newUnlocks.forEach(achievement => {
+            this._saveAchievementToCloud(achievement.id);
+        });
+        
         // Notifica apenas achievements realmente novos (com delay entre cada)
         newUnlocks.forEach((achievement, index) => {
             setTimeout(() => {
@@ -548,6 +639,53 @@ export const socialLogic = {
         });
         
         return newUnlocks;
+    },
+    
+    /**
+     * Salva achievement no banco de dados
+     * @param {string} achievementId - ID do achievement
+     */
+    async _saveAchievementToCloud(achievementId) {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            await this.supabase.rpc('save_achievement', {
+                p_achievement_id: achievementId,
+                p_metadata: {}
+            });
+            console.log('[ACHIEVEMENTS] Salvo no banco:', achievementId);
+        } catch (e) {
+            // Silencioso - achievements locais são o fallback
+            console.warn('[ACHIEVEMENTS] Erro ao salvar no banco:', e.message);
+        }
+    },
+    
+    /**
+     * Carrega achievements do banco de dados
+     */
+    async loadAchievementsFromCloud() {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            const { data, error } = await this.supabase.rpc('get_user_achievements');
+            
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                // Merge com achievements locais
+                const cloudAchievements = data.map(a => a.achievement_id);
+                const merged = [...new Set([...this.unlockedAchievements, ...cloudAchievements])];
+                
+                if (merged.length > this.unlockedAchievements.length) {
+                    this.unlockedAchievements = merged;
+                    const prefix = this._userPrefix || 'zenite_guest_';
+                    localStorage.setItem(`${prefix}achievements`, JSON.stringify(this.unlockedAchievements));
+                    console.log('[ACHIEVEMENTS] Sincronizado do banco:', merged.length, 'achievements');
+                }
+            }
+        } catch (e) {
+            console.warn('[ACHIEVEMENTS] Erro ao carregar do banco:', e.message);
+        }
     },
     
     showAchievementUnlock(achievement) {

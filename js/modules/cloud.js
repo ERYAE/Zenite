@@ -368,6 +368,9 @@ export const cloudLogic = {
                     console.warn('[CLOUD] Erro ao desconectar realtime:', e);
                 }
             }
+            
+            // Cleanup de intervals para evitar memory leaks
+            this._cleanupIntervals();
 
             if (this.supabase) {
                 try {
@@ -396,6 +399,52 @@ export const cloudLogic = {
 
             console.log('[CLOUD] Logout completo');
         }
+    },
+
+    /**
+     * Limpa todos os intervals para evitar memory leaks
+     * Chamado no logout e antes de recarregar a página
+     */
+    _cleanupIntervals() {
+        console.log('[CLOUD] Limpando intervals...');
+        
+        // Auto-save interval (definido em app.js)
+        if (this._autoSaveInterval) {
+            clearInterval(this._autoSaveInterval);
+            this._autoSaveInterval = null;
+        }
+        
+        // Music progress interval (definido em app.js)
+        if (this._musicProgressInterval) {
+            clearInterval(this._musicProgressInterval);
+            this._musicProgressInterval = null;
+        }
+        
+        // Campaign auto-save timer (definido em netlink.js)
+        if (this._campaignAutoSaveTimer) {
+            clearInterval(this._campaignAutoSaveTimer);
+            this._campaignAutoSaveTimer = null;
+        }
+        
+        // Session timer (definido em netlink.js)
+        if (this.sessionTimerInterval) {
+            clearInterval(this.sessionTimerInterval);
+            this.sessionTimerInterval = null;
+        }
+        
+        // Sync timeout
+        if (this._syncTimeout) {
+            clearTimeout(this._syncTimeout);
+            this._syncTimeout = null;
+        }
+        
+        // Local save timeout
+        if (this._localSaveTimeout) {
+            clearTimeout(this._localSaveTimeout);
+            this._localSaveTimeout = null;
+        }
+        
+        console.log('[CLOUD] Intervals limpos');
     },
 
     askSwitchToOnline() {

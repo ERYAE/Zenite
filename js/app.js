@@ -446,7 +446,8 @@ function zeniteSystem() {
             }, 1500);
             
             // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
-            setInterval(() => { 
+            // Armazena referência para cleanup no logout
+            this._autoSaveInterval = setInterval(() => { 
                 if (this.user && this.unsavedChanges && this.autoSaveEnabled) {
                     this.syncCloud(true); 
                 }
@@ -625,7 +626,8 @@ function zeniteSystem() {
             });
             
             // Atualiza progresso da música ambiente a cada segundo
-            setInterval(() => {
+            // Armazena referência para cleanup no logout
+            this._musicProgressInterval = setInterval(() => {
                 if (this.ambientMusic.playing) {
                     this.updateMusicProgress();
                 }

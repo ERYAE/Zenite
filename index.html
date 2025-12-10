@@ -1813,7 +1813,7 @@
                                     <div class="flex gap-1">
                                         <template x-for="i in 5"><div @click="setSkillLevel(idx, i)" class="skill-dot" :class="i <= s.level ? 'active' : 'bg-black/50'"></div></template>
                                     </div>
-                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                    <button @click="deleteSkill(idx)" class="ml-2 text-red-500 text-xs" aria-label="Remover habilidade"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                                 </div>
                             </template>
                         </div>
@@ -1848,7 +1848,7 @@
                                     <input :name="'weapon_name_' + i" x-model="w.name" aria-label="Nome Arma" class="col-span-5 bg-transparent outline-none font-bold text-white" placeholder="...">
                                     <input :name="'weapon_dmg_' + i" x-model="w.dmg" aria-label="Dano" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
                                     <input :name="'weapon_range_' + i" x-model="w.range" aria-label="Alcance" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
-                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                    <button @click="deleteItem('weapons', i)" class="col-span-1 text-red-500 text-right" aria-label="Remover arma"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                                 </div>
                             </template>
                         </div>
@@ -1862,7 +1862,7 @@
                                     <input :name="'armor_name_' + i" x-model="a.name" aria-label="Nome Traje" class="col-span-6 bg-transparent outline-none font-bold text-white" placeholder="...">
                                     <input :name="'armor_def_' + i" x-model="a.def" aria-label="Defesa" class="col-span-3 bg-transparent outline-none text-center text-gray-400" placeholder="...">
                                     <input :name="'armor_pen_' + i" x-model="a.pen" aria-label="Penalidade" class="col-span-2 bg-transparent outline-none text-center text-gray-400" placeholder="...">
-                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right"><i class="fa-solid fa-xmark"></i></button>
+                                    <button @click="deleteItem('armor', i)" class="col-span-1 text-red-500 text-right" aria-label="Remover traje"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                                 </div>
                             </template>
                         </div>
@@ -1880,7 +1880,7 @@
                                         <input :name="'gear_desc_' + i" x-model="g.desc" aria-label="Descrição" class="bg-transparent outline-none text-gray-500 w-2/3" placeholder="Descrição">
                                     </div>
                                     <input :name="'gear_qty_' + i" x-model="g.qty" type="number" aria-label="Quantidade" class="w-8 bg-transparent text-right outline-none text-[var(--neon-core)]">
-                                    <button @click="deleteItem('gear', i)" class="ml-2 text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                                    <button @click="deleteItem('gear', i)" class="ml-2 text-red-500" aria-label="Remover item"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                                 </div>
                             </template>
                         </div>
@@ -1942,7 +1942,7 @@
                                 <div class="bg-black/40 p-3 rounded-lg">
                                     <div class="flex justify-between mb-2">
                                         <input :name="'tech_name_' + idx" x-model="t.name" aria-label="Nome Técnica" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome">
-                                        <button @click="deleteTechnique(idx)" class="text-red-500 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                                        <button @click="deleteTechnique(idx)" class="text-red-500 text-xs" aria-label="Remover técnica"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
                                     </div>
                                     <textarea :name="'tech_desc_' + idx" x-model="t.desc" aria-label="Descrição Técnica" class="w-full h-16 bg-transparent resize-none outline-none text-xs text-gray-400" placeholder="Efeito..."></textarea>
                                 </div>
@@ -1999,7 +1999,7 @@
                         <button @click="setDockMode('dock-right')" class="w-6 h-6 flex items-center justify-center hover:text-white rounded transition-colors" :class="trayDockMode==='dock-right'?'text-[var(--neon-core)] bg-white/10':'text-gray-500 hover:bg-white/5'" title="Fixar à direita"><i class="fa-solid fa-arrow-right text-[10px]"></i></button>
                     </div>
                 </div>
-                <button @click="toggleDiceTray()" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-500/10 transition-all rounded-lg" title="Fechar"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="toggleDiceTray()" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-500/10 transition-all rounded-lg" title="Fechar" aria-label="Fechar bandeja de dados"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
             
             <div class="flex-grow flex flex-col overflow-hidden p-4">
@@ -2243,7 +2243,7 @@
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-brand text-white">CONFIGURAÇÕES</h3>
-                <button @click="configModal=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="configModal=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors" aria-label="Fechar configurações"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
             <div class="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
                 <!-- Grid de Cores Expandido -->
@@ -2320,7 +2320,7 @@
                         <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
                         <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
                     </div>
-                    <button @click="wizardOpen=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark fa-lg"></i></button>
+                    <button @click="wizardOpen=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors" aria-label="Fechar wizard"><i class="fa-solid fa-xmark fa-lg" aria-hidden="true"></i></button>
                 </div>
                 <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
                     <div x-show="wizardStep === 1" class="animate-fade-in">
@@ -2419,7 +2419,7 @@
         </div>
 
     <div x-show="cropperOpen && !systemLoading"  
-         class="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4"
+         class="fixed inset-0 z-[12000] bg-black/95 flex items-center justify-center p-4"
          @mousedown.self="modalClickStartedOutside = true"
          @mouseup.self="if(modalClickStartedOutside) cropperOpen = false; modalClickStartedOutside = false"
          @mouseup="modalClickStartedOutside = false">
@@ -2431,7 +2431,7 @@
                 <input type="file" id="file-input" name="upload_image" class="hidden" accept="image/*" @change="initCropper($event)" aria-label="Upload de Imagem">
                 <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
                 <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
-                <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors" aria-label="Cancelar edição de imagem"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
             </div>
         </div>
     </div>
