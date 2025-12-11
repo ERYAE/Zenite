@@ -587,7 +587,18 @@ export const uiLogic = {
                 if(this.cropperInstance) this.cropperInstance.destroy(); 
                 this.cropperInstance = new Cropper(img, { 
                     aspectRatio: 1, 
-                    viewMode: 1 
+                    viewMode: 2,
+                    dragMode: 'move',
+                    autoCropArea: 0.8,
+                    restore: false,
+                    guides: true,
+                    center: true,
+                    highlight: true,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                    minCropBoxWidth: 100,
+                    minCropBoxHeight: 100
                 }); 
             }, 150);
         }; 
@@ -598,9 +609,25 @@ export const uiLogic = {
     applyCrop() { 
         if(!this.cropperInstance) return; 
         
-        const result = this.cropperInstance
-            .getCroppedCanvas({width:300, height:300})
-            .toDataURL('image/jpeg', 0.8); 
+        const canvas = this.cropperInstance.getCroppedCanvas({
+            width: 400,
+            height: 400,
+            minWidth: 256,
+            minHeight: 256,
+            maxWidth: 4096,
+            maxHeight: 4096,
+            fillColor: '#000',
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+        
+        if (!canvas) {
+            this.notify('Erro ao processar imagem', 'error');
+            return;
+        }
+        
+        // Converte para WebP (melhor compressão e qualidade)
+        const result = canvas.toDataURL('image/webp', 0.92);
         
         if (this.uploadContext === 'wizard') { 
             this.wizardData.photo = result; 
@@ -609,7 +636,7 @@ export const uiLogic = {
         } 
         
         this.cropperOpen = false; 
-        this.notify('Foto atualizada.', 'success'); 
+        this.notify('Foto atualizada com sucesso!', 'success'); 
     },
 
     // BACKUP/RESTORE

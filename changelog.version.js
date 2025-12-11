@@ -17,4 +17,4 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-export const CHANGELOG_VERSION = 2; // Incrementar quando houver nova atualização
+export const CHANGELOG_VERSION = 3; // Incrementar quando houver nova atualização

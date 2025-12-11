@@ -597,8 +597,9 @@ function zeniteSystem() {
         },
         
         async checkOnboarding() {
-            // Verifica se já viu o welcome modal
+            // Sistema de "Evolução do Sistema" (Welcome Modal) - POR CONTA
             if (!this.user || !this.supabase) {
+                // Guest: usa localStorage simples
                 const hasSeenWelcome = localStorage.getItem('zenite_welcome_seen');
                 if (!hasSeenWelcome) {
                     setTimeout(() => {
@@ -609,6 +610,7 @@ function zeniteSystem() {
                 return;
             }
             
+            // Usuário logado: verifica no banco de dados (persiste por conta)
             try {
                 const { data: profile } = await this.supabase
                     .from('profiles')
@@ -619,10 +621,11 @@ function zeniteSystem() {
                 if (!profile?.has_seen_welcome) {
                     setTimeout(() => {
                         this.welcomeModal = true;
+                        // Marca no banco para persistir por conta
                         this.supabase.from('profiles')
                             .update({ has_seen_welcome: true })
                             .eq('id', this.user.id)
-                            .then(() => logger.info('SYSTEM', 'Welcome marked as seen'));
+                            .then(() => logger.info('SYSTEM', 'Welcome marked as seen in database'));
                     }, 1000);
                 }
             } catch (e) {
@@ -636,23 +639,31 @@ function zeniteSystem() {
         checkChangelog() {
             // Verifica se há update novo do changelog
             const userId = this.user?.id || null;
+            
+            // Só verifica se usuário está logado
+            if (!userId) {
+                this.hasUnseenChangelog = false;
+                return;
+            }
+            
+            // Verifica no localStorage por userId
             this.hasUnseenChangelog = hasNewUpdate(userId);
             
-            // Se tem update novo E usuário está logado, abre modal automaticamente UMA VEZ
-            if (this.hasUnseenChangelog && userId) {
+            // Se tem update novo, abre modal automaticamente UMA VEZ
+            if (this.hasUnseenChangelog) {
                 setTimeout(() => {
                     // Só abre se estiver no dashboard e não tiver outros modais abertos
-                    if (this.currentView === 'dashboard' && !this.welcomeModal && !this.migrationModalOpen) {
+                    if (this.currentView === 'dashboard' && !this.welcomeModal && !this.migrationModalOpen && !this.usernameModalOpen) {
                         this.changelogModalOpen = true;
                         logger.info('CHANGELOG', 'Novo update detectado - abrindo modal automaticamente');
                     }
-                }, 2000); // Delay para não competir com welcome/migration modals
+                }, 3000); // Delay maior para garantir que outros modais fechem primeiro
             }
         },
         
         closeChangelogModal() {
             this.changelogModalOpen = false;
-            // Marca como visto quando fechar
+            // Marca como visto quando fechar (salva no localStorage por userId)
             const userId = this.user?.id || null;
             markUpdateSeen(userId);
             this.hasUnseenChangelog = false;

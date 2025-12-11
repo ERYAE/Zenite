@@ -684,47 +684,64 @@ export const socialLogic = {
         
         const toast = document.createElement('div');
         toast.id = 'achievement-toast';
-        // Usar padding lateral para evitar corte em telas estreitas
-        toast.className = 'fixed top-16 left-4 right-4 z-[100000] pointer-events-auto flex justify-center';
+        // Usando estilos inline para garantir posicionamento correto mesmo sem classes Tailwind compiladas
+        toast.className = 'fixed z-[100000] pointer-events-auto';
+        toast.style.cssText = `
+            top: 5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 320px;
+            max-width: 90vw;
+        `;
+        
         toast.innerHTML = `
-            <div class="relative bg-black/95 border-2 border-${color}-500/50 rounded-xl p-3 shadow-lg max-w-sm w-full">
+            <div class="relative bg-black border-2 border-${color}-500 rounded-2xl p-4 shadow-2xl overflow-hidden" style="background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(var(--color-${color}-900), 0.3) 50%, rgba(0,0,0,0.95) 100%);">
+                <!-- Glow effect -->
+                <div class="absolute inset-0 bg-${color}-500/10 blur-xl"></div>
+                
                 <!-- Content -->
-                <div class="flex items-center gap-3">
-                    <!-- Icon -->
-                    <div class="w-12 h-12 rounded-lg bg-${color}-500/20 border border-${color}-500/40 flex items-center justify-center flex-shrink-0">
-                        <i class="fa-solid ${achievement.icon || 'fa-trophy'} text-xl text-${color}-400"></i>
+                <div class="relative flex items-center gap-4 pb-2">
+                    <!-- Icon with animation -->
+                    <div class="w-16 h-16 rounded-xl bg-${color}-500/20 border-2 border-${color}-400 flex items-center justify-center flex-shrink-0 animate-pulse">
+                        <i class="fa-solid ${achievement.icon || 'fa-trophy'} text-3xl text-${color}-300"></i>
                     </div>
                     
                     <!-- Text -->
                     <div class="flex-1 min-w-0">
-                        <p class="text-[9px] font-bold uppercase tracking-wider text-${color}-400 mb-0.5 flex items-center gap-1">
-                            ${isSecret ? '<i class="fa-solid fa-key"></i> SECRETO' : '<i class="fa-solid fa-trophy"></i> ACHIEVEMENT'}
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-${color}-400 mb-1 flex items-center gap-2">
+                            ${isSecret ? '<i class="fa-solid fa-key"></i> ACHIEVEMENT SECRETO' : '<i class="fa-solid fa-trophy"></i> ACHIEVEMENT DESBLOQUEADO'}
                         </p>
-                        <p class="text-sm font-bold text-white truncate">${achievement.name}</p>
-                        <p class="text-[10px] text-gray-400 truncate">${achievement.description}</p>
+                        <p class="text-lg font-bold text-white mb-1 leading-tight">${achievement.name}</p>
+                        <p class="text-xs text-gray-300 leading-relaxed">${achievement.description}</p>
                     </div>
+                </div>
+                
+                <!-- Progress bar animation (Fixed framing) -->
+                <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-${color}-900/50">
+                    <div class="h-full bg-${color}-500 achievement-progress shadow-[0_0_10px_rgba(var(--color-${color}-500),0.8)]"></div>
                 </div>
             </div>
         `;
         
-        // Animação de entrada
+        // Animação de entrada mais dramática
         toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-20px)';
+        toast.style.transform = 'translateX(-50%) translateY(-30px) scale(0.9)';
         document.body.appendChild(toast);
         
         // Trigger animação
         requestAnimationFrame(() => {
-            toast.style.transition = 'all 0.3s ease-out';
+            toast.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
             toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
+            toast.style.transform = 'translateX(-50%) translateY(0) scale(1)';
         });
         
-        // Auto-remove após 4 segundos
+        // Auto-remove após 5 segundos com animação de saída
         setTimeout(() => {
+            toast.style.transition = 'all 0.3s ease-in';
             toast.style.opacity = '0';
-            toast.style.transform = 'translateY(-20px)';
+            toast.style.transform = 'translateX(-50%) translateY(-30px) scale(0.9)';
             setTimeout(() => toast.remove(), 300);
-        }, 4000);
+        }, 5000);
     },
     
     // Efeito especial quando ganha a Platina

@@ -1,0 +1,107 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ * 
+ * ACHIEVEMENTS - Animações e Estilos
+ */
+
+/* Progress bar animation para achievement toast */
+@keyframes achievement-progress {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0%;
+    }
+}
+
+.achievement-progress {
+    animation: achievement-progress 5s linear forwards;
+}
+
+/* Platinum celebration overlay */
+.platinum-celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: radial-gradient(circle at center, rgba(168, 85, 247, 0.3) 0%, rgba(0, 0, 0, 0.95) 70%);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: platinum-fade-in 0.5s ease-out;
+}
+
+.platinum-celebration.fade-out {
+    animation: platinum-fade-out 0.5s ease-in forwards;
+}
+
+.platinum-content {
+    text-align: center;
+    animation: platinum-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.platinum-trophy {
+    font-size: 120px;
+    color: #a855f7;
+    margin-bottom: 20px;
+    animation: platinum-glow 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.8));
+}
+
+.platinum-content h2 {
+    font-size: 48px;
+    font-weight: bold;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+}
+
+.platinum-content p {
+    font-size: 18px;
+    color: #d8b4fe;
+    letter-spacing: 2px;
+}
+
+/* Animations */
+@keyframes platinum-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes platinum-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes platinum-bounce {
+    from {
+        transform: scale(0.5) translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes platinum-glow {
+    0%, 100% {
+        filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.8));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 50px rgba(168, 85, 247, 1));
+        transform: scale(1.1);
+    }
+}
