@@ -1,3 +1,8 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
 // =============================================================================
 // [AI_NOTE] CONFIGURAÇÃO DE VERSÃO
 // Sempre que alterar a estrutura de dados do personagem (novos campos, inventories),
@@ -6,6 +11,15 @@
 export const DATA_VERSION = 2.2;
 
 
+/**
+ * Debounce - Atrasa a execução de uma função até que pare de ser chamada
+ * @param {Function} func - Função a ser executada
+ * @param {number} wait - Tempo de espera em milissegundos
+ * @returns {Function} Função debounced
+ * @example
+ * const saveDebounced = debounce(() => saveData(), 1000);
+ * saveDebounced(); // Só executa após 1s sem novas chamadas
+ */
 export function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -14,6 +28,12 @@ export function debounce(func, wait) {
     };
 }
 
+/**
+ * Sanitiza e garante estrutura completa do personagem
+ * @param {Object} data - Dados brutos do personagem
+ * @returns {Object|null} Personagem com estrutura garantida ou null
+ * @description Garante que todos os campos obrigatórios existam com valores padrão
+ */
 export function sanitizeChar(data) {
     if (!data) return null;
     const safe = JSON.parse(JSON.stringify(data));
@@ -49,6 +69,16 @@ export function sanitizeChar(data) {
     return safe;
 }
 
+/**
+ * Calcula stats base (PV, PF, PDF) baseado em classe, nível e atributos
+ * @param {string} className - Nome da classe (Titã, Estrategista, etc.)
+ * @param {string|number} levelStr - Nível do personagem (1-10)
+ * @param {Object} attrs - Objeto com atributos {for, agi, int, von, pod}
+ * @returns {Object} Stats calculados {pv, pf, pdf}
+ * @example
+ * calculateBaseStats('Titã', 5, {for: 2, agi: 0, int: -1, von: 1, pod: 0})
+ * // => {pv: 35, pf: 22, pdf: 24}
+ */
 export function calculateBaseStats(className, levelStr, attrs) {
     const cl = className || 'Titã'; 
     const lvl = Math.max(1, parseInt(levelStr) || 1); 
@@ -91,6 +121,11 @@ export function formatDateForFilename() {
 /**
  * Valida estrutura de personagem
  */
+/**
+ * Valida estrutura mínima de personagem
+ * @param {Object} char - Objeto do personagem
+ * @returns {boolean} true se válido, false caso contrário
+ */
 export function validateChar(char) {
     if (!char || typeof char !== 'object') return false;
     if (!char.id || !char.name) return false;
@@ -101,6 +136,12 @@ export function validateChar(char) {
 
 /**
  * Deep clone de objeto (evita referências)
+ */
+/**
+ * Clona profundamente um objeto (evita referências compartilhadas)
+ * @param {Object} obj - Objeto a ser clonado
+ * @returns {Object} Cópia profunda do objeto
+ * @warning Não funciona com funções, Dates ou objetos complexos
  */
 export function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
@@ -125,7 +166,7 @@ export function migrateCharacter(char) {
     // Se já está atualizada, retorna direto
     if (charVersion >= DATA_VERSION) return char;
 
-    console.log(`[MIGRATION] Atualizando Agente ${char.name} da v${charVersion} para v${DATA_VERSION}`);
+    console.log(`[MIGRATION] Atualizando Aluno ${char.name} da v${charVersion} para v${DATA_VERSION}`);
 
     // --- CORREÇÕES ESTRUTURAIS ---
 

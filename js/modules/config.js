@@ -1,17 +1,22 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
+// ⚠️ Variáveis sensíveis vêm de .env.local (Vite: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
 export const CONSTANTS = {
-    MAX_AGENTS: 30,
+    MAX_ALUNOS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    // CORRIGIDO: URL e KEY estavam invertidas!
-    SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
-    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
+    SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE FLAGS - Ative/desative funcionalidades em desenvolvimento
+// FEATURE FLAGS - NetLink sempre habilitado (flag removida)
 // ═══════════════════════════════════════════════════════════════════════════════
 export const FEATURES = {
-    NETLINK_ENABLED: true,  // NetLink ainda em desenvolvimento - mude para true quando estiver pronto
+    NETLINK_ENABLED: true
 };
 
 export const ARCHETYPES = [

@@ -1,6 +1,12 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
 // js/modules/cloud.js
 import { sanitizeChar, migrateCharacter } from './utils.js';
 import { playSFX } from './audio.js';
+import { cloudLogger } from './logger.js';
 
 const normalizeUsername = (rawUsername = '') => {
     return rawUsername
@@ -115,7 +121,7 @@ export const cloudLogic = {
             this.chars = validChars;
             this.updateAgentCount();
         } catch (e) {
-            console.error('Local Load Error:', e);
+            cloudLogger.error('Local Load Error:', e);
             this.notify('Erro ao carregar dados locais.', 'error');
         }
     },
@@ -134,7 +140,7 @@ export const cloudLogic = {
 
             localStorage.setItem(key, JSON.stringify(payload));
         } catch (e) {
-            console.error('Save Local Error:', e);
+            cloudLogger.error('Save Local Error:', e);
             if (e.name === 'QuotaExceededError') {
                 this.notify('Armazenamento local cheio. Limpe o cache.', 'error');
             }
@@ -153,7 +159,7 @@ export const cloudLogic = {
 
             // Perfil não existe - cria novo
             if (error && error.code === 'PGRST116') {
-                console.log('[CLOUD] Criando novo perfil para usuário:', this.user.id);
+                cloudLogger.info('Criando novo perfil para usuário:', this.user.id);
                 const { error: insertError } = await this.supabase.from('profiles').insert([
                     {
                         id: this.user.id,
@@ -162,13 +168,13 @@ export const cloudLogic = {
                 ]);
 
                 if (insertError) {
-                    console.error('[CLOUD] Erro ao criar perfil:', insertError);
+                    cloudLogger.error('Erro ao criar perfil:', insertError);
                     this.notify('Erro ao criar perfil na nuvem.', 'error');
                     return;
                 }
                 data = { data: { config: this.settings } };
             } else if (error) {
-                console.error('[CLOUD] Erro ao buscar dados:', error);
+                cloudLogger.error('Erro ao buscar dados:', error);
                 this.notify('Erro ao buscar dados da nuvem.', 'error');
                 return;
             }
@@ -203,10 +209,10 @@ export const cloudLogic = {
                 this.updateAgentCount();
                 this.saveLocal();
 
-                console.log('[CLOUD] Dados sincronizados:', Object.keys(merged).length, 'personagens');
+                cloudLogger.success('Dados sincronizados:', Object.keys(merged).length, 'personagens');
             }
         } catch (e) {
-            console.error('[CLOUD] Fetch Error:', e);
+            cloudLogger.error('Fetch Error:', e);
             this.notify('Erro de conexão com a nuvem.', 'error');
         }
     },
@@ -225,10 +231,10 @@ export const cloudLogic = {
             const elapsed = Date.now() - syncStartTime;
             
             if (elapsed > 30000) {
-                console.warn('[CLOUD] Sync travada detectada, resetando...');
+                cloudLogger.warn('Sync travada detectada, resetando...');
                 this.isSyncing = false;
             } else {
-                console.log('[CLOUD] Sincronização já em andamento, ignorando...');
+                cloudLogger.debug('Sincronização já em andamento, ignorando...');
                 return;
             }
         }
@@ -372,6 +378,11 @@ export const cloudLogic = {
             // Cleanup de intervals para evitar memory leaks
             this._cleanupIntervals();
 
+            // Cleanup de event listeners globais registrados em app.js
+            if (typeof this._cleanupListeners === 'function') {
+                this._cleanupListeners();
+            }
+
             if (this.supabase) {
                 try {
                     await this.supabase.auth.signOut();
@@ -408,13 +419,25 @@ export const cloudLogic = {
     _cleanupIntervals() {
         console.log('[CLOUD] Limpando intervals...');
         
-        // Auto-save interval (definido em app.js)
+        // Auto-save timeout (definido em app.js - agora usa setTimeout recursivo)
+        if (this._autoSaveTimeout) {
+            clearTimeout(this._autoSaveTimeout);
+            this._autoSaveTimeout = null;
+        }
+        
+        // Auto-save interval (legado - mantido para compatibilidade)
         if (this._autoSaveInterval) {
             clearInterval(this._autoSaveInterval);
             this._autoSaveInterval = null;
         }
         
-        // Music progress interval (definido em app.js)
+        // Music progress timeout (definido em app.js - agora usa setTimeout recursivo)
+        if (this._musicProgressTimeout) {
+            clearTimeout(this._musicProgressTimeout);
+            this._musicProgressTimeout = null;
+        }
+        
+        // Music progress interval (legado - mantido para compatibilidade)
         if (this._musicProgressInterval) {
             clearInterval(this._musicProgressInterval);
             this._musicProgressInterval = null;
@@ -528,8 +551,7 @@ export const cloudLogic = {
         let usernameToSend = finalUsername;
         try {
             const { data: availability } = await this.supabase.rpc('check_username_available', {
-                check_username: finalUsername,
-                current_user_id: null
+                username_to_check: finalUsername
             });
             if (availability === false) {
                 // Username taken, append random suffix
@@ -572,6 +594,7 @@ export const cloudLogic = {
                 // Auto-confirmed (dev mode or disabled confirmation)
                 this.user = data.user;
                 this.isGuest = false;
+                this.recoverMode = false; // Garante que recoverMode está false
                 localStorage.removeItem('zenite_is_guest');
 
                 // Fallback: ensure profile exists (trigger should handle this, but be safe)
@@ -604,12 +627,19 @@ export const cloudLogic = {
                 this.authMsgType = 'success';
                 this.notify('Bem-vindo ao ZENITE!', 'success');
                 playSFX('success');
+                
+                // Limpa campos do formulário para próximo uso
+                this.authEmail = '';
+                this.authPassword = '';
+                this.authPasswordConfirm = '';
+                this.authUsername = '';
+                this.usernameCheckResult = null;
 
                 await this.fetchCloud();
                 this.checkOnboarding?.();
                 this.checkUsername?.();
                 
-                // Use router if available
+                // Use router if available (replaceState para não poder voltar)
                 if (window.zeniteRouter) {
                     window.zeniteRouter.navigate('dashboard', null, true);
                 } else {
@@ -678,19 +708,53 @@ export const cloudLogic = {
 
             this.user = data.user;
             this.isGuest = false;
+            this.recoverMode = false; // Garante que recoverMode está false
             localStorage.removeItem('zenite_is_guest');
 
             this.authMsg = 'Login realizado!';
             this.authMsgType = 'success';
             this.notify('Bem-vindo de volta!', 'success');
+            
+            // Limpa campos do formulário
+            this.authEmail = '';
+            this.authPassword = '';
+            this.authPasswordConfirm = '';
+            this.authUsername = '';
+            
+            // FORÇA reatividade do Alpine.js para fechar o modal
+            this.$nextTick?.(() => {
+                // Dupla verificação para garantir que o modal feche
+                if (this.user) {
+                    console.log('[AUTH] Modal deve fechar agora - user:', this.user.id);
+                }
+            });
 
             await this.fetchCloud();
             this.checkOnboarding();
             this.checkUsername();
 
-            this.currentView = 'dashboard';
-            window.location.hash = '#/dashboard';
-            setTimeout(() => { this.migrationModalOpen = true; }, 1000);
+            // Navega para dashboard usando router (replaceState para não poder voltar)
+            if (window.zeniteRouter) {
+                window.zeniteRouter.navigate('dashboard', null, true);
+            } else {
+                this.currentView = 'dashboard';
+                // Usa replaceState para impedir voltar para login
+                window.history.replaceState({ route: 'dashboard' }, '', '#/dashboard');
+            }
+            
+            // Modal de migração só aparece UMA VEZ por conta
+            // IMPORTANTE: Aguarda o router processar antes de abrir o modal
+            const migrationKey = `zenite_migration_seen_${this.user.id}`;
+            if (!localStorage.getItem(migrationKey)) {
+                setTimeout(() => { 
+                    // Verifica se REALMENTE está no dashboard (não no login)
+                    const isOnDashboard = this.currentView === 'dashboard' && window.location.hash.includes('dashboard');
+                    if (isOnDashboard && this.user && !this.isGuest) {
+                        this.migrationModalOpen = true;
+                        localStorage.setItem(migrationKey, 'true');
+                    }
+                }, 2000); // Aumentado para 2s para garantir que o router processou
+            }
         } catch (e) {
             console.error('[CLOUD] Erro no login:', e);
             this.authMsg = this.translateAuthError(e.message);
@@ -740,7 +804,7 @@ export const cloudLogic = {
 
         try {
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: 'https://zeniteos.vercel.app/recover'
+                redirectTo: `${window.location.origin}/#/recover`
             });
 
             if (error) throw error;
@@ -766,8 +830,25 @@ export const cloudLogic = {
             'Unable to validate email address: invalid format': 'Formato de email inválido',
             'Email rate limit exceeded': 'Muitas tentativas. Aguarde alguns minutos.',
             'For security purposes, you can only request this once every 60 seconds':
-                'Aguarde 60 segundos para tentar novamente'
+                'Aguarde 60 segundos para tentar novamente',
+            'Signup requires a valid password': 'Senha inválida. Use pelo menos 6 caracteres.',
+            'A user with this email address has already been registered': 'Este email já está cadastrado',
+            'Invalid email or password': 'Email ou senha incorretos',
+            'Too many requests': 'Muitas tentativas. Aguarde um momento.',
+            'Network request failed': 'Erro de conexão. Verifique sua internet.'
         };
+        
+        // Trata erros de rate limit dinâmicos ("after X seconds")
+        if (message?.includes('you can only request this after')) {
+            const match = message.match(/(\d+) seconds?/);
+            if (match) {
+                const seconds = parseInt(match[1]);
+                if (seconds <= 0) return 'Tente novamente agora.';
+                return `Aguarde ${seconds} segundo${seconds > 1 ? 's' : ''} para tentar novamente.`;
+            }
+            return 'Aguarde alguns segundos para tentar novamente.';
+        }
+        
         return translations[message] || message;
     },
 
@@ -832,9 +913,15 @@ export const cloudLogic = {
             // Redirect to dashboard after short delay
             setTimeout(() => {
                 window.location.hash = '#/dashboard';
+                this.currentView = 'dashboard';
             }, 1500);
 
-            setTimeout(() => { this.migrationModalOpen = true; }, 1000);
+            // Só abre modal de migração se estiver no dashboard
+            setTimeout(() => { 
+                if (this.currentView === 'dashboard' && this.user) {
+                    this.migrationModalOpen = true; 
+                }
+            }, 2000);
             
             return true;
         } catch (e) {

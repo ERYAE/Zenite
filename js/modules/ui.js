@@ -821,62 +821,57 @@ export const uiLogic = {
         if(!trayEl) return;
         
         this.isDraggingTray = true;
-        const startX = e.clientX; 
-        const startY = e.clientY;
-        const startLeft = this.trayPosition.x; 
-        const startTop = this.trayPosition.y;
         
-        // Performance: Desabilita transições e usa GPU acceleration
-        trayEl.style.transition = 'none';
-        trayEl.style.willChange = 'transform';
+        // Captura offset do mouse dentro do elemento
+        const rect = trayEl.getBoundingClientRect();
+        const offsetX = e.clientX - rect.left;
+        const offsetY = e.clientY - rect.top;
         
-        // Variáveis para throttling com rAF
-        let currentX = startLeft;
-        let currentY = startTop;
         let rafId = null;
+        let targetX = this.trayPosition.x;
+        let targetY = this.trayPosition.y;
         
         const updatePosition = () => {
-            // Usa translate3d para GPU acceleration (evita reflow)
-            trayEl.style.transform = `translate3d(${currentX - startLeft}px, ${currentY - startTop}px, 0)`;
+            // Atualiza diretamente o state do Alpine
+            // Alpine vai atualizar o :style automaticamente
+            this.trayPosition.x = targetX;
+            this.trayPosition.y = targetY;
             rafId = null;
         };
         
         const moveHandler = (ev) => {
             if(!this.isDraggingTray) return;
             
-            // Calcula nova posição
-            currentX = startLeft + (ev.clientX - startX);
-            currentY = startTop + (ev.clientY - startY);
+            // Calcula nova posição baseada no offset do mouse
+            targetX = ev.clientX - offsetX;
+            targetY = ev.clientY - offsetY;
             
-            // Throttle com requestAnimationFrame (máximo 60fps)
+            // Limita à viewport
+            const maxX = window.innerWidth - rect.width;
+            const maxY = window.innerHeight - rect.height;
+            targetX = Math.max(0, Math.min(targetX, maxX));
+            targetY = Math.max(0, Math.min(targetY, maxY));
+            
+            // Throttle com requestAnimationFrame
             if (!rafId) {
                 rafId = requestAnimationFrame(updatePosition);
             }
         };
         
-        const upHandler = (ev) => {
+        const upHandler = () => {
             this.isDraggingTray = false;
             
-            // Cancela qualquer rAF pendente
             if (rafId) {
                 cancelAnimationFrame(rafId);
+                rafId = null;
             }
             
             document.removeEventListener('mousemove', moveHandler); 
             document.removeEventListener('mouseup', upHandler);
             
-            // Calcula posição final
-            const dx = ev.clientX - startX; 
-            const dy = ev.clientY - startY;
-            this.trayPosition.x = startLeft + dx; 
-            this.trayPosition.y = startTop + dy;
-            
-            // Reseta transform e aplica posição final via left/top
-            trayEl.style.transform = '';
-            trayEl.style.left = `${this.trayPosition.x}px`;
-            trayEl.style.top = `${this.trayPosition.y}px`;
-            trayEl.style.willChange = '';
-            trayEl.style.transition = '';
+            // Garante posição final
+            this.trayPosition.x = targetX;
+            this.trayPosition.y = targetY;
             
             this.saveLocal(); 
         };
@@ -1085,11 +1080,35 @@ export const uiLogic = {
     // VERIFICAÇÃO DE USERNAME
     // ═══════════════════════════════════════════════════════════════════════
     
-    checkUsername() {
+    async checkUsername() {
         // Só verifica para usuários logados (não guests)
         if (this.isGuest || !this.user) return;
         
-        // Se não tem username, abre modal para definir
+        // CRÍTICO: Verifica se username foi definido no signup (metadata)
+        // Evita abrir modal se usuário já escolheu username no registro
+        try {
+            // Primeiro verifica no profile do Supabase
+            if (this.supabase && this.user) {
+                const { data: profile } = await this.supabase
+                    .from('profiles')
+                    .select('username')
+                    .eq('id', this.user.id)
+                    .single();
+                
+                // Se tem username no profile, atualiza settings e não abre modal
+                if (profile?.username) {
+                    if (!this.settings.username) {
+                        this.settings.username = profile.username;
+                        await this.saveLocal();
+                    }
+                    return; // Username já definido, não abre modal
+                }
+            }
+        } catch (e) {
+            console.error('[USERNAME] Erro ao verificar profile:', e);
+        }
+        
+        // Se não tem username em lugar nenhum, abre modal (contas antigas)
         if (!this.settings.username || this.settings.username.trim() === '') {
             setTimeout(() => {
                 this.tempUsername = this.user?.email?.split('@')[0] || '';

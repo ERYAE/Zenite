@@ -1,0 +1,48 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ZENITE OS - Git Ignore
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Variáveis de Ambiente (CRÍTICO - NUNCA COMMITAR)
+.env
+.env.local
+.env.production
+.env.development
+
+# Node Modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build / Dist
+dist/
+build/
+.vite/
+
+# Cache
+.cache/
+*.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporários
+*.tmp
+*.temp
+.tmp/
+
+# Service Worker Cache
+sw-cache/
+
+# Backup files
+*.backup
+*.bak
+
+# Local database (se houver)
+*.db
+*.sqlite

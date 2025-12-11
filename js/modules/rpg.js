@@ -1,5 +1,11 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
 import { playSFX } from './audio.js';
 import { calculateBaseStats } from './utils.js';
+import { logger } from './logger.js';
 
 export const rpgLogic = {
     recalcDerivedStats() { 
@@ -54,14 +60,24 @@ export const rpgLogic = {
         this.lastFaces = s; 
         this.lastRoll = n + m; 
         
+        const isCrit = n === s;
+        const isFumble = n === 1;
+        
         // Som especial para crítico ou fumble (com delay para sincronizar com o fim do roll)
         setTimeout(() => {
-            if (n === s) {
+            if (isCrit) {
                 playSFX('critical');
-            } else if (n === 1) {
+            } else if (isFumble) {
                 playSFX('fumble');
             }
         }, 400); // Delay para tocar após o som do dado parar
+        
+        // CORREÇÃO: Incrementa stats para achievements
+        if (this.incrementStat) {
+            this.incrementStat('totalRolls');
+            if (isCrit) this.incrementStat('criticalRolls');
+            if (isFumble) this.incrementStat('fumbleRolls');
+        }
         
         let formulaStr = `D${s}`; 
         if (m !== 0) formulaStr += (m > 0 ? `+${m}` : `${m}`); 
@@ -76,8 +92,8 @@ export const rpgLogic = {
             result: n+m, 
             natural: n,
             mod: m,
-            crit: n===s, 
-            fumble: n===1, 
+            crit: isCrit, 
+            fumble: isFumble, 
             reason: this.diceReason || ''
         };
         
@@ -109,7 +125,7 @@ export const rpgLogic = {
             const key = this.getDiceLogStorageKey();
             localStorage.setItem(key, JSON.stringify(this.diceLog));
         } catch(e) {
-            console.warn('Erro ao salvar histórico de dados');
+            logger.warn('RPG', 'Erro ao salvar histórico de dados');
         }
     },
 

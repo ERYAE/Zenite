@@ -1,6 +1,12 @@
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ZENITE ROUTER v5.0 - FULL REWRITE
 // ═══════════════════════════════════════════════════════════════════════════
+import { logger } from './logger.js';
 // Hash-based routing with full browser history synchronization:
 // - /#/dashboard
 // - /#/sheet/abc123  
@@ -70,7 +76,7 @@ export const router = {
      */
     init(app) {
         if (this.isInitialized) {
-            console.warn('[ROUTER] Already initialized');
+            logger.warn('ROUTER', 'Already initialized');
             return;
         }
         
@@ -84,7 +90,7 @@ export const router = {
         // This is the SINGLE SOURCE OF TRUTH for route changes
         window.addEventListener('hashchange', () => {
             if (this.isNavigating) return;
-            console.log('[ROUTER] HashChange detected:', window.location.hash);
+            logger.debug('ROUTER', 'HashChange detected:', window.location.hash);
             this.handleRoute();
         });
         
@@ -93,7 +99,7 @@ export const router = {
         window.addEventListener('popstate', (e) => {
             if (this.isNavigating) return;
             
-            console.log('[ROUTER] PopState detected:', e.state);
+            logger.debug('ROUTER', 'PopState detected:', e.state);
             
             // If we have state, use it; otherwise fall back to hash parsing
             if (e.state?.route) {
@@ -106,7 +112,7 @@ export const router = {
         // Process initial route
         this.handleRoute();
         
-        console.log('[ROUTER] Initialized v5.0');
+        logger.info('ROUTER', 'Initialized v5.0');
     },
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -134,7 +140,7 @@ export const router = {
         
         // Skip if already on same route (unless forced replace)
         if (currentHash === hash && !replace) {
-            console.log('[ROUTER] Already on route:', hash);
+            logger.debug('ROUTER', 'Already on route:', hash);
             return;
         }
 
@@ -191,7 +197,7 @@ export const router = {
         
         // Skip if we just processed this hash (prevents double processing)
         if (hash === this.lastProcessedHash) {
-            console.log('[ROUTER] Skipping duplicate hash:', hash);
+            logger.debug('ROUTER', 'Skipping duplicate hash:', hash);
             return;
         }
 
@@ -207,7 +213,7 @@ export const router = {
         const routeName = sanitizeRouteName(parts[0] || 'dashboard');
         const param = sanitizeParam(routeName, parts[1] || null);
 
-        console.log('[ROUTER] HandleRoute:', routeName, param);
+        logger.info('ROUTER', 'HandleRoute:', routeName, param);
         
         this.lastProcessedHash = hash;
         this.processRoute(routeName, param, false);
@@ -226,11 +232,11 @@ export const router = {
      * @param {boolean} fromPopState - True if triggered by browser back/forward
      */
     async processRoute(routeName, param, fromPopState = false) {
-        console.log('[ROUTER] Processing:', routeName, param, fromPopState ? '(popstate)' : '');
+        logger.info('ROUTER', 'Processing:', routeName, param, fromPopState ? '(popstate)' : '');
 
         // GUARD: Require authentication for protected routes (login and recover are public)
         if (!this.app.user && !this.app.isGuest && routeName !== 'login' && routeName !== 'recover') {
-            console.log('[ROUTER] Not authenticated, saving pending route and redirecting to login');
+            logger.info('ROUTER', 'Not authenticated, saving pending route and redirecting to login');
             this.pendingRoute = { route: routeName, param };
             
             // Redirect to login without adding to history
@@ -264,7 +270,7 @@ export const router = {
                 break;
 
             default:
-                console.warn('[ROUTER] Unknown route:', routeName);
+                logger.warn('ROUTER', 'Unknown route:', routeName);
                 this.navigate('dashboard', null, true);
         }
     },
@@ -279,13 +285,13 @@ export const router = {
                 this.app.chars[this.app.activeCharId] = JSON.parse(JSON.stringify(this.app.char));
                 this.app.saveLocal?.();
             } catch (e) {
-                console.error('[ROUTER] Error saving char before exit:', e);
+                logger.error('ROUTER', 'Error saving char before exit:', e);
             }
         }
         
         // Disconnect realtime if leaving campaign
         if (this.app.activeCampaign) {
-            console.log('[ROUTER] Leaving campaign, disconnecting realtime...');
+            logger.info('ROUTER', 'Leaving campaign, disconnecting realtime...');
             await this.app.disconnectRealtime?.();
             this.app.activeCampaign = null;
             this.app.campaignMembers = [];
@@ -319,7 +325,7 @@ export const router = {
 
         // Disconnect realtime if leaving campaign
         if (this.app.activeCampaign) {
-            console.log('[ROUTER] Leaving campaign for sheet, disconnecting realtime...');
+            logger.info('ROUTER', 'Leaving campaign for sheet, disconnecting realtime...');
             await this.app.disconnectRealtime?.();
             this.app.activeCampaign = null;
             this.app.campaignMembers = [];
@@ -368,7 +374,7 @@ export const router = {
                 }
             }
         } catch (e) {
-            console.error('[ROUTER] Error joining campaign:', e);
+            logger.error('ROUTER', 'Error joining campaign:', e);
             this.app.notify?.('Campanha não encontrada', 'error');
             this.navigate('dashboard', null, true);
         }
@@ -429,7 +435,7 @@ export const router = {
                 if (this.app.chars && !this.app.systemLoading) {
                     resolve();
                 } else if (attempts >= maxAttempts) {
-                    console.warn('[ROUTER] Timeout waiting for chars');
+                    logger.warn('ROUTER', 'Timeout waiting for chars');
                     resolve(); // Resolve anyway to prevent blocking
                 } else {
                     attempts++;
@@ -447,7 +453,7 @@ export const router = {
         const target = this.pendingRoute || { route: 'dashboard', param: null };
         this.pendingRoute = null;
         
-        console.log('[ROUTER] Redirecting after login to:', target.route);
+        logger.info('ROUTER', 'Redirecting after login to:', target.route);
         
         // Replace to avoid login page in history
         this.navigate(target.route, target.param, true);
@@ -474,9 +480,9 @@ export const router = {
             try {
                 this.app.chars[this.app.activeCharId] = JSON.parse(JSON.stringify(this.app.char));
                 this.app.saveLocal?.();
-                console.log('[ROUTER] Saved character before exit');
+                logger.info('ROUTER', 'Saved character before exit');
             } catch (e) {
-                console.error('[ROUTER] Error saving before exit:', e);
+                logger.error('ROUTER', 'Error saving before exit:', e);
             }
         }
         
@@ -497,7 +503,7 @@ export const router = {
         this.lastProcessedHash = hash;
         this.updateTitle('dashboard');
         
-        console.log('[ROUTER] Exited sheet to dashboard');
+        logger.info('ROUTER', 'Exited sheet to dashboard');
     },
 
     /**
@@ -540,7 +546,7 @@ export const router = {
             this.app.notify?.('Link copiado!', 'success');
             return url;
         } catch (e) {
-            console.error('[ROUTER] Error copying URL:', e);
+            logger.error('ROUTER', 'Error copying URL:', e);
             this.app.notify?.('Erro ao copiar link', 'error');
             return null;
         }

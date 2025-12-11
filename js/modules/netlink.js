@@ -1,4 +1,9 @@
 /**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
+/**
  * ═══════════════════════════════════════════════════════════════════════════════
  * ZENITE NETLINK - Sistema de Campanhas Multiplayer
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -125,6 +130,7 @@
 
 import { playSFX } from './audio.js';
 import { router } from './router.js';
+import { logger, netlinkLogger, translateError } from './logger.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTES E CONFIGURAÇÕES
@@ -267,8 +273,8 @@ export const netlinkLogic = {
             
             return data;
         } catch (e) {
-            console.error('[NETLINK] Erro ao criar campanha:', e);
-            this.notify('Erro ao criar campanha.', 'error');
+            const errorMsg = translateError(e, 'criar campanha');
+            this.notify(errorMsg, 'error');
             return null;
         }
     },
@@ -290,24 +296,41 @@ export const netlinkLogic = {
                 .from('campaigns')
                 .select('*')
                 .eq('invite_code', inviteCode.toUpperCase())
-                .single();
+                .maybeSingle();
             
-            if (searchError || !campaign) {
-                this.notify('Código de convite inválido.', 'error');
+            if (searchError) {
+                netlinkLogger.error('Erro ao buscar campanha:', searchError);
+                this.notify('Erro ao buscar campanha. Tente novamente.', 'error');
                 return false;
             }
             
-            // Verifica se já é membro
+            if (!campaign) {
+                netlinkLogger.warn('Campanha não encontrada para código:', inviteCode);
+                this.notify('Código de convite inválido ou campanha não existe.', 'error');
+                return false;
+            }
+            
+            // Verifica se já é membro ATIVO
             const { data: existingMember } = await this.supabase
                 .from('campaign_members')
-                .select('id')
+                .select('id, status')
                 .eq('campaign_id', campaign.id)
                 .eq('user_id', this.user.id)
-                .single();
+                .maybeSingle();
             
             if (existingMember) {
-                this.notify('Você já está nesta campanha.', 'warn');
-                return false;
+                if (existingMember.status === 'active') {
+                    this.notify('Você já está nesta campanha.', 'warn');
+                    return false;
+                } else {
+                    // Status pending/rejected - permite reentrar deletando registro antigo
+                    await this.supabase
+                        .from('campaign_members')
+                        .delete()
+                        .eq('id', existingMember.id);
+                    
+                    netlinkLogger.info('Removido registro antigo:', existingMember.status);
+                }
             }
             
             // Verifica limite de jogadores
@@ -354,7 +377,7 @@ export const netlinkLogic = {
             
             return true;
         } catch (e) {
-            console.error('[NETLINK] Erro ao entrar na campanha:', e);
+            netlinkLogger.error('Erro ao entrar na campanha:', e);
             this.notify('Erro ao entrar na campanha.', 'error');
             return false;
         }
@@ -407,11 +430,11 @@ export const netlinkLogic = {
             return false;
         }
         
-        console.log('[NETLINK] Tentando entrar com código:', sanitizedCode);
+        netlinkLogger.info('Tentando entrar com código:', sanitizedCode);
         
         // Evita re-entrar se já estiver na campanha com o mesmo código
         if (this.activeCampaign?.invite_code?.toUpperCase() === sanitizedCode) {
-            console.log('[NETLINK] Já está na campanha:', sanitizedCode);
+            netlinkLogger.info('Já está na campanha:', sanitizedCode);
             return true;
         }
         
@@ -428,16 +451,16 @@ export const netlinkLogic = {
                 .from('campaigns')
                 .select('*')
                 .ilike('invite_code', sanitizedCode)
-                .single();
+                .maybeSingle();
             
             if (error || !campaign) {
-                console.warn('[NETLINK] Campanha não encontrada para código:', sanitizedCode, error);
+                netlinkLogger.warn('Campanha não encontrada para código:', sanitizedCode);
                 this.notify('Código de convite inválido ou campanha não encontrada.', 'error');
                 router.navigate('dashboard');
                 return false;
             }
             
-            console.log('[NETLINK] Campanha encontrada:', campaign.name);
+            netlinkLogger.info('Campanha encontrada:', campaign.name);
             
             // Salva a campanha pendente para uso posterior
             this.pendingCampaign = campaign;
@@ -449,7 +472,7 @@ export const netlinkLogic = {
                 .select('*')
                 .eq('campaign_id', campaign.id)
                 .eq('user_id', this.user.id)
-                .single();
+                .maybeSingle();
             
             if (member) {
                 // Já é membro, entra direto
@@ -501,7 +524,7 @@ export const netlinkLogic = {
             return true;
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao buscar campanha:', e);
+            netlinkLogger.error('Erro ao buscar campanha:', e);
             this.notify('Erro ao buscar campanha.', 'error');
             return false;
         }
@@ -553,7 +576,7 @@ export const netlinkLogic = {
             await this.enterCampaign(campaign);
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao entrar na campanha:', e);
+            netlinkLogger.error('Erro ao entrar na campanha:', e);
             this.notify('Erro ao entrar na campanha.', 'error');
         }
     },
@@ -590,23 +613,33 @@ export const netlinkLogic = {
             this.joinedCampaigns = this.joinedCampaigns.filter(c => c.id !== this.activeCampaign.id);
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao sair da campanha:', e);
+            netlinkLogger.error('Erro ao sair da campanha:', e);
             this.notify('Erro ao sair da campanha.', 'error');
             return; // Sai aqui se a remoção falhou
         }
         
         // Se chegou aqui, a remoção foi bem-sucedida
-        // Notifica sucesso ANTES de limpar estado (que pode falhar silenciosamente)
         playSFX('success');
         this.notify('Você saiu da campanha.', 'success');
         
-        // Volta para a lista - erros aqui são silenciosos pois a saída já ocorreu
-        try {
-            await this.leaveCampaign();
-        } catch (cleanupError) {
-            console.warn('[NETLINK] Erro ao limpar estado (saída já concluída):', cleanupError);
-            // Não mostra erro ao usuário pois a operação principal foi bem-sucedida
+        // Limpa estado local
+        this.activeCampaign = null;
+        this.campaignMembers = [];
+        this.chatMessages = [];
+        this.currentView = 'dashboard';
+        
+        // Fecha canal realtime se existir
+        if (this.campaignChannel) {
+            try {
+                await this.supabase.removeChannel(this.campaignChannel);
+            } catch (e) {
+                netlinkLogger.warn('Erro ao fechar canal:', e);
+            }
+            this.campaignChannel = null;
         }
+        
+        // Recarrega lista de campanhas
+        await this.loadCampaigns();
     },
     
     /**
@@ -626,19 +659,27 @@ export const netlinkLogic = {
             this.myCampaigns = gmCampaigns || [];
             
             // Campanhas onde é player
-            const { data: memberData } = await this.supabase
+            const { data: memberData, error: memberError } = await this.supabase
                 .from('campaign_members')
                 .select('campaign_id, campaigns(*)')
                 .eq('user_id', this.user.id)
                 .eq('role', NETLINK_CONFIG.ROLES.PLAYER)
                 .eq('status', NETLINK_CONFIG.MEMBER_STATUS.ACTIVE);
             
-            this.joinedCampaigns = memberData
-                ?.map(m => m.campaigns)
-                .filter(Boolean) || [];
+            if (memberError) {
+                netlinkLogger.error('Erro ao carregar campanhas de jogador:', memberError);
+                this.joinedCampaigns = [];
+            } else {
+                // CRÍTICO: Valida que cada campanha tem id antes de adicionar
+                this.joinedCampaigns = (memberData || [])
+                    .map(m => m.campaigns)
+                    .filter(c => c && c.id) || [];
+                
+                netlinkLogger.info('Campanhas como jogador:', this.joinedCampaigns.length);
+            }
                 
         } catch (e) {
-            console.error('[NETLINK] Erro ao carregar campanhas:', e);
+            netlinkLogger.error('Erro ao carregar campanhas:', e);
         }
     },
     
@@ -771,7 +812,7 @@ export const netlinkLogic = {
             }, 2000);
             
         } catch (e) {
-            console.error('[NETLINK] Erro no auto-save:', e);
+            netlinkLogger.error('Erro no auto-save:', e);
             this.saveStatus = 'error';
         } finally {
             this.isSyncing = false;
@@ -826,7 +867,7 @@ export const netlinkLogic = {
             return;
         }
         
-        console.log('[NETLINK] Salvando ficha do membro:', this.campaignMemberId);
+        netlinkLogger.info('Salvando ficha do membro:', this.campaignMemberId);
         this.isSyncing = true;
         this.saveStatus = 'saving';
         
@@ -840,7 +881,7 @@ export const netlinkLogic = {
             
             if (error) throw error;
             
-            console.log('[NETLINK] Ficha salva com sucesso:', data);
+            netlinkLogger.info('Ficha salva com sucesso:', data);
             
             // Reseta contadores do smart auto-save
             this.campaignChangeCount = 0;
@@ -865,7 +906,7 @@ export const netlinkLogic = {
             await this.loadCampaignMembers(this.activeCampaign.id);
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao salvar ficha:', e);
+            netlinkLogger.error('Erro ao salvar ficha:', e);
             this.notify('Erro ao salvar ficha: ' + e.message, 'error');
             this.saveStatus = 'error';
         } finally {
@@ -926,7 +967,7 @@ export const netlinkLogic = {
             await this.loadCampaignMembers(this.activeCampaign.id);
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao salvar membro:', e);
+            netlinkLogger.error('Erro ao salvar membro:', e);
             this.notify('Erro ao salvar alterações.', 'error');
         }
     },
@@ -945,7 +986,7 @@ export const netlinkLogic = {
         // Evita reconectar ao mesmo canal
         const channelName = `${NETLINK_CONFIG.REALTIME_CHANNEL_PREFIX}${campaignId}`;
         if (this.realtimeChannel?.topic === channelName) {
-            console.log('[NETLINK] Já conectado ao canal:', channelName);
+            netlinkLogger.info('Já conectado ao canal:', channelName);
             return;
         }
         
@@ -954,7 +995,7 @@ export const netlinkLogic = {
             await this.supabase.removeChannel(this.realtimeChannel);
         }
         
-        console.log('[NETLINK] Conectando ao canal:', channelName);
+        netlinkLogger.info('Conectando ao canal:', channelName);
         
         this.realtimeChannel = this.supabase
             .channel(channelName)
@@ -970,7 +1011,7 @@ export const netlinkLogic = {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'campaign_members', filter: `campaign_id=eq.${campaignId}` },
                 async (payload) => {
-                    console.log('[REALTIME] Lista de membros atualizada:', payload.eventType);
+                    netlinkLogger.debug('REALTIME: Lista de membros atualizada:', payload.eventType);
                     
                     // Detecta se o próprio usuário foi removido (kickado)
                     if (payload.eventType === 'DELETE' && payload.old?.user_id === this.user?.id) {
@@ -1003,7 +1044,7 @@ export const netlinkLogic = {
             // Broadcast de atualização de membro (quando GM edita ficha de jogador)
             .on('broadcast', { event: 'member_update' },
                 async (payload) => {
-                    console.log('[REALTIME] Ficha de membro atualizada pelo GM:', payload.payload?.memberId);
+                    netlinkLogger.debug('REALTIME: Ficha de membro atualizada pelo GM:', payload.payload?.memberId);
                     
                     // Recarrega membros
                     await this.loadCampaignMembers(campaignId);
@@ -1032,16 +1073,16 @@ export const netlinkLogic = {
             // Broadcast de música ambiente (GM controla, jogadores recebem)
             .on('broadcast', { event: 'ambient_music' },
                 (payload) => {
-                    console.log('[REALTIME] Comando de música recebido:', payload.payload?.action);
+                    netlinkLogger.debug('REALTIME: Comando de música recebido:', payload.payload?.action);
                     if (!this.isGMOfActiveCampaign()) {
                         this.handleMusicCommand(payload.payload);
                     }
                 }
             )
             .subscribe((status) => {
-                console.log('[NETLINK] Status da conexão:', status);
+                netlinkLogger.info('Status da conexão:', status);
                 if (status === 'SUBSCRIBED') {
-                    console.log('✅ [NETLINK] Conectado ao realtime com sucesso!');
+                    netlinkLogger.success('✅ Conectado ao realtime com sucesso!');
                     // Força recarga inicial para garantir sincronia
                     this.loadChatHistory();
                     this.loadCampaignMembers(campaignId);
@@ -1071,7 +1112,7 @@ export const netlinkLogic = {
                         this.notify('Tempo real indisponível. Recarregue a página para tentar novamente.', 'warn');
                     }
                 } else if (status === 'CLOSED') {
-                    console.warn('⚠️ [NETLINK] Conexão realtime fechada');
+                    netlinkLogger.warn('⚠️ Conexão realtime fechada');
                 }
             });
     },
@@ -1220,7 +1261,7 @@ export const netlinkLogic = {
             }
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao enviar rolagem:', e);
+            netlinkLogger.error('Erro ao enviar rolagem:', e);
             // Marca a entrada como erro mas mantém visível
             const idx = this.sessionDiceLog.findIndex(l => l.id === optimisticId);
             if (idx !== -1) {
@@ -1396,7 +1437,7 @@ export const netlinkLogic = {
             }
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao carregar histórico de dados:', e);
+            netlinkLogger.error('Erro ao carregar histórico de dados:', e);
             this.sessionDiceLog = [];
         }
     },
@@ -1598,7 +1639,7 @@ export const netlinkLogic = {
                 } : null
             }));
         } catch (e) {
-            console.error('[NETLINK] Erro ao carregar membros:', e);
+            netlinkLogger.error('Erro ao carregar membros:', e);
         }
     },
     
@@ -1628,7 +1669,7 @@ export const netlinkLogic = {
                 .eq('id', membership.id);
                 
         } catch (e) {
-            console.error('[NETLINK] Erro ao sincronizar ficha:', e);
+            netlinkLogger.error('Erro ao sincronizar ficha:', e);
         }
     },
     
@@ -1699,7 +1740,7 @@ export const netlinkLogic = {
             
             playSFX(amount > 0 ? 'error' : 'success');
         } catch (e) {
-            console.error('[NETLINK] Erro ao modificar stat:', e);
+            netlinkLogger.error('Erro ao modificar stat:', e);
         }
     },
     
@@ -1733,7 +1774,7 @@ export const netlinkLogic = {
             this.notify('Ficha atualizada!', 'success');
             playSFX('success');
         } catch (e) {
-            console.error('[NETLINK] Erro ao atualizar ficha:', e);
+            netlinkLogger.error('Erro ao atualizar ficha:', e);
             this.notify('Erro ao atualizar ficha.', 'error');
         }
     },
@@ -1767,7 +1808,7 @@ export const netlinkLogic = {
             playSFX('success');
             this.notify('Jogador removido da campanha.', 'success');
         } catch (e) {
-            console.error('[NETLINK] Erro ao remover membro:', e);
+            netlinkLogger.error('Erro ao remover membro:', e);
             this.notify('Erro ao remover jogador.', 'error');
         }
     },
@@ -1820,7 +1861,7 @@ export const netlinkLogic = {
             
             this.activeCampaign.settings = settings;
         } catch (e) {
-            console.error('[NETLINK] Erro ao atualizar settings:', e);
+            netlinkLogger.error('Erro ao atualizar settings:', e);
         }
     },
     
@@ -1952,7 +1993,7 @@ export const netlinkLogic = {
                         .update({ notes: content, updated_at: new Date().toISOString() })
                         .eq('id', this.activeCampaign.id);
                 } catch (e) {
-                    console.error('[NETLINK] Erro ao salvar notas:', e);
+                    netlinkLogger.error('Erro ao salvar notas:', e);
                 }
             }
         }, 2000);
@@ -2013,7 +2054,7 @@ export const netlinkLogic = {
             // Incrementa stat para achievements
             if (this.incrementStat) this.incrementStat('messagesSent');
         } catch (e) {
-            console.error('[NETLINK] Erro ao enviar mensagem:', e);
+            netlinkLogger.error('Erro ao enviar mensagem:', e);
         }
     },
     
@@ -2054,7 +2095,7 @@ export const netlinkLogic = {
             if (error) throw error;
             playSFX('success');
         } catch (e) {
-            console.error('[NETLINK] Erro ao enviar imagem:', e);
+            netlinkLogger.error('Erro ao enviar imagem:', e);
             this.notify('Erro ao enviar imagem', 'error');
         }
     },
@@ -2177,7 +2218,7 @@ export const netlinkLogic = {
                 }
             });
         } catch (e) {
-            console.error('[NETLINK] Erro ao carregar chat:', e);
+            netlinkLogger.error('Erro ao carregar chat:', e);
         }
     },
     
@@ -2213,7 +2254,7 @@ export const netlinkLogic = {
             playSFX('notification');
             this.notify('Whisper enviado', 'success');
         } catch (e) {
-            console.error('[NETLINK] Erro ao enviar whisper:', e);
+            netlinkLogger.error('Erro ao enviar whisper:', e);
         }
     },
     
@@ -2271,7 +2312,7 @@ export const netlinkLogic = {
     async enterCampaign(campaign) {
         // Evita re-entrar na mesma campanha
         if (this.activeCampaign?.id === campaign.id && this.currentView === 'campaign') {
-            console.log('[NETLINK] Já está na campanha:', campaign.id);
+            netlinkLogger.info('Já está na campanha:', campaign.id);
             return;
         }
         
@@ -2414,15 +2455,27 @@ export const netlinkLogic = {
             // Remove da lista local
             this.myCampaigns = this.myCampaigns.filter(c => c.id !== campaignId);
             
-            // Se era a ativa, sai
+            // Se era a ativa, limpa e redireciona
             if (this.activeCampaign?.id === campaignId) {
-                await this.leaveCampaign();
+                this.activeCampaign = null;
+                this.campaignMembers = [];
+                this.chatMessages = [];
+                
+                // Fecha canal realtime
+                if (this.campaignChannel) {
+                    await this.supabase.removeChannel(this.campaignChannel);
+                    this.campaignChannel = null;
+                }
             }
             
             playSFX('success');
-            this.notify('Campanha deletada', 'success');
+            this.notify('Campanha deletada.', 'success');
+            
+            // Redireciona para dashboard
+            window.zeniteRouter?.navigate('dashboard');
+            this.currentView = 'dashboard';
         } catch (e) {
-            console.error('[NETLINK] Erro ao deletar campanha:', e);
+            netlinkLogger.error('Erro ao deletar campanha:', e);
             this.notify('Erro ao deletar campanha', 'error');
         }
     },
@@ -2593,7 +2646,7 @@ export const netlinkLogic = {
             this.notify('Configurações salvas!', 'success');
             
         } catch (e) {
-            console.error('[NETLINK] Erro ao salvar configurações:', e);
+            netlinkLogger.error('Erro ao salvar configurações:', e);
             this.notify('Erro ao salvar configurações.', 'error');
         }
     },
@@ -3183,7 +3236,7 @@ export const netlinkLogic = {
             
             return true;
         } catch (e) {
-            console.error('[NETLINK] Erro ao convidar amigo:', e);
+            netlinkLogger.error('Erro ao convidar amigo:', e);
             this.notify('Erro ao enviar convite.', 'error');
             return false;
         }
@@ -3229,7 +3282,7 @@ export const netlinkLogic = {
                 this.notify(`Você tem ${this.pendingCampaignInvites.length} convite(s) de campanha pendente(s)!`, 'info');
             }
         } catch (e) {
-            console.error('[NETLINK] Erro ao carregar convites:', e);
+            netlinkLogger.error('Erro ao carregar convites:', e);
         }
     },
     
@@ -3270,7 +3323,7 @@ export const netlinkLogic = {
             
             return true;
         } catch (e) {
-            console.error('[NETLINK] Erro ao aceitar convite:', e);
+            netlinkLogger.error('Erro ao aceitar convite:', e);
             this.notify('Erro ao aceitar convite.', 'error');
             return false;
         }
@@ -3301,7 +3354,7 @@ export const netlinkLogic = {
             
             return true;
         } catch (e) {
-            console.error('[NETLINK] Erro ao recusar convite:', e);
+            netlinkLogger.error('Erro ao recusar convite:', e);
             this.notify('Erro ao recusar convite.', 'error');
             return false;
         }

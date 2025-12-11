@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  Copyright © 2025 Zenite - Todos os direitos reservados
+  Projeto desenvolvido com assistência de IA
+-->
+
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -78,7 +83,7 @@
                     O Núcleo do Zenite está sendo <strong class="text-white">reforjado</strong> em uma nova infraestrutura. 
                 </p>
                 <p class="text-xs text-gray-400 leading-relaxed">
-                    Estamos construindo uma fundação mais poderosa, rápida e estável para suas campanhas. O sistema atual continuará funcionando, mas o futuro está no <span class="text-white font-bold">Project Prospectus</span>.
+                    Estamos construindo uma fundação mais poderosa, rápida e estável para suas campanhas. O sistema atual continuará funcionando, mas o futuro está no <span class="text-white font-bold">Project Prospecthus</span>.
                 </p>
             </div>
         </div>
@@ -90,7 +95,7 @@
             </div>
             <p class="text-[10px] text-gray-500 text-center">A nova versão ainda está em desenvolvimento. Fique atento às novidades!</p>
             
-            <button @click="migrationModalOpen = false" 
+            <button @click="migrationModalOpen = false; if (user && !isGuest) { if (window.zeniteRouter) { window.zeniteRouter.navigate('dashboard', null, true); } else { currentView = 'dashboard'; window.location.hash = '#/dashboard'; } }" 
                     class="text-xs text-gray-500 hover:text-white transition-colors py-2">
                 Fechar
             </button>
@@ -110,7 +115,7 @@
                 Este site pode ter alguns problemas no celular. Para uma melhor experiência, use um computador.
             </p>
         </div>
-        <button @click="mobileWarningDismissed = true" class="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors">
+        <button @click="mobileWarningDismissed = true" class="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors" aria-label="Fechar aviso de mobile">
             <i class="fa-solid fa-xmark text-sm"></i>
         </button>
     </div>
@@ -210,12 +215,41 @@
 
     <!-- Notificações via Teleport (sempre no topo do DOM) -->
     <template x-teleport="body">
-        <div class="fixed top-5 right-5 space-y-2 pointer-events-none w-full max-w-xs px-4 md:px-0" style="z-index: 2147483647;">
+        <div class="fixed top-5 right-5 space-y-2 pointer-events-none w-full max-w-sm px-4 md:px-0" style="z-index: 2147483647;">
             <template x-for="n in notifications" :key="n.id">
-                <div class="border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 transition-all duration-500 transform translate-x-0 bg-black/95 backdrop-blur-xl pointer-events-auto"
-                     :class="{'border-green-500': n.type==='success', 'border-red-500': n.type==='error', 'border-blue-500': n.type==='info', 'border-yellow-500': n.type==='warn'}">
-                    <i class="fa-solid" :class="n.icon" :class="{'text-green-500': n.type==='success', 'text-red-500': n.type==='error', 'text-blue-500': n.type==='info', 'text-yellow-500': n.type==='warn'}"></i>
-                    <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand"></span>
+                <div class="border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-start gap-3 transition-all duration-500 transform translate-x-0 bg-black/95 backdrop-blur-xl pointer-events-auto"
+                     :class="{
+                         'border-green-500': n.type==='success', 
+                         'border-red-500': n.type==='error', 
+                         'border-blue-500': n.type==='info', 
+                         'border-yellow-500': n.type==='warn',
+                         'border-purple-500': n.type==='invite' || n.type==='campaign'
+                     }">
+                    <i class="fa-solid mt-0.5" :class="n.icon" :class="{
+                        'text-green-500': n.type==='success', 
+                        'text-red-500': n.type==='error', 
+                        'text-blue-500': n.type==='info', 
+                        'text-yellow-500': n.type==='warn',
+                        'text-purple-500': n.type==='invite' || n.type==='campaign'
+                    }"></i>
+                    <div class="flex-1 min-w-0">
+                        <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand block"></span>
+                        <!-- Botão de ação (se existir) -->
+                        <div x-show="n.actionLabel" class="mt-2 flex gap-2">
+                            <button @click="executeNotificationAction(n)" 
+                                    class="px-3 py-1 text-[10px] font-bold rounded bg-purple-500 hover:bg-purple-400 text-white transition-colors"
+                                    x-text="n.actionLabel"></button>
+                            <button x-show="n.dismissable" @click="dismissNotification(n.id)" 
+                                    class="px-3 py-1 text-[10px] font-bold rounded bg-white/10 hover:bg-white/20 text-gray-400 transition-colors">
+                                IGNORAR
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Botão de fechar (se dismissable e sem ação) -->
+                    <button x-show="n.dismissable && !n.actionLabel" @click="dismissNotification(n.id)" 
+                            class="text-gray-500 hover:text-white transition-colors ml-2">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
                 </div>
             </template>
         </div>
@@ -235,17 +269,59 @@
                  showPassword: false, 
                  showConfirmPassword: false,
                  passwordStrength: 0,
+                 passwordStrengthDetails: '',
                  emailSuggestion: null,
                  commonDomains: ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com'],
                  updateStrength(password) {
-                     let score = 0;
+                     // SÓ valida no modo registro
+                     if (this.authMode !== 'register') {
+                         this.passwordStrength = 0;
+                         this.passwordStrengthDetails = '';
+                         return;
+                     }
+                     
                      const p = password || '';
-                     if (p.length >= 6) score++;
-                     if (p.length >= 8 && /[A-Z]/.test(p)) score++;
-                     if (p.length >= 10 && /[0-9]/.test(p)) score++;
-                     if (p.length >= 12 && /[^A-Za-z0-9]/.test(p)) score++;
+                     let score = 0;
+                     let issues = [];
+                     
+                     // Validações básicas
+                     if (p.length < 8) {
+                         issues.push('Mínimo 8 caracteres');
+                     } else if (p.length >= 8) score++;
+                     
+                     // Verifica senhas fracas comuns
+                     const weakPatterns = [
+                         /^\d+$/,              // Apenas números
+                         /^[a-z]+$/i,          // Apenas letras
+                         /^(.)\1+$/,           // Repetição do mesmo caractere
+                         /^(\d)\1{2,}/,        // Números repetidos (111, 222)
+                         /^(012|123|234|345|456|567|678|789|890)+/, // Sequências numéricas
+                         /^(abc|bcd|cde|def|efg|fgh|ghi)+/i // Sequências alfabéticas
+                     ];
+                     
+                     const isWeak = weakPatterns.some(pattern => pattern.test(p));
+                     if (isWeak) {
+                         issues.push('Evite padrões simples');
+                         score = Math.max(0, score - 1);
+                     }
+                     
+                     // Verifica letras maiúsculas
+                     if (!/[A-Z]/.test(p)) {
+                         issues.push('Adicione letras maiúsculas');
+                     } else score++;
+                     
+                     // Verifica números
+                     if (!/[0-9]/.test(p)) {
+                         issues.push('Adicione números');
+                     } else score++;
+                     
+                     // Verifica caracteres especiais
+                     if (!/[^A-Za-z0-9]/.test(p)) {
+                         issues.push('Adicione símbolos (!@#$%)');
+                     } else score++;
+                     
                      this.passwordStrength = score;
-                     console.log('Password strength:', score, 'for length:', p.length);
+                     this.passwordStrengthDetails = issues.length > 0 ? issues.join(' • ') : 'Senha segura!';
                  },
                  getSuggestion(email) {
                      if (!email || !email.includes('@')) { this.emailSuggestion = null; return; }
@@ -268,7 +344,7 @@
             <div class="relative mb-8">
                 <img src="images/zenite_logo.svg" alt="Zenite OS" class="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_15px_var(--neon-core)] animate-pulse" style="animation-duration: 3s;">
                 <h1 class="text-3xl md:text-4xl font-brand text-white mb-2 tracking-widest">ZENITE <span class="text-[var(--neon-core)]">OS</span></h1>
-                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.25em]">Sistema de Agentes // Acesso Restrito</p>
+                <p class="text-gray-500 font-code text-[10px] uppercase tracking-[0.25em]">Sistema de Alunos // Acesso Restrito</p>
             </div>
             
             <!-- OAuth Buttons (hide in recover mode) -->
@@ -316,8 +392,11 @@
                 <p class="text-sm text-gray-400 mb-4">Digite seu email para receber o link de recuperação.</p>
                 
                 <div class="relative">
+                    <label for="forgot-email" class="sr-only">Email para recuperação</label>
                     <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
                     <input type="email" 
+                           id="forgot-email"
+                           name="email"
                            x-model="authEmail" 
                            placeholder="Seu email..." 
                            autocomplete="email"
@@ -403,17 +482,20 @@
                 <!-- EMAIL FIELD - With Tab Autocomplete -->
                 <!-- ═══════════════════════════════════════════════════════════════════ -->
                 <div class="relative">
+                    <label for="signup-email" class="sr-only">Email</label>
                     <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
                         <i class="fa-solid fa-envelope"></i>
                     </span>
                     <input type="email" 
+                           id="signup-email"
+                           name="email"
                            x-model="authEmail" 
                            @input="getSuggestion(authEmail)"
                            @keydown.tab="if (emailSuggestion && emailSuggestion !== authEmail) { $event.preventDefault(); authEmail = emailSuggestion; emailSuggestion = null; }"
-                           placeholder="Email..." 
+                           placeholder="Seu melhor email..."
                            autocomplete="email"
                            required
-                           class="w-full h-12 pl-11 pr-16 bg-black/60 border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-core)]/20 transition-all">
+                           class="w-full pl-11 pr-4 py-3 bg-black/60 border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-core)]/20 transition-all">
                     
                     <!-- Tab Autocomplete Hint -->
                     <span x-show="emailSuggestion && emailSuggestion !== authEmail" 
@@ -427,21 +509,19 @@
                 <!-- USERNAME FIELD (Register Only) -->
                 <!-- ═══════════════════════════════════════════════════════════════════ -->
                 <div x-show="authMode === 'register'" x-transition class="relative">
+                    <label for="signup-username" class="sr-only">Username</label>
                     <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
                         <i class="fa-solid fa-at"></i>
                     </span>
                     <input type="text" 
+                           id="signup-username"
+                           name="username"
                            x-model="authUsername" 
                            @input.debounce.400ms="checkUsernameAvailable(authUsername)"
-                           placeholder="Username (único)..." 
+                           placeholder="Username (único)..."
                            autocomplete="username"
-                           maxlength="20"
-                           class="w-full h-12 pl-11 pr-12 bg-black/60 border rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-[var(--neon-core)]/20 transition-all"
-                           :class="{
-                               'border-green-500 focus:border-green-500': usernameCheckResult === 'available',
-                               'border-red-500 focus:border-red-500': usernameCheckResult === 'taken' || usernameCheckResult === 'invalid',
-                               'border-white/10 focus:border-[var(--neon-core)]': !usernameCheckResult
-                           }">
+                           :required="authMode === 'register'"
+                           class="w-full pl-11 pr-4 py-3 bg-black/60 border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 focus:border-[var(--neon-core)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-core)]/20 transition-all">
                     
                     <!-- Status Icon -->
                     <span class="absolute right-4 top-1/2 transform -translate-y-1/2">
@@ -491,8 +571,8 @@
                 <div x-show="authMode === 'register' && passwordStrength > 0" 
                      x-transition
                      class="space-y-1.5 -mt-1">
-                    <!-- Bars - explicit for reliability -->
-                    <div class="flex gap-1">
+                    <!-- Bars com tooltip -->
+                    <div class="flex gap-1" :title="passwordStrengthDetails">
                         <div class="h-1.5 flex-1 rounded-full transition-all duration-300"
                              :class="passwordStrength >= 1 ? (passwordStrength === 1 ? 'bg-red-500' : passwordStrength === 2 ? 'bg-yellow-500' : passwordStrength === 3 ? 'bg-green-500' : 'bg-cyan-400') : 'bg-white/10'"></div>
                         <div class="h-1.5 flex-1 rounded-full transition-all duration-300"
@@ -502,10 +582,13 @@
                         <div class="h-1.5 flex-1 rounded-full transition-all duration-300"
                              :class="passwordStrength >= 4 ? 'bg-cyan-400 shadow-[0_0_6px_rgba(0,255,255,0.6)]' : 'bg-white/10'"></div>
                     </div>
-                    <!-- Label -->
-                    <p class="text-[10px] text-right font-bold"
-                       :class="passwordStrength === 1 ? 'text-red-400' : passwordStrength === 2 ? 'text-yellow-400' : passwordStrength === 3 ? 'text-green-400' : 'text-cyan-400'"
-                       x-text="passwordStrength === 1 ? 'Fraca' : passwordStrength === 2 ? 'Razoável' : passwordStrength === 3 ? 'Boa' : 'Excelente!'"></p>
+                    <!-- Label e Detalhes -->
+                    <div class="flex justify-between items-center">
+                        <p class="text-[9px] text-gray-500 italic" x-text="passwordStrengthDetails"></p>
+                        <p class="text-[10px] font-bold"
+                           :class="passwordStrength === 1 ? 'text-red-400' : passwordStrength === 2 ? 'text-yellow-400' : passwordStrength === 3 ? 'text-green-400' : 'text-cyan-400'"
+                           x-text="passwordStrength === 1 ? 'Fraca' : passwordStrength === 2 ? 'Razoável' : passwordStrength === 3 ? 'Boa' : 'Excelente!'"></p>
+                    </div>
                 </div>
                 
                 <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -633,7 +716,7 @@
                             </button>
                             <button @click="changelogModalOpen = true; userMenuOpen = false" class="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-solid fa-code-branch w-4 text-cyan-400"></i> Changelog
-                                <span class="ml-auto text-[9px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded animate-pulse">NEW</span>
+                                <span x-show="hasUnseenChangelog" class="ml-auto text-[9px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded animate-pulse">NEW</span>
                             </button>
                             <button @click="openFriendsModal(); userMenuOpen = false" class="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors flex items-center gap-3">
                                 <i class="fa-solid fa-user-group w-4 text-pink-400"></i> Amigos
@@ -680,11 +763,11 @@
                 <i class="fa-solid fa-gear"></i>
             </button>
             
-            <!-- New Agent Button - 44px touch target -->
-            <button x-show="currentView === 'dashboard'" @click="console.log('CLICK NOVO AGENTE, wizardOpen antes:', wizardOpen); wizardOpen = true; console.log('wizardOpen depois:', wizardOpen)" 
+            <!-- New Student Button - 44px touch target -->
+            <button x-show="currentView === 'dashboard'" @click="console.log('CLICK NOVO ALUNO, wizardOpen antes:', wizardOpen); wizardOpen = true; console.log('wizardOpen depois:', wizardOpen)" 
                     class="min-h-[44px] px-4 md:px-6 py-2.5 rounded-xl bg-[var(--neon-core)] text-black font-bold shadow-lg hover:shadow-[0_0_20px_rgba(var(--neon-rgb),0.5)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
                 <i class="fa-solid fa-plus"></i> 
-                <span class="hidden md:inline">NOVO AGENTE</span>
+                <span class="hidden md:inline">NOVO ALUNO</span>
             </button>
         </div>
     </header>
@@ -765,7 +848,7 @@
         <!-- VIEW: Grid (padrão) -->
         <div x-show="agentCount > 0 && settings.dashboardView === 'grid'" 
              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <template x-for="(c, id) in sortedChars" :key="id">
+            <template x-for="(c, id) in limitedSortedChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-5 rounded-2xl border border-white/5 hover:border-[var(--neon-core)] hover:bg-white/[0.02] transition-all cursor-pointer group relative overflow-hidden flex items-center gap-5 hover:shadow-[0_0_30px_rgba(var(--neon-rgb),0.1)]">
                     <div class="relative z-10 flex-shrink-0">
                         <div class="w-16 h-16 rounded-full p-0.5 border border-white/20 bg-black group-hover:border-[var(--neon-core)] transition-colors">
@@ -789,7 +872,7 @@
 
         <!-- VIEW: Lista -->
         <div x-show="agentCount > 0 && settings.dashboardView === 'list'" class="space-y-2">
-            <template x-for="(c, id) in sortedChars" :key="id">
+            <template x-for="(c, id) in limitedSortedChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass px-4 py-3 rounded-xl border border-white/5 hover:border-[var(--neon-core)] transition-all cursor-pointer group flex items-center gap-4 hover:bg-white/[0.02]">
                     <div class="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden border border-white/10 group-hover:border-[var(--neon-core)] transition-colors">
                         <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full object-cover">
@@ -809,7 +892,7 @@
         <!-- VIEW: Compacto -->
         <div x-show="agentCount > 0 && settings.dashboardView === 'compact'" 
              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            <template x-for="(c, id) in sortedChars" :key="id">
+            <template x-for="(c, id) in limitedSortedChars" :key="id">
                 <div @click="loadCharacter(id)" class="glass p-3 rounded-xl border border-white/5 hover:border-[var(--neon-core)] transition-all cursor-pointer group text-center hover:bg-white/[0.02] relative">
                     <div class="w-12 h-12 rounded-full mx-auto mb-2 overflow-hidden border border-white/10 group-hover:border-[var(--neon-core)] transition-colors">
                         <img :src="c.photo || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'" class="w-full h-full object-cover">
@@ -831,8 +914,8 @@
             <div class="glass rounded-2xl p-4 mb-6 border border-purple-500/20">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div class="flex items-center gap-4">
-                        <button @click="leaveCampaign(); currentView = 'dashboard'" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors">
-                            <i class="fa-solid fa-chevron-left"></i> SAIR
+                        <button @click="activeCampaign = null; window.zeniteRouter.navigate('dashboard')" class="text-gray-400 hover:text-white text-xs font-bold uppercase flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-chevron-left"></i> VOLTAR
                         </button>
                         <div class="w-px h-8 bg-white/10"></div>
                         <div>
@@ -1302,7 +1385,7 @@
                         
                         <!-- Lista -->
                         <div class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
-                            <template x-for="(p, idx) in initiativeOrder" :key="p.id">
+                            <template x-for="(p, idx) in initiativeOrder" :key="p.id || idx">
                                 <div class="flex items-center justify-between bg-black/40 rounded px-2 py-1.5 text-xs"
                                      :class="{'ring-2 ring-orange-500 bg-orange-500/10': p.isActive, 'opacity-50': !p.isActive && initiativeOrder.some(x => x.isActive)}">
                                     <div class="flex items-center gap-2">
@@ -1357,7 +1440,7 @@
                         <!-- Chat habilitado - Área de mensagens (SCROLL) -->
                         <div x-show="campaignSettings.chatEnabled" id="chat-container" class="custom-scrollbar" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 1rem; padding-top: 0.5rem;">
                             <div class="space-y-2">
-                                <template x-for="msg in chatMessages" :key="msg.id">
+                                <template x-for="(msg, idx) in chatMessages" :key="msg.id || idx">
                                     <div class="text-xs" :class="msg.metadata?.isGM ? 'bg-yellow-500/10 rounded p-2' : ''">
                                         <!-- Mensagem de texto normal -->
                                         <div x-show="msg.type !== 'image' && msg.type !== 'gif'">
@@ -1403,7 +1486,7 @@
                                 <button @click="if(imageUrl.trim()) { shareImageInChat(imageUrl, '', imageUrl.toLowerCase().includes('.gif') ? 'gif' : 'image'); imageUrl=''; showImageInput=false; }" class="px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors">
                                     <i class="fa-solid fa-check"></i>
                                 </button>
-                                <button @click="showImageInput = false; imageUrl = ''" class="px-2 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors">
+                                <button @click="showImageInput = false; imageUrl = ''" class="px-2 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors" aria-label="Cancelar imagem">
                                     <i class="fa-solid fa-xmark"></i>
                                 </button>
                             </div>
@@ -1454,7 +1537,7 @@
                         
                         <!-- Log de rolagens locais -->
                         <div class="max-h-32 overflow-y-auto space-y-1 custom-scrollbar">
-                            <template x-for="roll in gmLocalDiceLog" :key="roll.id">
+                            <template x-for="(roll, idx) in gmLocalDiceLog" :key="roll.id || idx">
                                 <div class="flex justify-between items-center text-[10px] px-2 py-1 rounded"
                                      :class="roll.isCrit ? 'bg-green-500/20 text-green-400' : roll.isFumble ? 'bg-red-500/20 text-red-400' : 'bg-black/20 text-gray-400'">
                                     <span class="font-code" x-text="roll.formula"></span>
@@ -1894,7 +1977,7 @@
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-purple-400 font-bold text-xs uppercase tracking-widest"><span>Pessoas</span><button @click="addItem('social_people')" class="hover:text-white">ADD</button></div>
                         <div class="space-y-2">
-                            <template x-for="(p, i) in char.inventory.social.people" :key="i">
+                            <template x-for="(p, i) in (char?.inventory?.social?.people || [])" :key="i">
                                 <div class="bg-black/40 p-2 rounded flex justify-between text-xs">
                                     <input :name="'social_p_name_' + i" x-model="p.name" aria-label="Nome NPC" class="bg-transparent font-bold text-white w-1/2" placeholder="Nome">
                                     <input :name="'social_p_role_' + i" x-model="p.role" aria-label="Relação" class="bg-transparent text-gray-500 w-1/2" placeholder="Relação">
@@ -1906,7 +1989,7 @@
                     <div class="glass p-4 rounded-lg">
                         <div class="flex justify-between mb-4 text-yellow-400 font-bold text-xs uppercase tracking-widest"><span>Objetos</span><button @click="addItem('social_objects')" class="hover:text-white">ADD</button></div>
                         <div class="space-y-2">
-                            <template x-for="(o, i) in char.inventory.social.objects" :key="i">
+                            <template x-for="(o, i) in (char?.inventory?.social?.objects || [])" :key="i">
                                 <div class="bg-black/40 p-2 rounded flex justify-between text-xs">
                                     <input :name="'social_o_name_' + i" x-model="o.name" aria-label="Nome Objeto" class="bg-transparent font-bold text-white w-1/2" placeholder="Objeto">
                                     <input :name="'social_o_desc_' + i" x-model="o.desc" aria-label="Detalhes" class="bg-transparent text-gray-500 w-1/2" placeholder="Detalhe">
@@ -1938,7 +2021,7 @@
                             <button @click="addTechnique()" class="text-xs bg-white/5 hover:bg-white/10 px-2 py-1 rounded">ADD</button>
                         </div>
                         <div class="space-y-3">
-                            <template x-for="(t, idx) in char.powers.techniques" :key="idx">
+                            <template x-for="(t, idx) in (char?.powers?.techniques || [])" :key="idx">
                                 <div class="bg-black/40 p-3 rounded-lg">
                                     <div class="flex justify-between mb-2">
                                         <input :name="'tech_name_' + idx" x-model="t.name" aria-label="Nome Técnica" class="bg-transparent font-bold text-sm text-white w-full outline-none" placeholder="Nome">
@@ -2037,7 +2120,7 @@
                         <button @click="diceLog=[]" class="text-[10px] text-gray-600 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-500/10">LIMPAR</button>
                     </div>
                     <div class="overflow-y-auto custom-scrollbar flex-grow space-y-2 min-h-0 pr-1">
-                        <template x-for="log in diceLog" :key="log.id">
+                        <template x-for="(log, idx) in diceLog" :key="log.id || idx">
                             <div class="bg-black/20 rounded-lg p-2 border border-white/5 hover:border-white/10 transition-colors" :class="{'border-yellow-500/30 bg-yellow-500/5': log.crit, 'border-red-500/30 bg-red-500/5': log.fumble}">
                                 <div class="flex justify-between items-center gap-2">
                                     <span class="text-[9px] text-gray-600 font-code" x-text="log.time"></span>
@@ -2153,7 +2236,7 @@
         
         <div class="glass rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh] overflow-hidden">
             
-            <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white z-20 bg-black/60 backdrop-blur-sm rounded-full p-2 w-9 h-9 flex items-center justify-center border border-white/10 hover:border-white/30 transition-all">
+            <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white z-20 bg-black/60 backdrop-blur-sm rounded-full p-2 w-9 h-9 flex items-center justify-center border border-white/10 hover:border-white/30 transition-all" aria-label="Fechar boas-vindas">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </button>
             
@@ -2317,7 +2400,7 @@
             <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl modal-enter">
                 <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
                     <div>
-                        <h2 class="text-2xl font-brand text-white">NOVO AGENTE</h2>
+                        <h2 class="text-2xl font-brand text-white">NOVO ALUNO</h2>
                         <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
                     </div>
                     <button @click="wizardOpen=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors" aria-label="Fechar wizard"><i class="fa-solid fa-xmark fa-lg" aria-hidden="true"></i></button>
@@ -2374,7 +2457,7 @@
                     </div>
                     <div x-show="wizardStep === 3" class="animate-fade-in max-w-2xl mx-auto space-y-6">
                         <div class="text-center mb-8">
-                            <h3 class="text-white font-bold uppercase tracking-widest text-lg">Identidade do Agente</h3>
+                            <h3 class="text-white font-bold uppercase tracking-widest text-lg">Identidade do Aluno</h3>
                             <p class="text-xs text-gray-500">Finalize o registro no banco de dados.</p>
                         </div>
                         <div class="flex justify-center mb-6">
@@ -3096,7 +3179,7 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-[9px] font-code text-purple-400 bg-purple-500/10 px-2 py-1 rounded" x-text="campaign.invite_code"></span>
-                                            <button @click.stop="navigator.clipboard.writeText(campaign.invite_code); notify('Código copiado!', 'success')" class="text-gray-500 hover:text-white p-1" title="Copiar código">
+                                            <button @click.stop="copyToClipboard(campaign.invite_code).then(ok => ok && notify('Código copiado!', 'success'))" class="text-gray-500 hover:text-white p-1" title="Copiar código">
                                                 <i class="fa-solid fa-copy text-xs"></i>
                                             </button>
                                         </div>
@@ -3112,7 +3195,7 @@
                             <i class="fa-solid fa-users"></i> Participando
                         </h3>
                         <div class="space-y-2">
-                            <template x-for="campaign in joinedCampaigns" :key="campaign.id">
+                            <template x-for="(campaign, index) in joinedCampaigns" :key="campaign.id || `joined-${index}`">
                                 <div class="bg-black/40 rounded-lg p-3 border border-white/5 hover:border-cyan-500/30 transition-colors cursor-pointer group"
                                      @click="enterCampaign(campaign); netlinkModal = false">
                                     <h4 class="font-bold text-white group-hover:text-cyan-400 transition-colors" x-text="campaign.name"></h4>
@@ -3397,8 +3480,22 @@
         <i class="fa-solid fa-chevron-up text-[10px] text-gray-500 transition-transform" :class="expanded && 'rotate-180'"></i>
     </div>
     <div x-show="expanded" x-transition class="border-t border-white/10">
+        <!-- Aviso de AdBlock -->
+        <div x-show="ambientMusic.blocked" class="p-4 bg-yellow-500/10 border-t border-yellow-500/30">
+            <div class="flex items-start gap-3">
+                <i class="fa-solid fa-shield-halved text-yellow-500 text-lg mt-0.5"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-yellow-400 mb-1">ADBLOCKER DETECTADO</p>
+                    <p class="text-[10px] text-gray-400 leading-relaxed">
+                        Seu bloqueador de anúncios está impedindo a música de tocar. 
+                        <span class="text-white font-bold">Desative-o para youtube.com</span> ou adicione este site à lista de exceções.
+                    </p>
+                </div>
+            </div>
+        </div>
         <iframe id="ambient-music-player" 
                 class="w-72 aspect-video"
+                :class="ambientMusic.blocked && 'opacity-30'"
                 allow="autoplay; encrypted-media" 
                 frameborder="0">
         </iframe>
@@ -3666,7 +3763,7 @@
                         <p class="text-[9px] text-gray-500 uppercase font-bold">Seu @username</p>
                         <p class="text-sm text-pink-400 font-bold font-code" x-text="'@' + (settings.username || 'sem_nome')"></p>
                     </div>
-                    <button @click="navigator.clipboard.writeText(settings.username || ''); notify('Username copiado!', 'success')" 
+                    <button @click="copyToClipboard(settings.username || '').then(ok => ok && notify('Username copiado!', 'success'))" 
                             class="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 hover:bg-pink-500/30 flex items-center justify-center">
                         <i class="fa-solid fa-copy text-xs"></i>
                     </button>
@@ -3844,7 +3941,7 @@
                 <i class="fa-solid fa-spinner fa-spin text-pink-400 text-2xl"></i>
             </div>
             
-            <template x-for="msg in chatMessages" :key="msg.id">
+            <template x-for="(msg, idx) in chatMessages" :key="msg.id || idx">
                 <div class="flex" :class="msg.isMine ? 'justify-end' : 'justify-start'">
                     <div class="max-w-[80%] rounded-2xl px-4 py-2"
                          :class="msg.isMine ? 'bg-pink-500 text-white rounded-br-none' : 'bg-white/10 text-white rounded-bl-none'">
@@ -3953,7 +4050,7 @@
                 </h2>
                 <p class="text-xs text-gray-400 mt-1">Histórico de atualizações do sistema</p>
             </div>
-            <button @click="changelogModalOpen = false" class="text-gray-500 hover:text-white w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors">
+            <button @click="closeChangelogModal()" class="text-gray-500 hover:text-white w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
         </div>
@@ -4080,7 +4177,7 @@
             <p class="text-[10px] text-gray-600">
                 <i class="fa-solid fa-info-circle mr-1"></i> Faça login novamente para aplicar atualizações
             </p>
-            <button @click="changelogModalOpen = false" class="px-6 py-2 bg-white/10 text-white rounded-lg font-bold text-xs hover:bg-white/20 transition-colors">
+            <button @click="closeChangelogModal()" class="px-6 py-2 bg-white/10 text-white rounded-lg font-bold text-xs hover:bg-white/20 transition-colors">
                 FECHAR
             </button>
         </div>
@@ -4152,15 +4249,15 @@
                         
                         <!-- Identity Info -->
                         <div class="flex-1">
-                            <p class="text-[9px] text-[var(--neon-core)] font-code mb-1">CODENAME</p>
+                            <p class="text-[9px] text-[var(--neon-core)] font-code mb-1">DISPLAY NAME</p>
                             <h3 class="text-xl font-bold text-white font-brand tracking-wide" 
-                                x-text="viewingProfile?.username || publicProfile?.username || settings?.username || user?.email?.split('@')[0] || 'AGENT_NULL'"></h3>
-                            <p class="text-[10px] text-gray-500 font-code mt-1" x-text="viewingProfile ? '@' + viewingProfile.username : user?.email"></p>
+                                x-text="viewingProfile?.display_name || viewingProfile?.username || publicProfile?.display_name || publicProfile?.username || settings?.displayName || settings?.username || user?.email?.split('@')[0] || 'AGENT_NULL'"></h3>
+                            <p class="text-[10px] text-gray-500 font-code mt-1" x-text="viewingProfile ? '@' + viewingProfile.username : (publicProfile?.username ? '@' + publicProfile.username : user?.email)"></p>
                             
                             <!-- Copy Username (meu perfil) -->
                             <div x-show="!viewingProfile && settings?.username" class="mt-2 flex items-center gap-2">
                                 <code class="text-xs text-[var(--neon-core)] bg-black/40 px-2 py-0.5 rounded border border-[var(--neon-core)]/20">@<span x-text="settings?.username"></span></code>
-                                <button @click="navigator.clipboard.writeText(settings?.username); notify('Username copiado!', 'success')" 
+                                <button @click="copyToClipboard(settings?.username).then(ok => ok && notify('Username copiado!', 'success'))" 
                                         class="text-gray-500 hover:text-[var(--neon-core)] transition-colors">
                                     <i class="fa-solid fa-copy text-xs"></i>
                                 </button>
@@ -4168,7 +4265,7 @@
                             <!-- Username do perfil visualizado -->
                             <div x-show="viewingProfile?.username" class="mt-2 flex items-center gap-2">
                                 <code class="text-xs text-[var(--neon-core)] bg-black/40 px-2 py-0.5 rounded border border-[var(--neon-core)]/20">@<span x-text="viewingProfile?.username"></span></code>
-                                <button @click="navigator.clipboard.writeText(viewingProfile?.username); notify('Username copiado!', 'success')" 
+                                <button @click="copyToClipboard(viewingProfile?.username).then(ok => ok && notify('Username copiado!', 'success'))" 
                                         class="text-gray-500 hover:text-[var(--neon-core)] transition-colors">
                                     <i class="fa-solid fa-copy text-xs"></i>
                                 </button>
@@ -4216,11 +4313,11 @@
                 <!-- Info do perfil visualizado -->
                 <div x-show="viewingProfile" class="bg-black/40 rounded-xl p-4 border border-[var(--neon-core)]/20">
                     <p class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-id-card"></i> INFORMAÇÕES DO AGENTE
+                        <i class="fa-solid fa-id-card"></i> INFORMAÇÕES DO ALUNO
                     </p>
                     <div class="space-y-2">
                         <div x-show="viewingProfile?.bio" class="text-sm text-gray-300" x-text="viewingProfile?.bio"></div>
-                        <div x-show="!viewingProfile?.bio" class="text-sm text-gray-500 italic">Este agente não possui biografia.</div>
+                        <div x-show="!viewingProfile?.bio" class="text-sm text-gray-500 italic">Este aluno não possui biografia.</div>
                         <div class="text-[9px] text-gray-600 mt-2">
                             Membro desde <span x-text="viewingProfile?.created_at ? new Date(viewingProfile.created_at).toLocaleDateString('pt-BR') : 'N/A'"></span>
                         </div>

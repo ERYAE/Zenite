@@ -1,4 +1,9 @@
-import { CONSTANTS, ARCHETYPES, FEATURES } from './modules/config.js';
+/**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
+import { CONSTANTS, ARCHETYPES } from './modules/config.js';
 import { playSFX, setSfxEnabled, initAudio } from './modules/audio.js';
 import { debounce, sanitizeChar, calculateBaseStats } from './modules/utils.js';
 import { rpgLogic } from './modules/rpg.js';
@@ -7,6 +12,8 @@ import { uiLogic } from './modules/ui.js';
 import { netlinkLogic } from './modules/netlink.js';
 import { socialLogic, ACHIEVEMENTS } from './modules/social.js';
 import { router } from './modules/router.js';
+import { logger } from './modules/logger.js';
+import { hasNewUpdate, markUpdateSeen } from './modules/changelog.js';
 
 function zeniteSystem() {
     return {
@@ -22,8 +29,11 @@ function zeniteSystem() {
         rebooting: false,
         isOffline: false, // Modo offline (sem conexão)
         
-        // Feature Flags
-        netlinkEnabled: FEATURES.NETLINK_ENABLED,
+        // NetLink sempre habilitado
+        netlinkEnabled: true,
+        
+        // Timer para sync de vitais
+        _vitalStatsTimer: null,
         
         // Auth
         user: null, isGuest: false, userMenuOpen: false, 
@@ -41,6 +51,8 @@ function zeniteSystem() {
         // Navegação
         currentView: 'dashboard', activeTab: 'profile', logisticsTab: 'inventory',
         searchQuery: '', viewMode: 'grid',
+        dashboardPageSize: 50,
+        dashboardVisibleCount: 50,
         
         // Dados
         chars: {}, activeCharId: null, char: null, agentCount: 0,
@@ -215,11 +227,18 @@ function zeniteSystem() {
         modalClickStartedOutside: false, // Para controle de fechamento de modais
         supabase: null, debouncedSaveFunc: null,
         archetypes: ARCHETYPES,
+        _listeners: [],
         
         // ═══════════════════════════════════════════════════════════════════════
         // ÚLTIMA ROLAGEM DO JOGADOR (para exibir na tela)
         // ═══════════════════════════════════════════════════════════════════════
         playerLastRoll: null, // {formula, natural, modifier, total, isCrit, isFumble, reason, timestamp}
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // CHANGELOG MODAL
+        // ═══════════════════════════════════════════════════════════════════════
+        changelogModalOpen: false,
+        hasUnseenChangelog: false, // Badge "NEW" no menu
 
         // Módulos
         ...rpgLogic,
@@ -269,6 +288,15 @@ function zeniteSystem() {
             return Object.fromEntries(entries);
         },
         
+        get limitedSortedChars() {
+            const entries = Object.entries(this.sortedChars);
+            if (!this.dashboardVisibleCount || this.dashboardVisibleCount >= entries.length) {
+                return Object.fromEntries(entries);
+            }
+            const limited = entries.slice(0, this.dashboardVisibleCount);
+            return Object.fromEntries(limited);
+        },
+        
         // NOTA: canChangeUsername e usernameCooldownDays são propriedades 
         // definidas em social.js e carregadas via loadUsernameCooldown()
 
@@ -283,6 +311,14 @@ function zeniteSystem() {
 
             if (typeof window.supabase !== 'undefined') {
                 this.supabase = window.supabase.createClient(CONSTANTS.SUPABASE_URL, CONSTANTS.SUPABASE_KEY);
+            }
+
+            if ('serviceWorker' in navigator) {
+                try {
+                    navigator.serviceWorker.register('/sw.js');
+                } catch (err) {
+                    logger.warn('SW', 'Failed to register service worker:', err);
+                }
             }
 
             // CORREÇÃO: Auto-Save agora é MANUAL por padrão
@@ -335,25 +371,40 @@ function zeniteSystem() {
                             
                             // Etapa 4: LOAD (70-90%)
                             this.updateLoading(70, 'LOADING FRIENDS', 'load');
-                            this.setupFriendsRealtime();
+                            try {
+                                await this.setupFriendsRealtime();
+                            } catch (friendsErr) {
+                                logger.error('FRIENDS', 'Erro ao configurar realtime:', friendsErr);
+                            }
                             this.updateLoading(80, 'CHECKING DATA', 'load');
-                            this.autoCloudCheck();
+                            try {
+                                await this.autoCloudCheck();
+                            } catch (checkErr) {
+                                logger.error('CLOUD', 'Erro ao verificar dados:', checkErr);
+                            }
                             this.updateLoading(90, 'FINALIZING', 'load');
                         } else {
                             this.updateLoading(40, 'NOT AUTHENTICATED', 'auth');
                         }
                     } catch(e) {
-                        console.warn("[AUTH] Erro na inicialização:", e);
+                        logger.warn('AUTH', "Erro na inicialização:", e);
                         this.updateLoading(40, 'AUTH ERROR', 'auth');
                     }
                     
                     // Setup auth state listener
                     if (this.supabase) {
+                        // Track last event to avoid duplicate logs
+                        let lastAuthEvent = null;
+                        
                         this.supabase.auth.onAuthStateChange(async (event, session) => {
-                            console.log('[AUTH] Event:', event);
+                            // Só loga se o evento for diferente do anterior (evita spam de SIGNED_IN)
+                            if (event !== lastAuthEvent) {
+                                logger.info('AUTH', 'Event:', event);
+                                lastAuthEvent = event;
+                            }
                             
                             if (event === 'PASSWORD_RECOVERY') {
-                                console.log('[AUTH] Password recovery mode detected');
+                                logger.info('AUTH', 'Password recovery mode detected');
                                 this.recoverMode = true;
                                 if (session) {
                                     this.user = session.user;
@@ -363,15 +414,42 @@ function zeniteSystem() {
                                 // Reset loading state (importante para OAuth)
                                 this.authLoading = false;
                                 this.authMsg = '';
+                                this.recoverMode = false; // Garante que modal de login feche
                                 
                                 if (this.user?.id === session.user.id) return;
                                 this.user = session.user;
                                 this.isGuest = false;
                                 localStorage.removeItem('zenite_is_guest');
-                                await this.fetchCloud();
-                                this.checkOnboarding();
-                                this.setupFriendsRealtime();
-                                this.autoCloudCheck();
+                                
+                                // Navega para dashboard se ainda estiver no login
+                                if (!window.location.hash.includes('dashboard')) {
+                                    if (window.zeniteRouter) {
+                                        window.zeniteRouter.navigate('dashboard', null, true);
+                                    } else {
+                                        this.currentView = 'dashboard';
+                                        window.history.replaceState({ route: 'dashboard' }, '', '#/dashboard');
+                                    }
+                                }
+                                try {
+                                    await this.fetchCloud();
+                                } catch (fetchErr) {
+                                    logger.error('CLOUD', 'Erro ao buscar dados:', fetchErr);
+                                }
+                                try {
+                                    await this.checkOnboarding();
+                                } catch (onboardErr) {
+                                    logger.error('ONBOARD', 'Erro ao verificar onboarding:', onboardErr);
+                                }
+                                try {
+                                    await this.setupFriendsRealtime();
+                                } catch (friendsErr) {
+                                    logger.error('FRIENDS', 'Erro ao configurar realtime:', friendsErr);
+                                }
+                                try {
+                                    await this.autoCloudCheck();
+                                } catch (checkErr) {
+                                    logger.error('CLOUD', 'Erro ao verificar dados:', checkErr);
+                                }
                             } else if (event === 'SIGNED_OUT') {
                                 this.user = null;
                                 this.chars = {};
@@ -384,9 +462,17 @@ function zeniteSystem() {
                 }
             }
 
-            // Carrega histórico
-            this.loadHistory();     // Histórico de Fichas
-            this.loadDiceHistory(); // NOVO: Histórico de Dados (rpg.js)
+            // Carrega histórico com error handling
+            try {
+                this.loadHistory();     // Histórico de Fichas
+            } catch (histErr) {
+                logger.error('HISTORY', 'Erro ao carregar histórico:', histErr);
+            }
+            try {
+                this.loadDiceHistory(); // Histórico de Dados (rpg.js)
+            } catch (diceHistErr) {
+                logger.error('DICE', 'Erro ao carregar histórico de dados:', diceHistErr);
+            }
 
             // Aplica Configs
             if(this.settings) {
@@ -396,7 +482,7 @@ function zeniteSystem() {
                 if(this.settings.compactMode && this.isMobile) this.applyCompactMode();
             }
 
-            // ENHANCED: Watcher with autosave to localStorage + visual indicator
+            // ENHANCED: Watcher with autosave to localStorage + cloud sync
             this.$watch('char', (val) => {
                 if (!val || this.loadingChar || this.isReverting) return;
                 
@@ -405,21 +491,36 @@ function zeniteSystem() {
                     this.char.lastAccess = Date.now();
                 }
                 
+                // Atualiza o personagem no objeto chars
+                if (this.activeCharId && this.chars[this.activeCharId]) {
+                    this.chars[this.activeCharId] = JSON.parse(JSON.stringify(this.char));
+                }
+                
                 this.unsavedChanges = true;
                 this.saveStatus = 'pending';
                 
-                // Debounced autosave to localStorage (2s delay) - backup local
+                // Debounced autosave: localStorage (2s) + cloud (5s)
                 if (this._localSaveTimeout) clearTimeout(this._localSaveTimeout);
+                if (this._cloudSaveTimeout) clearTimeout(this._cloudSaveTimeout);
+                
+                // Salva localmente após 2s
                 this._localSaveTimeout = setTimeout(() => {
                     this.saveStatus = 'saving';
                     this.saveLocal();
-                    // Mark as locally saved but not synced to cloud
-                    setTimeout(() => {
-                        if (this.unsavedChanges) {
-                            this.saveStatus = 'local'; // Saved locally, pending cloud sync
-                        }
-                    }, 500);
+                    this.saveStatus = 'local';
                 }, 2000);
+                
+                // Sincroniza com nuvem após 5s (se logado)
+                this._cloudSaveTimeout = setTimeout(() => {
+                    if (this.user && !this.isGuest && this.unsavedChanges) {
+                        this.syncCloud(true).then(() => {
+                            this.unsavedChanges = false;
+                            this.saveStatus = 'synced';
+                        }).catch(() => {
+                            this.saveStatus = 'local';
+                        });
+                    }
+                }, 5000);
             });
             
             this.$watch('settings.sfxEnabled', (val) => setSfxEnabled(val));
@@ -428,10 +529,18 @@ function zeniteSystem() {
             this.updateAgentCount();
             
             // Inicializa sistema social (amigos, achievements, perfil)
-            this.initSocial();
+            try {
+                await this.initSocial();
+            } catch (socialErr) {
+                logger.error('SOCIAL', 'Erro ao inicializar sistema social:', socialErr);
+            }
             
             // Verifica se o usuário tem username definido
-            this.checkUsername();
+            try {
+                await this.checkUsername();
+            } catch (usernameErr) {
+                logger.error('USERNAME', 'Erro ao verificar username:', usernameErr);
+            }
             
             // Etapa 5: READY (90-100%)
             this.updateLoading(95, 'ALMOST READY', 'ready');
@@ -447,11 +556,16 @@ function zeniteSystem() {
             
             // CORREÇÃO: Backup automático a cada 5 minutos (não interfere no save manual)
             // Armazena referência para cleanup no logout
-            this._autoSaveInterval = setInterval(() => { 
-                if (this.user && this.unsavedChanges && this.autoSaveEnabled) {
-                    this.syncCloud(true); 
-                }
-            }, CONSTANTS.SAVE_INTERVAL);
+            // OTIMIZAÇÃO: Usa setTimeout recursivo para evitar acúmulo de tasks
+            const scheduleAutoSave = () => {
+                this._autoSaveTimeout = setTimeout(() => { 
+                    if (this.user && this.unsavedChanges && this.autoSaveEnabled) {
+                        this.syncCloud(true); 
+                    }
+                    scheduleAutoSave(); // Re-agenda
+                }, CONSTANTS.SAVE_INTERVAL);
+            };
+            scheduleAutoSave();
         },
 
         // ⚠️ v2.3.0 - Helper para atualizar loading com progresso real
@@ -459,12 +573,27 @@ function zeniteSystem() {
             this.loadingProgress = progress;
             this.loadingText = text;
             this.loadingStage = stage;
-            console.log(`[LOADING] ${progress}% - ${text} (${stage})`);
+            logger.info('LOADING', `${progress}% - ${text} (${stage})`);
         },
         
         // Helper para delay assíncrono
         delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        },
+        
+        maybeLoadMoreDashboardItems() {
+            if (this.currentView !== 'dashboard') return;
+            const total = Object.keys(this.filteredChars || this.chars || {}).length;
+            if (!total) return;
+            if (!this.dashboardPageSize) this.dashboardPageSize = 50;
+            if (!this.dashboardVisibleCount) this.dashboardVisibleCount = this.dashboardPageSize;
+            if (this.dashboardVisibleCount >= total) return;
+            const scrollPosition = window.innerHeight + window.scrollY;
+            const threshold = document.body.offsetHeight - 300;
+            if (scrollPosition >= threshold) {
+                const next = this.dashboardVisibleCount + this.dashboardPageSize;
+                this.dashboardVisibleCount = Math.min(next, total);
+            }
         },
         
         async checkOnboarding() {
@@ -493,20 +622,55 @@ function zeniteSystem() {
                         this.supabase.from('profiles')
                             .update({ has_seen_welcome: true })
                             .eq('id', this.user.id)
-                            .then(() => console.log('[SYSTEM] Welcome marked as seen'));
+                            .then(() => logger.info('SYSTEM', 'Welcome marked as seen'));
                     }, 1000);
                 }
             } catch (e) {
-                console.error('[SYSTEM] Erro ao verificar onboarding:', e);
+                logger.error('SYSTEM', 'Erro ao verificar onboarding:', e);
             }
+            
+            // Verifica se há changelog novo para mostrar
+            this.checkChangelog();
+        },
+        
+        checkChangelog() {
+            // Verifica se há update novo do changelog
+            const userId = this.user?.id || null;
+            this.hasUnseenChangelog = hasNewUpdate(userId);
+            
+            // Se tem update novo E usuário está logado, abre modal automaticamente UMA VEZ
+            if (this.hasUnseenChangelog && userId) {
+                setTimeout(() => {
+                    // Só abre se estiver no dashboard e não tiver outros modais abertos
+                    if (this.currentView === 'dashboard' && !this.welcomeModal && !this.migrationModalOpen) {
+                        this.changelogModalOpen = true;
+                        logger.info('CHANGELOG', 'Novo update detectado - abrindo modal automaticamente');
+                    }
+                }, 2000); // Delay para não competir com welcome/migration modals
+            }
+        },
+        
+        closeChangelogModal() {
+            this.changelogModalOpen = false;
+            // Marca como visto quando fechar
+            const userId = this.user?.id || null;
+            markUpdateSeen(userId);
+            this.hasUnseenChangelog = false;
+            logger.info('CHANGELOG', 'Changelog marcado como visto');
         },
 
         setupListeners() {
+            // Helper para registrar e limpar listeners
+            const addListener = (target, type, handler, options) => {
+                target.addEventListener(type, handler, options);
+                this._listeners.push(() => target.removeEventListener(type, handler, options));
+            };
+
             // Reconecta realtime quando página é restaurada do cache (bfcache)
             // Em vez de recarregar a página inteira, apenas reconecta os serviços
-            window.addEventListener('pageshow', (event) => { 
+            addListener(window, 'pageshow', (event) => { 
                 if (event.persisted) {
-                    console.log('[SYSTEM] Página restaurada do cache, reconectando serviços...');
+                    logger.info('SYSTEM', 'Página restaurada do cache, reconectando serviços...');
                     // Reconecta realtime se estava em campanha
                     if (this.activeCampaign && this.connectToRealtime) {
                         this.connectToRealtime(this.activeCampaign.id);
@@ -524,8 +688,8 @@ function zeniteSystem() {
             // ═══════════════════════════════════════════════════════════════════════
             this.isOffline = !navigator.onLine;
             
-            window.addEventListener('online', () => {
-                console.log('[NETWORK] Conexão restaurada');
+            addListener(window, 'online', () => {
+                logger.info('NETWORK', 'Conexão restaurada');
                 this.isOffline = false;
                 this.notify('Conexão restaurada! Sincronizando...', 'success');
                 
@@ -540,8 +704,8 @@ function zeniteSystem() {
                 }
             });
             
-            window.addEventListener('offline', () => {
-                console.warn('[NETWORK] Conexão perdida - entrando em modo offline');
+            addListener(window, 'offline', () => {
+                logger.warn('NETWORK', 'Conexão perdida - entrando em modo offline');
                 this.isOffline = true;
                 this.notify('Sem conexão. Modo offline ativado.', 'warn');
                 
@@ -552,7 +716,7 @@ function zeniteSystem() {
             });
             
             // CRITICAL: Warn user before leaving with unsaved changes
-            window.addEventListener('beforeunload', (e) => {
+            addListener(window, 'beforeunload', (e) => {
                 if (this.unsavedChanges && this.currentView === 'sheet') {
                     e.preventDefault();
                     e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
@@ -561,7 +725,7 @@ function zeniteSystem() {
             });
             // Debounce para evitar múltiplas chamadas durante resize
             let resizeTimeout;
-            window.addEventListener('resize', () => {
+            addListener(window, 'resize', () => {
                 clearTimeout(resizeTimeout);
                 resizeTimeout = setTimeout(() => {
                     const wasMobile = this.isMobile;
@@ -585,7 +749,12 @@ function zeniteSystem() {
                     }
                 }, 150); // Debounce de 150ms
             });
-            window.addEventListener('popstate', () => {
+            
+            const handleDashboardScroll = debounce(() => {
+                this.maybeLoadMoreDashboardItems();
+            }, 100);
+            addListener(window, 'scroll', handleDashboardScroll);
+            addListener(window, 'popstate', () => {
                 if (this.currentView === 'sheet' && this.unsavedChanges && !this.isGuest) { 
                     history.pushState(null, null, location.href); 
                     this.triggerShake(); 
@@ -600,7 +769,7 @@ function zeniteSystem() {
             });
             
             // Global Click Handler para SFX
-            document.addEventListener('click', (e) => { 
+            addListener(document, 'click', (e) => { 
                 if(e.target.closest('button, a, input, select, .cursor-pointer, .dice-tray-opt')) {
                     playSFX('click'); 
                 }
@@ -625,18 +794,32 @@ function zeniteSystem() {
                 }
             });
             
-            // Atualiza progresso da música ambiente a cada segundo
+            // Atualiza progresso da música ambiente a cada 2 segundos (reduz carga)
             // Armazena referência para cleanup no logout
-            this._musicProgressInterval = setInterval(() => {
-                if (this.ambientMusic.playing) {
-                    this.updateMusicProgress();
-                }
-            }, 1000);
+            // OTIMIZAÇÃO: Usa setTimeout recursivo e aumenta intervalo
+            const scheduleMusicUpdate = () => {
+                this._musicProgressTimeout = setTimeout(() => {
+                    if (this.ambientMusic.playing) {
+                        this.updateMusicProgress();
+                    }
+                    scheduleMusicUpdate(); // Re-agenda
+                }, 2000); // 2s ao invés de 1s
+            };
+            scheduleMusicUpdate();
             
             // ESC key handler
-            document.addEventListener('keydown', (e) => {
+            addListener(document, 'keydown', (e) => {
                 if (e.key === 'Escape') this.handleEscKey();
             });
+        },
+
+        _cleanupListeners() {
+            if (Array.isArray(this._listeners) && this._listeners.length) {
+                this._listeners.forEach(off => {
+                    try { off(); } catch (_) {}
+                });
+            }
+            this._listeners = [];
         },
 
         // --- SALVAR MANUAL ---
@@ -767,17 +950,49 @@ function zeniteSystem() {
         },
 
         // --- NOTIFICAÇÕES ---
-        notify(msg, type='info') {
+        // Suporta notificações simples e com ações (convites, etc)
+        notify(msg, type='info', options = {}) {
             const id = Date.now();
             let icon = 'fa-circle-info';
             if(type === 'success') icon = 'fa-circle-check';
             if(type === 'error') icon = 'fa-triangle-exclamation';
             if(type === 'warn') icon = 'fa-bell';
+            if(type === 'invite') icon = 'fa-envelope';
+            if(type === 'campaign') icon = 'fa-users';
             
-            this.notifications.push({ id, message: msg, type, icon });
-            setTimeout(() => {
-                this.notifications = this.notifications.filter(n => n.id !== id);
-            }, 3000);
+            const notification = { 
+                id, 
+                message: msg, 
+                type, 
+                icon,
+                action: options.action || null, // Função a executar ao clicar
+                actionLabel: options.actionLabel || null, // Texto do botão
+                persistent: options.persistent || false, // Não desaparece automaticamente
+                dismissable: options.dismissable !== false // Pode fechar manualmente
+            };
+            
+            this.notifications.push(notification);
+            
+            // Notificações persistentes não desaparecem automaticamente
+            if (!options.persistent) {
+                const duration = options.duration || (type === 'error' ? 5000 : 3000);
+                setTimeout(() => {
+                    this.notifications = this.notifications.filter(n => n.id !== id);
+                }, duration);
+            }
+        },
+        
+        // Remove notificação específica
+        dismissNotification(id) {
+            this.notifications = this.notifications.filter(n => n.id !== id);
+        },
+        
+        // Executa ação da notificação e fecha
+        executeNotificationAction(notification) {
+            if (notification.action && typeof notification.action === 'function') {
+                notification.action();
+            }
+            this.dismissNotification(notification.id);
         },
 
         // --- KONAMI CODE ---
@@ -873,7 +1088,7 @@ window.zeniteSystem = zeniteSystem;
 
 // --- INICIALIZAÇÃO CRÍTICA DO ALPINE ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('[BOOT] Initializing...');
+    logger.info('BOOT', 'Initializing...');
     
     try {
         // Carregar Alpine e plugins dinamicamente
@@ -922,9 +1137,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Iniciar Alpine explicitamente
         Alpine.start();
-        console.log('[BOOT] Alpine started');
+        logger.info('BOOT', 'Alpine started');
         
     } catch (e) {
-        console.error('[BOOT] Critical Error:', e);
+        logger.error('BOOT', 'Critical Error:', e);
     }
 });

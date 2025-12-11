@@ -1,4 +1,9 @@
 /**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
+/**
  * ZENITE OS - Social Module
  * Sistema de Amigos, Chat, Achievements e Perfil Público
  * 
@@ -12,6 +17,7 @@
  */
 
 import { playSFX } from './audio.js';
+import { socialLogger } from './logger.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFINIÇÃO DE ACHIEVEMENTS (local, sem banco)
@@ -277,6 +283,8 @@ export const socialLogic = {
     friends: [],
     friendRequests: [],
     friendsLoaded: false,
+    friendsCacheTimestamp: null,
+    friendsCacheTTL: 60000,
     
     // Realtime (lazy loading - conecta apenas quando necessário)
     friendsRealtimeChannel: null,
@@ -368,7 +376,7 @@ export const socialLogic = {
             try {
                 this.unlockedAchievements = JSON.parse(savedAchievements);
             } catch (e) {
-                console.warn('[SOCIAL] Erro ao carregar achievements:', e);
+                socialLogger.warn('Erro ao carregar achievements:', e);
                 this.unlockedAchievements = [];
             }
         }
@@ -454,19 +462,14 @@ export const socialLogic = {
         
         this._statsSyncTimer = setTimeout(async () => {
             try {
+                // Função SQL aceita stats_data como JSONB
                 await this.supabase.rpc('sync_user_stats', {
-                    p_total_rolls: this.localStats.totalRolls || 0,
-                    p_critical_rolls: this.localStats.criticalRolls || 0,
-                    p_fumble_rolls: this.localStats.fumbleRolls || 0,
-                    p_characters_created: this.localStats.charsCreated || 0,
-                    p_messages_sent: this.localStats.messagesSent || 0,
-                    p_friends_count: this.localStats.friendsCount || 0,
-                    p_max_level: this.localStats.maxLevel || 1,
-                    p_night_owl: this.localStats.nightOwl || false,
-                    p_early_bird: this.localStats.earlyBird || false,
-                    p_hacker_mode: this.localStats.hackerMode || false,
-                    p_konami_activated: this.localStats.konamiActivated || false,
-                    p_system_failure: this.localStats.systemFailure || false
+                    stats_data: {
+                        total_rolls: this.localStats.totalRolls || 0,
+                        critical_rolls: this.localStats.criticalRolls || 0,
+                        fumble_rolls: this.localStats.fumbleRolls || 0,
+                        characters_created: this.localStats.charsCreated || 0
+                    }
                 });
                 console.log('[STATS] Sincronizado com banco');
             } catch (e) {
@@ -527,6 +530,11 @@ export const socialLogic = {
      * @param {boolean} immediate - Se true, executa imediatamente sem debounce
      */
     checkAchievements(immediate = false) {
+        // Guard: não verifica se não está logado (evita popups antes do login)
+        if (!this.user && !this.isGuest) {
+            return [];
+        }
+        
         // Guard: não verifica antes de carregar do localStorage
         if (!this.achievementsLoaded) {
             console.log('[ACHIEVEMENTS] Aguardando carregamento...');
@@ -556,6 +564,7 @@ export const socialLogic = {
     
     /**
      * Execução real da verificação de achievements
+     * REGRA: Achievement desbloqueado NUNCA mais aparece (como num jogo)
      * @private
      */
     _executeAchievementCheck() {
@@ -564,36 +573,12 @@ export const socialLogic = {
         const totalCount = achievements.filter(a => !a.isPlatinum).length;
         const currentUnlocked = this.unlockedAchievements.filter(id => id !== 'platinum').length;
         
-        // Inicializa Set de achievements já mostrados (persiste na sessão)
-        if (!window._achievementsShownThisSession) {
-            window._achievementsShownThisSession = new Set();
-        }
-        
-        // Carrega achievements já mostrados do localStorage para persistir entre refreshes
         const prefix = this._userPrefix || 'zenite_guest_';
-        const shownKey = `${prefix}achievements_shown`;
-        const lastShownData = localStorage.getItem(shownKey);
-        let shownWithTimestamp = {};
-        
-        if (lastShownData) {
-            try {
-                shownWithTimestamp = JSON.parse(lastShownData);
-            } catch (e) {
-                shownWithTimestamp = {};
-            }
-        }
-        
-        // Limpa achievements mostrados há mais de 24h
-        const now = Date.now();
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        Object.keys(shownWithTimestamp).forEach(id => {
-            if (now - shownWithTimestamp[id] > ONE_DAY) {
-                delete shownWithTimestamp[id];
-            }
-        });
         
         achievements.forEach(achievement => {
+            // Se já está desbloqueado, NUNCA mostra novamente
             const isUnlocked = this.unlockedAchievements.includes(achievement.id);
+            if (isUnlocked) return;
             
             // Platina usa lógica especial
             let shouldUnlock;
@@ -603,33 +588,18 @@ export const socialLogic = {
                 shouldUnlock = achievement.check(this.localStats);
             }
             
-            if (!isUnlocked && shouldUnlock) {
+            if (shouldUnlock) {
+                // Adiciona à lista de desbloqueados
                 this.unlockedAchievements.push(achievement.id);
+                newUnlocks.push(achievement);
                 
-                // Só mostra se:
-                // 1. Não foi mostrado nesta sessão E
-                // 2. Não foi mostrado nas últimas 24h
-                const wasShownThisSession = window._achievementsShownThisSession.has(achievement.id);
-                const wasShownRecently = shownWithTimestamp[achievement.id] !== undefined;
-                
-                if (!wasShownThisSession && !wasShownRecently) {
-                    newUnlocks.push(achievement);
-                    window._achievementsShownThisSession.add(achievement.id);
-                    shownWithTimestamp[achievement.id] = now;
-                }
+                // Salva no banco imediatamente
+                this._saveAchievementToCloud(achievement.id);
             }
         });
         
-        // Salva achievements desbloqueados
+        // Salva achievements desbloqueados no localStorage
         localStorage.setItem(`${prefix}achievements`, JSON.stringify(this.unlockedAchievements));
-        
-        // Salva timestamps de achievements mostrados
-        localStorage.setItem(shownKey, JSON.stringify(shownWithTimestamp));
-        
-        // Sincroniza novos achievements com o banco
-        newUnlocks.forEach(achievement => {
-            this._saveAchievementToCloud(achievement.id);
-        });
         
         // Notifica apenas achievements realmente novos (com delay entre cada)
         newUnlocks.forEach((achievement, index) => {
@@ -650,8 +620,8 @@ export const socialLogic = {
         
         try {
             await this.supabase.rpc('save_achievement', {
-                p_achievement_id: achievementId,
-                p_metadata: {}
+                achievement_id_param: achievementId,
+                metadata_param: {}
             });
             console.log('[ACHIEVEMENTS] Salvo no banco:', achievementId);
         } catch (e) {
@@ -814,10 +784,12 @@ export const socialLogic = {
             return;
         }
         
-        // Evita recarregar se já carregou (exceto forceRefresh)
+        const now = Date.now();
         if (this.friendsLoaded && !forceRefresh) {
-            console.log('[FRIENDS] Já carregado, pulando...');
-            return;
+            const ttl = this.friendsCacheTTL || 0;
+            if (this.friendsCacheTimestamp && ttl > 0 && (now - this.friendsCacheTimestamp) < ttl) {
+                return;
+            }
         }
         
         // Evita chamadas simultâneas
@@ -890,6 +862,7 @@ export const socialLogic = {
             await this._loadPendingRequests();
             
             this.friendsLoaded = true;
+            this.friendsCacheTimestamp = Date.now();
             this.localStats.friendsCount = this.friends.length;
             this.saveLocalStats();
             this.checkAchievements();
@@ -974,19 +947,28 @@ export const socialLogic = {
                 .rpc('get_pending_requests');
             
             if (!requestsError && requests) {
-                this.friendRequests = requests.map(r => ({
-                    id: r.request_id || r.id,
-                    senderId: r.sender_id,
-                    username: r.username || 'desconhecido',
-                    displayName: r.display_name || r.username || 'Usuário',
-                    avatar: r.avatar_url,
-                    bio: r.bio,
-                    sentAt: r.sent_at
-                }));
+                socialLogger.info('Pedidos pendentes (RPC):', requests);
+                this.friendRequests = requests.map(r => {
+                    // DEBUG: Log da estrutura completa
+                    if (!r.friendship_id) {
+                        console.warn('[FRIENDS] Pedido sem friendship_id:', r);
+                    }
+                    return {
+                        id: r.friendship_id || r.id,
+                        senderId: r.sender_id,
+                        username: r.username || 'desconhecido',
+                        displayName: r.display_name || r.username || 'Usuário',
+                        avatar: r.avatar_url,
+                        bio: r.bio,
+                        sentAt: r.created_at || r.sent_at
+                    };
+                });
+                socialLogger.success(`${this.friendRequests.length} pedidos mapeados`);
                 return;
             }
         } catch (e) {
-            console.warn('[FRIENDS] RPC get_pending_requests falhou, usando fallback...');
+            console.error('[FRIENDS] RPC get_pending_requests falhou:', e);
+            console.warn('[FRIENDS] Usando fallback...');
         }
         
         // Fallback: query direta
@@ -1100,7 +1082,7 @@ export const socialLogic = {
             this.friendsRealtimeChannel = null;
         }
         
-        console.log('[SOCIAL] Configurando realtime de amizades para:', this.user.id);
+        socialLogger.info('Configurando realtime de amizades para:', this.user.id);
         
         // Ouve TODAS as mudanças na tabela friendships e filtra no cliente
         // Isso é mais confiável que filtros server-side em algumas versões do Supabase
@@ -1113,7 +1095,7 @@ export const socialLogic = {
                     table: 'friendships'
                 },
                 (payload) => {
-                    console.log('[SOCIAL] Mudança em friendships:', payload);
+                    socialLogger.info('Mudança em friendships:', payload);
                     
                     const { eventType, new: newRecord, old: oldRecord } = payload;
                     const record = newRecord || oldRecord;
@@ -1129,7 +1111,7 @@ export const socialLogic = {
                         return;
                     }
                     
-                    console.log('[SOCIAL] Mudança relevante detectada:', eventType);
+                    socialLogger.info('Mudança relevante detectada:', eventType);
                     
                     // INSERT = novo pedido de amizade
                     if (eventType === 'INSERT' && record.friend_id === this.user.id && record.status === 'pending') {
@@ -1150,9 +1132,9 @@ export const socialLogic = {
                 }
             )
             .subscribe((status, err) => {
-                console.log('[SOCIAL] Status do canal de amizades:', status);
+                socialLogger.info('Status do canal de amizades:', status);
                 if (err) {
-                    console.error('[SOCIAL] Erro no canal:', err);
+                    socialLogger.error('Erro no canal:', err);
                 }
                 if (status === 'SUBSCRIBED') {
                     console.log('[SOCIAL] ✓ Canal de amizades conectado!');
@@ -1185,8 +1167,7 @@ export const socialLogic = {
             // USA FUNÇÃO SQL OTIMIZADA com todas as validações
             const { data: result, error } = await this.supabase
                 .rpc('send_friend_request', {
-                    sender_id: this.user.id,
-                    target_username: searchTerm
+                    friend_username: searchTerm
                 });
             
             if (error) throw error;
@@ -1209,7 +1190,7 @@ export const socialLogic = {
             }
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao enviar pedido:', e);
+            socialLogger.error('Erro ao enviar pedido:', e);
             this.notify('Erro ao enviar pedido. Tente novamente.', 'error');
         }
     },
@@ -1217,37 +1198,73 @@ export const socialLogic = {
     async acceptFriendRequest(requestId) {
         if (!this.supabase) return;
         
+        // VALIDAÇÃO CRÍTICA: Verifica se requestId existe
+        if (!requestId) {
+            console.error('[FRIENDS] acceptFriendRequest chamado com requestId undefined!');
+            console.error('[FRIENDS] friendRequests atual:', this.friendRequests);
+            this.notify('Erro: ID do pedido inválido.', 'error');
+            return;
+        }
+        
         try {
-            await this.supabase
-                .from('friendships')
-                .update({ status: 'accepted' })
-                .eq('id', requestId);
+            socialLogger.info('Aceitando pedido:', requestId);
             
-            this.notify('Amizade aceita!', 'success');
-            playSFX('success');
+            const { data, error } = await this.supabase
+                .rpc('accept_friend_request', { friendship_id: requestId });
             
-            // Recarrega lista
-            await this.loadFriends(true);
+            if (error) {
+                console.error('[FRIENDS] Erro na RPC accept_friend_request:', error);
+                throw error;
+            }
+            
+            if (data?.success) {
+                this.notify('Amizade aceita!', 'success');
+                playSFX('success');
+                await this.loadFriends(true);
+            } else {
+                console.warn('[FRIENDS] RPC retornou success=false:', data);
+                this.notify('Pedido não encontrado.', 'warn');
+            }
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao aceitar:', e);
+            socialLogger.error('Erro ao aceitar:', e);
+            this.notify('Erro ao aceitar amizade.', 'error');
         }
     },
     
     async rejectFriendRequest(requestId) {
         if (!this.supabase) return;
         
+        // VALIDAÇÃO CRÍTICA: Verifica se requestId existe
+        if (!requestId) {
+            console.error('[FRIENDS] rejectFriendRequest chamado com requestId undefined!');
+            console.error('[FRIENDS] friendRequests atual:', this.friendRequests);
+            this.notify('Erro: ID do pedido inválido.', 'error');
+            return;
+        }
+        
         try {
-            await this.supabase
-                .from('friendships')
-                .delete()
-                .eq('id', requestId);
+            socialLogger.info('Recusando pedido:', requestId);
             
-            this.notify('Pedido recusado.', 'info');
-            await this.loadFriends(true);
+            const { data, error } = await this.supabase
+                .rpc('reject_friend_request', { friendship_id: requestId });
+            
+            if (error) {
+                console.error('[FRIENDS] Erro na RPC reject_friend_request:', error);
+                throw error;
+            }
+            
+            if (data?.success) {
+                this.notify('Pedido recusado.', 'info');
+                await this.loadFriends(true);
+            } else {
+                console.warn('[FRIENDS] RPC retornou success=false:', data);
+                this.notify('Pedido não encontrado.', 'warn');
+            }
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao recusar:', e);
+            socialLogger.error('Erro ao recusar:', e);
+            this.notify('Erro ao recusar pedido.', 'error');
         }
     },
     
@@ -1255,13 +1272,17 @@ export const socialLogic = {
         if (!this.supabase) return;
         
         try {
-            await this.supabase
-                .from('friendships')
-                .delete()
-                .eq('id', friendshipId);
+            const { data, error } = await this.supabase
+                .rpc('remove_friend', { friendship_id: friendshipId });
             
-            this.notify('Amigo removido.', 'info');
-            await this.loadFriends(true);
+            if (error) throw error;
+            
+            if (data?.success) {
+                this.notify('Amigo removido.', 'info');
+                await this.loadFriends(true);
+            } else {
+                this.notify('Amizade não encontrada.', 'warn');
+            }
             
         } catch (e) {
             console.error('[FRIENDS] Erro ao remover:', e);
@@ -1317,9 +1338,8 @@ export const socialLogic = {
         try {
             const { data, error } = await this.supabase
                 .rpc('get_friend_conversation', {
-                    p_friend_id: friendId,
-                    p_limit: limit,
-                    p_offset: 0
+                    friend_uuid: friendId,
+                    msg_limit: limit
                 });
             
             if (error) throw error;
@@ -1424,8 +1444,8 @@ export const socialLogic = {
         try {
             const { data, error } = await this.supabase
                 .rpc('send_friend_message', {
-                    p_receiver_id: friendId,
-                    p_content: content
+                    receiver: friendId,
+                    message_content: content
                 });
             
             if (error) throw error;
@@ -1600,8 +1620,8 @@ export const socialLogic = {
             // Usa função SQL que valida GM e amizade
             const { data, error } = await this.supabase
                 .rpc('send_campaign_invite', {
-                    p_campaign_id: campaignId,
-                    p_friend_id: this.inviteTargetFriend.friendId
+                    campaign_uuid: campaignId,
+                    friend_uuid: this.inviteTargetFriend.friendId
                 });
             
             if (error) throw error;
@@ -1654,7 +1674,7 @@ export const socialLogic = {
                 localStorage.setItem('zenite_my_profile', JSON.stringify(data));
             }
         } catch (e) {
-            console.error('[SOCIAL] Erro ao carregar perfil:', e);
+            socialLogger.error('Erro ao carregar perfil:', e);
         }
     },
     
@@ -1695,7 +1715,7 @@ export const socialLogic = {
             playSFX('success');
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao atualizar perfil:', e);
+            socialLogger.error('Erro ao atualizar perfil:', e);
             this.notify('Erro ao atualizar perfil.', 'error');
         }
     },
@@ -1711,8 +1731,7 @@ export const socialLogic = {
         try {
             const { data, error } = await this.supabase
                 .rpc('is_username_available', { 
-                    new_username: username,
-                    current_user_id: this.user?.id || null
+                    username_to_check: username
                 });
             
             if (error) throw error;
@@ -1722,7 +1741,7 @@ export const socialLogic = {
                 reason: data ? 'Disponível!' : 'Username já em uso' 
             };
         } catch (e) {
-            console.error('[SOCIAL] Erro ao verificar username:', e);
+            socialLogger.error('Erro ao verificar username:', e);
             return { available: false, reason: 'Erro ao verificar' };
         }
     },
@@ -1748,7 +1767,7 @@ export const socialLogic = {
             const { data, error } = await query.single();
             
             if (error) {
-                console.error('[SOCIAL] Erro ao buscar perfil:', error);
+                socialLogger.error('Erro ao buscar perfil:', error);
                 this.notify('Erro ao carregar perfil.', 'error');
                 return;
             }
@@ -1760,7 +1779,7 @@ export const socialLogic = {
                 this.notify('Perfil não encontrado ou privado.', 'warn');
             }
         } catch (e) {
-            console.error('[SOCIAL] Erro ao ver perfil:', e);
+            socialLogger.error('Erro ao ver perfil:', e);
             this.notify('Erro ao carregar perfil.', 'error');
         }
     },
@@ -1806,7 +1825,7 @@ export const socialLogic = {
                 });
             
             if (uploadError) {
-                console.error('[SOCIAL] Erro no upload:', uploadError);
+                socialLogger.error('Erro no upload:', uploadError);
                 throw uploadError;
             }
             
@@ -1828,7 +1847,7 @@ export const socialLogic = {
                 .eq('id', this.user.id);
             
             if (updateError) {
-                console.error('[SOCIAL] Erro ao atualizar perfil:', updateError);
+                socialLogger.error('Erro ao atualizar perfil:', updateError);
                 throw updateError;
             }
             
@@ -1844,7 +1863,7 @@ export const socialLogic = {
             await this.loadMyProfile();
             
         } catch (e) {
-            console.error('[SOCIAL] Erro ao fazer upload do avatar:', e);
+            socialLogger.error('Erro ao fazer upload do avatar:', e);
             this.notify('Erro ao enviar avatar. Tente novamente.', 'error');
         }
         
@@ -1892,7 +1911,7 @@ export const socialLogic = {
         
         try {
             const { data, error } = await this.supabase
-                .rpc('get_username_cooldown_days', { user_id: this.user.id });
+                .rpc('get_username_cooldown_days');
             
             if (error) {
                 console.error('[USERNAME] Erro ao carregar cooldown:', error);
@@ -1985,8 +2004,7 @@ export const socialLogic = {
             if (this.supabase) {
                 const { data, error } = await this.supabase
                     .rpc('check_username_available', { 
-                        check_username: normalized,
-                        current_user_id: this.user?.id || null  // null para usuários não logados
+                        username_to_check: normalized
                     });
                 
                 if (error) throw error;
@@ -2186,18 +2204,43 @@ export const socialLogic = {
     async leaveCampaign(campaignId) {
         if (!this.supabase || !this.user) return;
         
+        // Usa activeCampaign.id como fallback se campaignId não for passado
+        const targetId = campaignId || this.activeCampaign?.id;
+        
+        if (!targetId) {
+            console.error('[CAMPAIGN] leaveCampaign chamado sem campaignId e sem activeCampaign');
+            this.notify('Erro: Nenhuma campanha selecionada.', 'error');
+            return;
+        }
+        
         try {
-            const { data, error } = await this.supabase
-                .rpc('leave_campaign', { p_campaign_id: campaignId });
+            // DELETE direto na tabela
+            const { error } = await this.supabase
+                .from('campaign_members')
+                .delete()
+                .eq('campaign_id', targetId)
+                .eq('user_id', this.user.id);
             
             if (error) throw error;
             
             this.notify('Você saiu da campanha.', 'success');
             playSFX('save');
             
+            // Fecha realtime se estiver na campanha
+            if (this.currentCampaignId === campaignId && this.campaignChannel) {
+                await this.supabase.removeChannel(this.campaignChannel);
+                this.campaignChannel = null;
+                this.currentCampaignId = null;
+            }
+            
             // Recarrega lista de campanhas
             if (typeof this.fetchCampaigns === 'function') {
                 await this.fetchCampaigns();
+            }
+            
+            // Navega para NetLink se estava na campanha
+            if (window.location.hash.includes('/campaign/')) {
+                window.location.hash = '#/netlink';
             }
             
             return true;

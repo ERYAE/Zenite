@@ -1,4 +1,9 @@
 /**
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
+ */
+
+/**
  * ZENITE AUDIO ENGINE v3.1 - PERFORMANCE & STABILITY
  * ═══════════════════════════════════════════════════════════════════════════════
  * - AudioContext singleton with resume/suspend guards
@@ -62,6 +67,11 @@ const createReverbImpulse = (duration = 1.5, decay = 2) => {
     return impulse;
 };
 
+/**
+ * Inicializa o AudioContext e configura a cadeia de áudio
+ * @description Cria compressor, master gain, reverb e pré-aquece o sistema
+ * @note Chamado automaticamente no primeiro clique do usuário
+ */
 export const initAudio = () => {
     if (audioCtx) {
         if (audioCtx.state === 'suspended') {
@@ -146,6 +156,10 @@ const handleWindowFocus = () => {
     }
 };
 
+/**
+ * Habilita ou desabilita efeitos sonoros
+ * @param {boolean} enabled - true para habilitar, false para desabilitar
+ */
 export const setSfxEnabled = (enabled) => {
     isSfxEnabled = enabled;
     if (audioCtx) {
@@ -154,6 +168,10 @@ export const setSfxEnabled = (enabled) => {
     }
 };
 
+/**
+ * Define o volume mestre do sistema de áudio
+ * @param {number} volume - Volume entre 0.0 e 1.0
+ */
 export const setMasterVolume = (volume) => {
     if (masterGain) {
         masterGain.gain.value = Math.max(0, Math.min(1, volume));
@@ -563,6 +581,13 @@ const playToggle = () => {
 // INTERFACE PÚBLICA
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Toca um efeito sonoro específico
+ * @param {string} type - Tipo do som: 'click', 'success', 'error', 'dice', 'critical', 'fumble', 'notification', 'save', 'levelup', 'hover', 'whoosh', 'coin', 'magic', 'combat', 'toggle'
+ * @example
+ * playSFX('dice'); // Toca som de rolagem de dados
+ * playSFX('critical'); // Toca som de acerto crítico
+ */
 export const playSFX = (type) => {
     if (!audioCtx) initAudio();
     if (!isSfxEnabled || !audioCtx) return;
