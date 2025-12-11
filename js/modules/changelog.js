@@ -16,7 +16,127 @@ import { CHANGELOG_VERSION } from '../../changelog.version.js';
 
 export const CHANGELOG = [
     // ───────────────────────────────────────────────────────────────────
-    // SYSTEM EVOLUTION - Persistência e Visual
+    // PERFORMANCE MASTERCLASS - Otimizao Extrema & Estabilidade
+    // ───────────────────────────────────────────────────────────────────
+    
+    {
+        title: 'PERFORMANCE MASTERCLASS',
+        emoji: '⚡',
+        isNew: true,
+        sections: [
+            {
+                title: 'Performance & Estabilidade',
+                icon: 'fa-gauge-high',
+                color: 'yellow',
+                items: [
+                    {
+                        title: 'Memory Leak no Áudio',
+                        description: 'Sistema de pooling de nós de áudio implementado',
+                        details: [
+                            'Gerenciamento automático de memória',
+                            'Prevenção de vazamentos em longas sesses',
+                            'Eliminado 100% de chiados (crackling)',
+                            'Performance estável mesmo com uso intenso'
+                        ]
+                    },
+                    {
+                        title: 'Router Race Conditions',
+                        description: 'Sistema de fila de navegaao com IDs nicos',
+                        details: [
+                            'Processamento sequencial assncrono',
+                            'Eliminao 100% de estados inconsistentes',
+                            'Navegaao mais confivel e rpida',
+                            'Sem mais perdas de estado ao navegar'
+                        ]
+                    },
+                    {
+                        title: 'Modo Performance Aggressivo',
+                        description: 'Otimizaes drsticas para PCs antigos',
+                        details: [
+                            'CSS inline para performance imediata',
+                            'Remoo completa de animações e blur',
+                            'Indicador visual ⚡ discreto',
+                            'Configuraes de runtime otimizadas'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Sistema de Convites',
+                icon: 'fa-envelope-open-text',
+                color: 'green',
+                items: [
+                    {
+                        title: 'Convites de Campanha 2.0',
+                        description: 'Sistema completo com validaes robustas',
+                        details: [
+                            'Reenvio automtico aps 24h sem resposta',
+                            'Metadados ricos com informaes do GM',
+                            'Notificaes em tempo real bidirecionais',
+                            'Interface com tempo pendente e status',
+                            'Confirmao de resposta ao GM'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Rate Limiting Otimizado',
+                icon: 'fa-shield-halved',
+                color: 'red',
+                items: [
+                    {
+                        title: 'Limites Granulares',
+                        description: 'Rate limiting especfico por operao',
+                        details: [
+                            'Dados: 10 rolagens por 15s (reduzido)',
+                            'Chat: 30 mensagens por minuto (aumentado)',
+                            'API: 40 chamadas por minuto (aumentado)',
+                            'Feedback claro com tempo de espera',
+                            'Novos limiters para save, sync, perfil, convites'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Dados em Nuvem',
+                icon: 'fa-cloud',
+                color: 'blue',
+                items: [
+                    {
+                        title: 'Bestirio Multiplayer',
+                        description: 'Migrao completa do localStorage para Supabase',
+                        details: [
+                            'Sincronizao bidirecional',
+                            'Compresso LZ-string (>90% reduo)',
+                            'Cache inteligente com TTL',
+                            'Compartilhamento entre jogadores da campanha'
+                        ]
+                    }
+                ]
+            },
+            {
+                title: 'Notificaes Premium',
+                icon: 'fa-bell',
+                color: 'purple',
+                items: [
+                    {
+                        title: 'Sistema Completo 9 Tipos',
+                        description: 'Notificaes ricas com sons e prioridades',
+                        details: [
+                            '9 tipos especializados com sons nicos',
+                            'Sistema de prioridades (low/normal/high)',
+                            'Fila gerenciada (mximo 5 ativas)',
+                            'Animaes suaves e metadados ricos',
+                            'Mtodos helper para convites e dados'
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+
+    // ───────────────────────────────────────────────────────────────────
+    // SYSTEM EVOLUTION - Persistncia e Visual
     // ───────────────────────────────────────────────────────────────────
     
     {

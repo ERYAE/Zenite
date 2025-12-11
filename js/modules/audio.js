@@ -1,6 +1,6 @@
 /**
- * Copyright © 2025 Zenite - Todos os direitos reservados
- * Projeto desenvolvido com assistência de IA
+ * Copyright 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistncia de IA
  */
 
 /**
@@ -182,46 +182,79 @@ export const setMasterVolume = (volume) => {
 // SONS INDIVIDUAIS
 // ═══════════════════════════════════════════════════════════════
 
+const playSoundWithCleanup = (callback) => {
+    const nodes = {
+        oscillators: [],
+        gains: [],
+        filters: []
+    };
+
+    const cleanup = () => {
+        nodes.oscillators.forEach((oscillator) => oscillator.stop());
+        nodes.oscillators.forEach((oscillator) => oscillator.disconnect());
+        nodes.gains.forEach((gain) => gain.disconnect());
+        nodes.filters.forEach((filter) => filter.disconnect());
+    };
+
+    callback(nodes);
+
+    setTimeout(cleanup, 1000);
+};
+
 const playClick = (isHacker) => {
-    if (!audioCtx || !masterGain) return;
-    const t = audioCtx.currentTime;
+    playSoundWithCleanup((nodes) => {
+        if (!audioCtx || !masterGain) return;
+        const t = audioCtx.currentTime;
 
-    const osc1 = audioCtx.createOscillator();
-    const gain1 = audioCtx.createGain();
-    const filter1 = audioCtx.createBiquadFilter();
+        const osc1 = nodes.createOscillator();
+        const gain1 = nodes.createGain();
+        const filter1 = nodes.createFilter();
 
-    if (!isHacker) {
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(2200, t);
-        osc1.frequency.exponentialRampToValueAtTime(400, t + 0.03);
-        filter1.type = 'bandpass';
-        filter1.frequency.setValueAtTime(1500, t);
-        filter1.Q.value = 2;
-        gain1.gain.setValueAtTime(0, t);
-        gain1.gain.linearRampToValueAtTime(0.15, t + 0.002);
-        gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-    } else {
-        osc1.type = 'square';
-        osc1.frequency.setValueAtTime(120, t);
-        osc1.frequency.linearRampToValueAtTime(80, t + 0.08);
-        filter1.type = 'highpass';
-        filter1.frequency.setValueAtTime(800, t);
-        gain1.gain.setValueAtTime(0.12, t);
-        gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-    }
+        if (!osc1 || !gain1 || !filter1) return;
 
-    osc1.connect(filter1);
-    filter1.connect(gain1);
-    gain1.connect(masterGain);
-    osc1.start(t);
-    osc1.stop(t + 0.1);
+        if (!isHacker) {
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(2200, t);
+            osc1.frequency.exponentialRampToValueAtTime(400, t + 0.03);
+            filter1.type = 'bandpass';
+            filter1.frequency.setValueAtTime(1500, t);
+            filter1.Q.value = 2;
+            gain1.gain.setValueAtTime(0, t);
+            gain1.gain.linearRampToValueAtTime(0.15, t + 0.002);
+            gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        } else {
+            osc1.type = 'square';
+            osc1.frequency.setValueAtTime(120, t);
+            osc1.frequency.linearRampToValueAtTime(80, t + 0.08);
+            filter1.type = 'highpass';
+            filter1.frequency.setValueAtTime(800, t);
+            gain1.gain.setValueAtTime(0.12, t);
+            gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        }
 
-    const osc2 = audioCtx.createOscillator();
-    const gain2 = audioCtx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(isHacker ? 60 : 180, t);
-    osc2.frequency.exponentialRampToValueAtTime(40, t + 0.06);
-    gain2.gain.setValueAtTime(0, t);
+        osc1.connect(filter1);
+        filter1.connect(gain1);
+        gain1.connect(masterGain);
+        osc1.start(t);
+        osc1.stop(t + 0.1);
+
+        const osc2 = nodes.createOscillator();
+        const gain2 = nodes.createGain();
+        
+        if (!osc2 || !gain2) return;
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(800, t);
+        osc2.frequency.exponentialRampToValueAtTime(600, t + 0.02);
+        gain2.gain.setValueAtTime(0, t);
+        gain2.gain.linearRampToValueAtTime(0.08, t + 0.001);
+        gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+
+        osc2.connect(gain2);
+        gain2.connect(masterGain);
+        osc2.start(t);
+        osc2.stop(t + 0.05);
+    });
     gain2.gain.linearRampToValueAtTime(isHacker ? 0.08 : 0.1, t + 0.003);
     gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
     osc2.connect(gain2);

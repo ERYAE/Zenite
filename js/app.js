@@ -960,50 +960,187 @@ function zeniteSystem() {
             }
         },
 
-        // --- NOTIFICAÇÕES ---
-        // Suporta notificações simples e com ações (convites, etc)
+        // --- NOTIFICAÇÕES MELHORADAS ---
+        // Sistema completo com toast, áudio, persistência e ações
         notify(msg, type='info', options = {}) {
-            const id = Date.now();
+            const id = Date.now() + Math.random(); // ID único para evitar colisões
             let icon = 'fa-circle-info';
-            if(type === 'success') icon = 'fa-circle-check';
-            if(type === 'error') icon = 'fa-triangle-exclamation';
-            if(type === 'warn') icon = 'fa-bell';
-            if(type === 'invite') icon = 'fa-envelope';
-            if(type === 'campaign') icon = 'fa-users';
+            let sound = null;
+            
+            // Configuração de ícones e sons por tipo
+            switch(type) {
+                case 'success':
+                    icon = 'fa-circle-check';
+                    sound = 'success';
+                    break;
+                case 'error':
+                    icon = 'fa-triangle-exclamation';
+                    sound = 'error';
+                    break;
+                case 'warn':
+                    icon = 'fa-bell';
+                    sound = 'notification';
+                    break;
+                case 'invite':
+                    icon = 'fa-envelope';
+                    sound = 'notification';
+                    break;
+                case 'campaign':
+                    icon = 'fa-users';
+                    sound = 'notification';
+                    break;
+                case 'dice':
+                    icon = 'fa-dice';
+                    sound = 'dice';
+                    break;
+                case 'levelup':
+                    icon = 'fa-arrow-up';
+                    sound = 'levelup';
+                    break;
+                case 'critical':
+                    icon = 'fa-explosion';
+                    sound = 'critical';
+                    break;
+                case 'fumble':
+                    icon = 'fa-face-sad-tear';
+                    sound = 'fumble';
+                    break;
+                default:
+                    sound = 'click';
+            }
             
             const notification = { 
                 id, 
                 message: msg, 
                 type, 
                 icon,
-                action: options.action || null, // Função a executar ao clicar
-                actionLabel: options.actionLabel || null, // Texto do botão
-                persistent: options.persistent || false, // Não desaparece automaticamente
-                dismissable: options.dismissable !== false // Pode fechar manualmente
+                sound,
+                action: options.action || null,
+                actionLabel: options.actionLabel || null,
+                persistent: options.persistent || false,
+                dismissable: options.dismissable !== false,
+                duration: options.duration || (type === 'error' ? 5000 : 3000),
+                timestamp: Date.now(),
+                priority: options.priority || 'normal', // low, normal, high
+                source: options.source || 'system' // system, chat, campaign, dice
             };
+            
+            // Gerenciamento de fila de notificações (máximo 5 ativas)
+            if (this.notifications.length >= 5) {
+                // Remove notificação mais antiga não persistente
+                const oldestNonPersistent = this.notifications.find(n => !n.persistent);
+                if (oldestNonPersistent) {
+                    this.dismissNotification(oldestNonPersistent.id);
+                } else {
+                    // Se todas são persistentes, remove a mais antiga
+                    this.notifications.shift();
+                }
+            }
             
             this.notifications.push(notification);
             
-            // Notificações persistentes não desaparecem automaticamente
+            // Toca som se disponível e não desativado
+            if (sound && options.playSound !== false && this.isSfxEnabled !== false) {
+                import('./modules/audio.js').then(audio => {
+                    audio.playSFX(sound);
+                }).catch(() => {});
+            }
+            
+            // Auto-dismiss para notificações não persistentes
             if (!options.persistent) {
-                const duration = options.duration || (type === 'error' ? 5000 : 3000);
+                setTimeout(() => {
+                    this.dismissNotification(id);
+                }, notification.duration);
+            }
+            
+            // Log para debugging
+            console.log(`[NOTIFICATION] ${type.toUpperCase()}: ${msg}`);
+            
+            return id; // Retorna ID para controle externo
+        },
+        
+        // Remove notificação específica com animação
+        dismissNotification(id) {
+            const index = this.notifications.findIndex(n => n.id === id);
+            if (index !== -1) {
+                // Marca para remoção com animação
+                const notification = this.notifications[index];
+                notification.removing = true;
+                
+                // Remove após animação
                 setTimeout(() => {
                     this.notifications = this.notifications.filter(n => n.id !== id);
-                }, duration);
+                }, 300);
             }
         },
         
-        // Remove notificação específica
-        dismissNotification(id) {
-            this.notifications = this.notifications.filter(n => n.id !== id);
+        // Limpa todas as notificações
+        clearAllNotifications() {
+            this.notifications.forEach(n => n.removing = true);
+            setTimeout(() => {
+                this.notifications = [];
+            }, 300);
         },
         
         // Executa ação da notificação e fecha
         executeNotificationAction(notification) {
             if (notification.action && typeof notification.action === 'function') {
-                notification.action();
+                try {
+                    notification.action();
+                } catch (error) {
+                    console.error('[NOTIFICATION] Error executing action:', error);
+                    this.notify('Erro ao executar ação', 'error');
+                }
             }
             this.dismissNotification(notification.id);
+        },
+        
+        // Notificação especial para convites de campanha
+        notifyCampaignInvite(campaignName, inviteCode, action) {
+            return this.notify(
+                `Convite para campanha "${campaignName}"`,
+                'campaign',
+                {
+                    persistent: true,
+                    actionLabel: 'ACEITAR',
+                    action: action || (() => {
+                        window.zeniteRouter?.navigate('netlink', inviteCode);
+                    }),
+                    source: 'campaign',
+                    priority: 'high'
+                }
+            );
+        },
+        
+        // Notificação especial para pedidos de amizade
+        notifyFriendRequest(friendName, action) {
+            return this.notify(
+                `Pedido de amizade de ${friendName}`,
+                'invite',
+                {
+                    persistent: true,
+                    actionLabel: 'VER',
+                    action: action || (() => {
+                        this.friendsModalOpen = true;
+                    }),
+                    source: 'chat',
+                    priority: 'normal'
+                }
+            );
+        },
+        
+        // Notificação especial para resultados de dados
+        notifyDiceResult(result, critical = false) {
+            const type = critical ? 'critical' : 'dice';
+            return this.notify(
+                `🎲 ${result}`,
+                type,
+                {
+                    duration: 2000,
+                    source: 'dice',
+                    priority: 'low'
+                }
+            );
         },
 
         // --- KONAMI CODE ---
