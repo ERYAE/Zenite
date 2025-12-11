@@ -9,12 +9,8 @@ export const CONSTANTS = {
     MAX_ALUNOS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    SUPABASE_URL: typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL 
-        ? import.meta.env.VITE_SUPABASE_URL 
-        : 'https://pwjoakajtygmbpezcrix.supabase.co',
-    SUPABASE_KEY: typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY 
-        ? import.meta.env.VITE_SUPABASE_ANON_KEY 
-        : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMxNjY3NzQsImV4cCI6MjA0ODc0Mjc3NH0.zzMKhsqLQqJCGCLWBqBkOjQzqBPbxKQXKjRSqMXoYKg'
+    SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
