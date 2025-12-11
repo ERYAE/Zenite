@@ -8,7 +8,16 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Logs aparecem apenas em desenvolvimento, silenciados em produção
 
-const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+// Verifica ambiente de desenvolvimento de forma segura (compatível com Vercel)
+const isDevelopment = (function() {
+    try {
+        return typeof import.meta !== 'undefined' && 
+               import.meta.env && 
+               (import.meta.env.DEV === true || import.meta.env.MODE === 'development');
+    } catch {
+        return false; // Em produção ou se import.meta não existir
+    }
+})();
 
 /**
  * Logger condicional - só exibe em desenvolvimento
