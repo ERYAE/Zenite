@@ -3,17 +3,12 @@
  * Projeto desenvolvido com assistncia de IA
  */
 
-// Variáveis sensíveis vêm de .env.local (Vite: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
-// Vercel: configurado nas environment variables do projeto
-// IMPORTANTE: Rodar via 'npm run dev' para Vite injetar as variáveis
-const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
-
 export const CONSTANTS = {
     MAX_ALUNOS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    SUPABASE_URL: env.VITE_SUPABASE_URL || '',
-    SUPABASE_KEY: env.VITE_SUPABASE_ANON_KEY || ''
+    SUPABASE_URL: 'https://pwjoakajtygmbpezcrix.supabase.co',
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3am9ha2FqdHlnbWJwZXpjcml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNTA4OTQsImV4cCI6MjA3OTcyNjg5NH0.92HNNPCaKccRLIV6HbP1CBFI7jL5ktt24Qh1tr-Md5E'
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
