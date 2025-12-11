@@ -218,85 +218,37 @@
     <template x-teleport="body">
         <div class="fixed top-5 right-5 space-y-2 pointer-events-none w-full max-w-sm px-4 md:px-0" style="z-index: 2147483647;">
             <template x-for="n in notifications" :key="n.id">
-                <div class="border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-start gap-3 transition-all duration-500 transform"
+                <div class="border-l-4 px-4 py-3 rounded-lg shadow-2xl flex items-start gap-3 transition-all duration-500 transform translate-x-0 bg-black/95 backdrop-blur-xl pointer-events-auto"
                      :class="{
-                         'translate-x-0 opacity-100 scale-100': !n.removing,
-                         'translate-x-full opacity-0 scale-95': n.removing,
                          'border-green-500': n.type==='success', 
                          'border-red-500': n.type==='error', 
                          'border-blue-500': n.type==='info', 
                          'border-yellow-500': n.type==='warn',
-                         'border-purple-500': n.type==='invite' || n.type==='campaign',
-                         'border-orange-500': n.type==='dice',
-                         'border-pink-500': n.type==='critical',
-                         'border-gray-500': n.type==='fumble'
-                     }"
-                     :style="{
-                         'background': `linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.85) 100%)`,
-                         'backdropFilter': 'blur(20px)',
-                         'boxShadow': n.type === 'critical' ? '0 0 20px rgba(236, 72, 153, 0.5)' : '0 10px 40px rgba(0,0,0,0.3)'
+                         'border-purple-500': n.type==='invite' || n.type==='campaign'
                      }">
-                    
-                    <!-- Indicador de prioridade -->
-                    <div x-show="n.priority === 'high'" class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                    
-                    <!-- Ícone com animação -->
-                    <i class="fa-solid mt-0.5 transition-all duration-300" 
-                       :class="{
-                           'fa-circle-check text-green-500': n.type==='success', 
-                           'fa-triangle-exclamation text-red-500': n.type==='error', 
-                           'fa-circle-info text-blue-500': n.type==='info', 
-                           'fa-bell text-yellow-500': n.type==='warn',
-                           'fa-envelope text-purple-500': n.type==='invite',
-                           'fa-users text-purple-500': n.type==='campaign',
-                           'fa-dice text-orange-500': n.type==='dice',
-                           'fa-explosion text-pink-500': n.type==='critical',
-                           'fa-face-sad-tear text-gray-500': n.type==='fumble'
-                       }"
-                       :style="{
-                           'animation': n.type === 'critical' ? 'pulse 1s infinite' : 'none',
-                           'fontSize': n.type === 'critical' ? '1.2em' : '1em'
-                       }"></i>
-                    
+                    <i class="fa-solid mt-0.5" :class="n.icon" :class="{
+                        'text-green-500': n.type==='success', 
+                        'text-red-500': n.type==='error', 
+                        'text-blue-500': n.type==='info', 
+                        'text-yellow-500': n.type==='warn',
+                        'text-purple-500': n.type==='invite' || n.type==='campaign'
+                    }"></i>
                     <div class="flex-1 min-w-0">
-                        <!-- Mensagem -->
-                        <span x-text="n.message" 
-                              class="font-bold text-xs tracking-wider text-white font-brand block"
-                              :style="{
-                                  'textShadow': n.type === 'critical' ? '0 0 10px rgba(236, 72, 153, 0.8)' : 'none'
-                              }"></span>
-                        
-                        <!-- Metadados (timestamp e source) -->
-                        <div x-show="n.source !== 'system'" class="mt-1 text-[10px] text-gray-400">
-                            <span x-text="`[${n.source.toUpperCase()}]`"></span>
-                            <span x-text="new Date(n.timestamp).toLocaleTimeString()" class="ml-2"></span>
-                        </div>
-                        
+                        <span x-text="n.message" class="font-bold text-xs tracking-wider text-white font-brand block"></span>
                         <!-- Botão de ação (se existir) -->
                         <div x-show="n.actionLabel" class="mt-2 flex gap-2">
                             <button @click="executeNotificationAction(n)" 
-                                    class="px-3 py-1 text-[10px] font-bold rounded transition-all duration-200 transform hover:scale-105"
-                                    :class="{
-                                        'bg-green-600 hover:bg-green-500 text-white': n.type==='success',
-                                        'bg-red-600 hover:bg-red-500 text-white': n.type==='error',
-                                        'bg-blue-600 hover:bg-blue-500 text-white': n.type==='info',
-                                        'bg-yellow-600 hover:bg-yellow-500 text-white': n.type==='warn',
-                                        'bg-purple-600 hover:bg-purple-500 text-white': n.type==='invite' || n.type==='campaign',
-                                        'bg-orange-600 hover:bg-orange-500 text-white': n.type==='dice',
-                                        'bg-pink-600 hover:bg-pink-500 text-white': n.type==='critical',
-                                        'bg-gray-600 hover:bg-gray-500 text-white': n.type==='fumble'
-                                    }"
+                                    class="px-3 py-1 text-[10px] font-bold rounded bg-purple-500 hover:bg-purple-400 text-white transition-colors"
                                     x-text="n.actionLabel"></button>
                             <button x-show="n.dismissable" @click="dismissNotification(n.id)" 
-                                    class="px-3 py-1 text-[10px] font-bold rounded bg-white/10 hover:bg-white/20 text-gray-400 transition-all duration-200">
+                                    class="px-3 py-1 text-[10px] font-bold rounded bg-white/10 hover:bg-white/20 text-gray-400 transition-colors">
                                 IGNORAR
                             </button>
                         </div>
                     </div>
-                    
                     <!-- Botão de fechar (se dismissable e sem ação) -->
                     <button x-show="n.dismissable && !n.actionLabel" @click="dismissNotification(n.id)" 
-                            class="text-gray-500 hover:text-white transition-all duration-200 ml-2 transform hover:scale-110">
+                            class="text-gray-500 hover:text-white transition-colors ml-2">
                         <i class="fa-solid fa-xmark text-xs"></i>
                     </button>
                 </div>
@@ -2055,11 +2007,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="glass p-4 rounded-lg">
                             <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Passiva</h4>
-                            <textarea name="power_passive" x-model="(char.powers || {}).passive" aria-label="Passiva" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
+                            <textarea name="power_passive" x-model="char.powers.passive" aria-label="Passiva" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
                         </div>
                         <div class="glass p-4 rounded-lg">
                             <h4 class="text-xs text-[var(--neon-core)] font-bold uppercase mb-2">Ativa</h4>
-                            <textarea name="power_active" x-model="(char.powers || {}).active" aria-label="Ativa" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
+                            <textarea name="power_active" x-model="char.powers.active" aria-label="Ativa" class="w-full h-24 bg-transparent resize-none outline-none text-sm text-gray-300"></textarea>
                         </div>
                     </div>
                 </template>
@@ -2092,7 +2044,7 @@
                                     <div class="flex justify-between text-[10px] font-bold mb-1 text-gray-500">
                                         <span x-text="lvl===10?'LEGADO':'NÍVEL '+lvl"></span>
                                     </div>
-                                    <textarea :name="'power_lvl_' + lvl" x-model="(char.powers || {})['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
+                                    <textarea :name="'power_lvl_' + lvl" x-model="char.powers['lvl'+lvl]" aria-label="Evolução" class="w-full h-12 bg-transparent resize-none outline-none text-sm text-white" placeholder="Bloqueado..."></textarea>
                                 </div>
                             </template>
                         </div>
@@ -2521,23 +2473,23 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="wiz-name" class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-1 block">Codinome (Obrigatório)</label>
-                                <input id="wiz-name" name="agent_name" x-model="wizardData.name" @input.debounce.500="saveWizardDraft()" type="text" 
+                                <input id="wiz-name" name="agent_name" x-model="wizardData.name" type="text" 
                                     :class="{'shake-anim border-red-500 text-red-500': wizardNameError}"
                                     class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none font-brand text-lg input-cyber" 
                                     placeholder="Ex: ALL MIGHT">
                             </div>
                             <div>
                                 <label for="wiz-age" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Idade</label>
-                                <input id="wiz-age" name="agent_age" x-model="wizardData.age" @input.debounce.500="saveWizardDraft()" type="number" min="0" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: 45">
+                                <input id="wiz-age" name="agent_age" x-model="wizardData.age" type="number" min="0" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: 45">
                             </div>
                         </div>
                         <div>
                             <label for="wiz-identity" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Identidade Real</label>
-                            <input id="wiz-identity" name="agent_real_name" x-model="wizardData.identity" @input.debounce.500="saveWizardDraft()" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: Toshinori Yagi">
+                            <input id="wiz-identity" name="agent_real_name" x-model="wizardData.identity" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: Toshinori Yagi">
                         </div>
                         <div>
                             <label for="wiz-history" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Histórico / Origem</label>
-                            <textarea id="wiz-history" name="agent_history" x-model="wizardData.history" @input.debounce.500="saveWizardDraft()" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm input-cyber" placeholder="Origem dos poderes, traumas, motivação..."></textarea>
+                            <textarea id="wiz-history" name="agent_history" x-model="wizardData.history" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm input-cyber" placeholder="Origem dos poderes, traumas, motivação..."></textarea>
                         </div>
                     </div>
                 </div>

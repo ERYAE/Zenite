@@ -1,13 +1,12 @@
 /**
- * Copyright 2025 Zenite - Todos os direitos reservados
- * Projeto desenvolvido com assistncia de IA
+ * Copyright © 2025 Zenite - Todos os direitos reservados
+ * Projeto desenvolvido com assistência de IA
  */
 
 // js/modules/cloud.js
 import { sanitizeChar, migrateCharacter } from './utils.js';
-import { supabase } from './config.js';
+import { playSFX } from './audio.js';
 import { cloudLogger } from './logger.js';
-import { compressData, decompressData, isCompressed, shouldSplitData } from './compression.js';
 
 const normalizeUsername = (rawUsername = '') => {
     return rawUsername
@@ -30,19 +29,19 @@ const friendlySignupError = (error) => {
         return 'Erro ao criar perfil. Verifique username e tente novamente.';
     }
     if (message.includes('duplicate key') || message.includes('profiles_username_lower_idx')) {
-        return 'Username j est em uso. Escolha outro.';
+        return 'Username já está em uso. Escolha outro.';
     }
     if (message.toLowerCase().includes('password')) {
-        return 'Senha invlida. Use pelo menos 6 caracteres.';
+        return 'Senha inválida. Use pelo menos 6 caracteres.';
     }
     if (message.includes('already been registered') || message.includes('already registered')) {
-        return 'Este email j est registrado. Tente fazer login.';
+        return 'Este email já está registrado. Tente fazer login.';
     }
     if (message.includes('Invalid login credentials')) {
         return 'Email ou senha incorretos.';
     }
     if (message.includes('Email not confirmed')) {
-        return 'Email no confirmado. Verifique sua caixa de entrada.';
+        return 'Email não confirmado. Verifique sua caixa de entrada.';
     }
     return message;
 };
@@ -70,7 +69,7 @@ const generateStrongPassword = () => {
         password += allChars[Math.floor(Math.random() * allChars.length)];
     }
     
-    // Embaralha a senha para no ter padrão previsível
+    // Embaralha a senha para não ter padrão previsível
     return password.split('').sort(() => Math.random() - 0.5).join('');
 };
 
@@ -184,30 +183,22 @@ export const cloudLogic = {
                 const cloudData = data.data;
                 const reservedKeys = ['config', 'hasSeenTip', 'trayDockMode'];
 
-                // Verifica se dados estão comprimidos
-                const decompressedData = isCompressed(cloudData) ? 
-                    decompressData(cloudData) : cloudData;
-
-                if (decompressedData.config) {
-                    this.settings = { ...this.settings, ...decompressedData.config };
+                if (cloudData.config) {
+                    this.settings = { ...this.settings, ...cloudData.config };
                     this.applyTheme(this.settings.themeColor);
                 }
 
-                if (decompressedData.hasSeenTip !== undefined) {
-                    this.hasSeenDiceTip = decompressedData.hasSeenTip;
+                if (cloudData.hasSeenTip !== undefined) {
+                    this.hasSeenDiceTip = cloudData.hasSeenTip;
                 }
 
                 let merged = {};
 
-                Object.keys(decompressedData).forEach((k) => {
-                    if (!reservedKeys.includes(k) && decompressedData[k]?.id) {
-                        let char = sanitizeChar(decompressedData[k]);
+                Object.keys(cloudData).forEach((k) => {
+                    if (!reservedKeys.includes(k) && cloudData[k]?.id) {
+                        let char = sanitizeChar(cloudData[k]);
                         char = migrateCharacter(char);
-
-                        // Define lastAccess se não existir
-                        const lastAccess = char.lastAccess || Date.now();
-
-                        if (!lastAccess) {
+                        if (!char.lastAccess) {
                             char.lastAccess = Date.now();
                         }
                         merged[k] = char;
@@ -253,87 +244,34 @@ export const cloudLogic = {
         if (!silent) this.notify('Sincronizando...', 'info');
 
         try {
-            // Prepara payload original
-            const originalPayload = {
+            const payload = {
                 ...this.chars,
                 config: this.settings,
-                hasSeenDiceTip: this.hasSeenDiceTip
+                hasSeenTip: this.hasSeenDiceTip
             };
 
-            // Verifica tamanho e comprime se necessário
-            const sizeCheck = shouldSplitData(originalPayload);
-            
-            if (sizeCheck.shouldSplit) {
-                cloudLogger.warn(`Payload muito grande: ${sizeCheck.sizeMB}MB`);
-                
-                // Tenta compressão primeiro
-                const compressedPayload = compressData(originalPayload);
-                const compressedSizeCheck = shouldSplitData(compressedPayload);
-                
-                if (compressedSizeCheck.shouldSplit) {
-                    // Ainda muito grande, sugere limpeza
-                    this.notify(
-                        `Dados muito grandes (${sizeCheck.sizeMB}MB). Considere remover personagens antigos.`,
-                        'warn'
-                    );
-                    
-                    // Continua com payload comprimido mesmo assim
-                    const payload = compressedPayload;
-                    
-                    const { error } = await this.supabase
-                        .from('profiles')
-                        .upsert(
-                            {
-                                id: this.user.id,
-                                data: payload,
-                                updated_at: new Date().toISOString()
-                            },
-                            {
-                                onConflict: 'id'
-                            }
-                        );
-                    
-                    if (error) throw error;
-                    
-                } else {
-                    // Compressão funcionou!
-                    cloudLogger.info(`Payload comprimido: ${sizeCheck.sizeMB}MB → ${compressedSizeCheck.sizeMB}MB`);
-                    
-                    const payload = compressedPayload;
-                    
-                    const { error } = await this.supabase
-                        .from('profiles')
-                        .upsert(
-                            {
-                                id: this.user.id,
-                                data: payload,
-                                updated_at: new Date().toISOString()
-                            },
-                            {
-                                onConflict: 'id'
-                            }
-                        );
-                    
-                    if (error) throw error;
-                }
-            } else {
-                // Payload normal, sem compressão
-                const payload = originalPayload;
-                
-                const { error } = await this.supabase
-                    .from('profiles')
-                    .upsert(
-                        {
-                            id: this.user.id,
-                            data: payload,
-                            updated_at: new Date().toISOString()
-                        },
-                        {
-                            onConflict: 'id'
-                        }
-                    );
-                
-                if (error) throw error;
+            const payloadSize = JSON.stringify(payload).length;
+            if (payloadSize > 900000) {
+                console.warn('[CLOUD] Payload muito grande:', payloadSize, 'bytes');
+                this.notify('Dados muito grandes. Remova personagens antigos.', 'warn');
+            }
+
+            const { error } = await this.supabase
+                .from('profiles')
+                .upsert(
+                    {
+                        id: this.user.id,
+                        data: payload,
+                        updated_at: new Date().toISOString()
+                    },
+                    {
+                        onConflict: 'id'
+                    }
+                );
+
+            if (error) {
+                console.error('[CLOUD] Sync Error:', error);
+                throw error;
             }
 
             this.unsavedChanges = false;

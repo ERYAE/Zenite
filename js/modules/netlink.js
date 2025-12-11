@@ -2,10 +2,132 @@
  * Copyright © 2025 Zenite - Todos os direitos reservados
  * Projeto desenvolvido com assistência de IA
  */
+
 /**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ZENITE NETLINK - Sistema de Campanhas Multiplayer
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Este módulo gerencia campanhas de RPG online, permitindo que mestres (GMs)
+ * criem sessões e convidem jogadores para participar.
+ * 
+ * ARQUITETURA DO SUPABASE:
+ * ────────────────────────
+ * 
+ * 1. campaigns - Tabela principal de campanhas
+ *    - id: UUID da campanha
+ *    - gm_id: UUID do mestre (referencia auth.users)
+ *    - name: Nome da campanha
+ *    - code: Código único para identificação
+ *    - invite_code: Código de convite para jogadores
+ *    - atmosphere: Tema visual ('neutral', 'dark', 'fantasy', etc.)
+ *    - notes: Anotações privadas do mestre
+ *    - settings: JSON com configurações (dice visibility, etc.)
+ *    - image_url: Imagem de capa da campanha
+ *    - description: Descrição pública
+ *    - nickname: Apelido do GM nesta campanha
+ * 
+ * 2. campaign_members - Jogadores em cada campanha
+ *    - campaign_id: Referência à campanha
+ *    - user_id: UUID do jogador
+ *    - character_id: ID do personagem vinculado (do sistema local)
+ *    - char_data: CÓPIA do personagem (JSON) - editável pelo GM
+ *    - role: 'player' ou 'gm'
+ *    - status: 'active', 'pending', 'kicked'
+ * 
+ * 3. dice_logs - Histórico de rolagens da campanha
+ *    - campaign_id: Referência à campanha
+ *    - user_id: Quem rolou
+ *    - username: Nome exibido
+ *    - roll_data: JSON completo da rolagem
+ *    - is_private: Se só o GM pode ver
+ *    - is_critical/is_fumble: Flags para destaque
+ *    - natural_result, modifier, total_result: Valores
+ *    - formula: String formatada (ex: "D20+5")
+ *    - reason: Motivo da rolagem
+ * 
+ * 4. campaign_logs - Log geral de eventos (chat, ações, etc.)
+ *    - campaign_id: Referência à campanha
+ *    - sender: Nome do remetente
+ *    - content: Conteúdo da mensagem
+ *    - type: 'roll', 'chat', 'action', 'system'
+ *    - user_id: Quem enviou
+ *    - metadata: JSON com dados extras
+ * 
+ * 5. characters - Personagens persistentes (opcional)
+ *    - id: ID único do personagem
+ *    - user_id: Dono do personagem
+ *    - campaign_id: Se está vinculado a uma campanha
+ *    - data: JSON completo do personagem
+ * 
+ * FLUXO DO SISTEMA:
+ * ─────────────────
+ * 
+ * [GM] Criar Campanha → Gerar invite_code
+ *        ↓
+ * [GM] Compartilhar código com jogadores
+ *        ↓
+ * [Player] Entrar com código → Selecionar personagem
+ *        ↓
+ * [Sistema] Copiar char_data para campaign_members
+ *        ↓
+ * [Sessão] GM vê dados de todos | Players veem só os próprios
+ *        ↓
+ * [Dados] Sync em tempo real via Supabase Realtime
+ * 
+ * FEATURES DO PAINEL DO MESTRE:
+ * ─────────────────────────────
+ * - Visualizar/editar fichas dos jogadores (cópia)
+ * - Bestiário privado (não visível para jogadores)
+ * - Calculadora de combate
+ * - Timer de sessão
+ * - Menu de iniciativa com tracking
+ * - Histórico de rolagens de todos
+ * - Sistema de anotações
+ * 
+ * SUGESTÕES DE FEATURES FUTURAS:
+ * ─────────────────────────────
+ * - Sistema de mapas com fog of war
+ * - Tokens movíveis em grid
+ * - Compartilhamento de imagens
+ * - Sistema de condições (buffs/debuffs)
+ * - Música ambiente sincronizada
+ * - Whisper (mensagem privada para jogador)
+ * - NPCs pré-definidos para o GM
+ * - Templates de encontros
+ * - Integração com roll tables
+ * - Exportar sessão como relatório
+ * 
+ * SEGURANÇA E BOAS PRÁTICAS:
+ * ─────────────────────────────
+ * 1. RLS (Row Level Security) - Todas as tabelas usam políticas RLS no Supabase:
+ *    - campaigns: Apenas GM pode editar, todos autenticados podem ler
+ *    - campaign_members: Usuário só vê/edita próprios registros
+ *    - dice_logs: Inserção livre para membros, leitura por campanha
+ *    - campaign_logs: Similar aos dice_logs
+ * 
+ * 2. Validação de entrada:
+ *    - Códigos de convite são sanitizados (apenas alfanuméricos)
+ *    - Limites de tamanho para mensagens (MAX_MESSAGE_LENGTH)
+ *    - Limites de quantidade (MAX_PLAYERS, MAX_CAMPAIGNS)
+ * 
+ * 3. Dados sensíveis:
+ *    - Notas do GM ficam na tabela campaigns (só GM acessa via RLS)
+ *    - Bestiário e configurações ficam em localStorage (não sobem pro banco)
+ *    - Webhook do Discord fica local (não exposto no banco)
+ * 
+ * 4. Otimizações para Free Tier (Supabase/Vercel):
+ *    - Limite de 50 mensagens no log de chat carregado
+ *    - Limite de 100 rolagens no histórico
+ *    - Debounce no auto-save de notas (2 segundos)
+ *    - Realtime subscriptions limitadas a 1 canal por campanha
+ *    - Bestiário em localStorage (zero queries)
+ *    - Configurações em localStorage (zero queries)
+ * 
  * @author Zenite Team
  * @version 2.0.0 (NetLink Full Implementation)
-*/
+ */
+
 import { playSFX } from './audio.js';
 import { router } from './router.js';
 import { logger, netlinkLogger, translateError } from './logger.js';
@@ -1021,18 +1143,15 @@ export const netlinkLogic = {
             return;
         }
         
-        // Rate limiting: 10 rolls per 15 seconds (usando novo rate limiter)
+        // Rate limiting: 10 rolls per minute
         if (!window._diceRollTimestamps) window._diceRollTimestamps = [];
         const now = Date.now();
-        window._diceRollTimestamps = window._diceRollTimestamps.filter(t => now - t < 15000);
+        window._diceRollTimestamps = window._diceRollTimestamps.filter(t => now - t < 60000);
         
         if (window._diceRollTimestamps.length >= 10) {
-            const oldestTime = Math.min(...window._diceRollTimestamps);
-            const waitTime = Math.ceil((15000 - (now - oldestTime)) / 1000);
-            this.notify(`Aguarde ${waitTime}s para rolar novamente.`, 'warn');
+            this.notify('Limite de rolagens atingido! Aguarde um momento.', 'warn');
             return;
         }
-        
         window._diceRollTimestamps.push(now);
         
         playSFX('dice');
@@ -2361,6 +2480,33 @@ export const netlinkLogic = {
         }
     },
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // BESTIÁRIO DO MESTRE (LOCAL STORAGE)
+    // ─────────────────────────────────────────────────────────────────────────
+    // NPCs são armazenados localmente por campanha para não sobrecarregar o banco
+    // O mestre pode criar, editar e deletar NPCs livremente
+    
+    /**
+     * Carrega o bestiário do localStorage para a campanha atual
+     */
+    loadBestiary() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_bestiary_${this.activeCampaign.id}`;
+        const saved = localStorage.getItem(key);
+        this.bestiary = saved ? JSON.parse(saved) : [];
+    },
+    
+    /**
+     * Salva o bestiário no localStorage
+     */
+    saveBestiary() {
+        if (!this.activeCampaign) return;
+        
+        const key = `zenite_bestiary_${this.activeCampaign.id}`;
+        localStorage.setItem(key, JSON.stringify(this.bestiary));
+    },
+    
     /**
      * Abre o modal para criar novo NPC
      */
@@ -2379,145 +2525,49 @@ export const netlinkLogic = {
     },
     
     /**
-     * Salva o NPC (novo ou editado) no Supabase
+     * Salva o NPC (novo ou editado)
      */
-    async saveNPC() {
+    saveNPC() {
         if (!this.editingNPC || !this.editingNPC.name.trim()) {
             this.notify('Nome do NPC é obrigatório', 'error');
             return;
         }
         
-        if (!this.supabase) {
-            this.notify('Erro de conexão', 'error');
-            return;
+        const existingIndex = this.bestiary.findIndex(n => n.id === this.editingNPC.id);
+        
+        if (existingIndex >= 0) {
+            // Atualiza existente
+            this.bestiary[existingIndex] = this.editingNPC;
+        } else {
+            // Adiciona novo
+            this.bestiary.push(this.editingNPC);
         }
         
-        try {
-            const isNew = !this.editingNPC.id || this.editingNPC.id.startsWith('temp-');
-            
-            const { data, error } = await this.supabase.rpc('save_bestiary_npc', {
-                p_id: isNew ? null : this.editingNPC.id,
-                p_campaign_id: this.activeCampaign?.id,
-                p_name: this.editingNPC.name,
-                p_type: this.editingNPC.type || 'neutral',
-                p_pv: this.editingNPC.pv || { current: 10, max: 10 },
-                p_pf: this.editingNPC.pf || { current: 10, max: 10 },
-                p_pdf: this.editingNPC.pdf || { current: 10, max: 10 },
-                p_defesa: this.editingNPC.defesa || 10,
-                p_tags: this.editingNPC.tags || [],
-                p_notes: this.editingNPC.notes || ''
-            });
-            
-            if (error) throw error;
-            
-            if (data.success) {
-                // Atualiza ID se for novo
-                if (isNew) {
-                    this.editingNPC.id = data.id;
-                }
-                
-                // Atualiza lista local
-                const existingIndex = this.bestiary.findIndex(n => n.id === this.editingNPC.id);
-                if (existingIndex >= 0) {
-                    this.bestiary[existingIndex] = { ...this.editingNPC };
-                } else {
-                    this.bestiary.push({ ...this.editingNPC });
-                }
-                
-                this.bestiaryModalOpen = false;
-                this.editingNPC = null;
-                playSFX('success');
-                this.notify('NPC salvo na nuvem!', 'success');
-            } else {
-                throw new Error(data.error || 'Erro ao salvar');
-            }
-            
-        } catch (e) {
-            console.error('[BESTIARY] Erro ao salvar NPC:', e);
-            this.notify('Erro ao salvar NPC', 'error');
-            
-            // Fallback para localStorage se falhar nuvem
-            const existingIndex = this.bestiary.findIndex(n => n.id === this.editingNPC.id);
-            if (existingIndex >= 0) {
-                this.bestiary[existingIndex] = this.editingNPC;
-            } else {
-                this.bestiary.push(this.editingNPC);
-            }
-            this.saveBestiary();
-            this.bestiaryModalOpen = false;
-            this.editingNPC = null;
-        }
+        this.saveBestiary();
+        this.bestiaryModalOpen = false;
+        this.editingNPC = null;
+        playSFX('success');
     },
     
     /**
-     * Deleta um NPC do bestiário (Supabase)
+     * Deleta um NPC do bestiário
      */
-    async deleteNPC(npcId) {
-        if (!this.supabase) {
-            // Fallback localStorage
-            this.bestiary = this.bestiary.filter(n => n.id !== npcId);
-            this.saveBestiary();
-            playSFX('click');
-            return;
-        }
-        
-        try {
-            const { data, error } = await this.supabase.rpc('delete_bestiary_npc', {
-                p_npc_id: npcId
-            });
-            
-            if (error) throw error;
-            
-            if (data.success) {
-                this.bestiary = this.bestiary.filter(n => n.id !== npcId);
-                playSFX('click');
-                this.notify('NPC removido', 'success');
-            } else {
-                throw new Error(data.error || 'Erro ao deletar');
-            }
-            
-        } catch (e) {
-            console.error('[BESTIARY] Erro ao deletar NPC:', e);
-            this.notify('Erro ao remover NPC', 'error');
-        }
+    deleteNPC(npcId) {
+        this.bestiary = this.bestiary.filter(n => n.id !== npcId);
+        this.saveBestiary();
+        playSFX('click');
     },
     
     /**
-     * Duplica um NPC (Supabase)
+     * Duplica um NPC
      */
-    async duplicateNPC(npc) {
-        if (!this.supabase) {
-            // Fallback localStorage
-            const copy = JSON.parse(JSON.stringify(npc));
-            copy.id = Date.now().toString();
-            copy.name = copy.name + ' (cópia)';
-            this.bestiary.push(copy);
-            this.saveBestiary();
-            playSFX('success');
-            return;
-        }
-        
-        try {
-            const { data, error } = await this.supabase.rpc('duplicate_bestiary_npc', {
-                p_npc_id: npc.id,
-                p_new_name: npc.name + ' (cópia)'
-            });
-            
-            if (error) throw error;
-            
-            if (data.success) {
-                // Recarrega bestiário para obter cópia
-                await this.loadBestiary();
-                playSFX('success');
-                this.notify('NPC duplicado', 'success');
-            } else {
-                throw new Error(data.error || 'Erro ao duplicar');
-            }
-            
-        } catch (e) {
-            console.error('[BESTIARY] Erro ao duplicar NPC:', e);
-            this.notify('Erro ao duplicar NPC', 'error');
-        }
+    duplicateNPC(npc) {
+        const copy = JSON.parse(JSON.stringify(npc));
+        copy.id = Date.now().toString();
+        copy.name = copy.name + ' (cópia)';
+        this.bestiary.push(copy);
+        this.saveBestiary();
+        playSFX('success');
     },
     
     /**
@@ -3121,12 +3171,10 @@ export const netlinkLogic = {
     
     /**
      * Convida um amigo para a campanha ativa
-     * Sistema melhorado com validações, feedback e notificações
+     * Cria um registro em campaign_members com status 'pending'
      * @param {string} friendUserId - ID do usuário amigo
-     * @param {string} friendName - Nome do amigo para notificação
-     * @returns {Promise<boolean>} Sucesso do convite
      */
-    async inviteFriendToCampaign(friendUserId, friendName = null) {
+    async inviteFriendToCampaign(friendUserId) {
         if (!this.supabase || !this.activeCampaign || !this.user) {
             this.notify('Erro: Não foi possível enviar convite.', 'error');
             return false;
@@ -3138,172 +3186,64 @@ export const netlinkLogic = {
             return false;
         }
         
-        // Validação do ID do amigo
-        if (!friendUserId || typeof friendUserId !== 'string') {
-            this.notify('ID do amigo inválido.', 'error');
-            return false;
-        }
-        
         try {
             // Verifica se já é membro ou tem convite pendente
-            const { data: existing, error: checkError } = await this.supabase
+            const { data: existing } = await this.supabase
                 .from('campaign_members')
-                .select('id, status, created_at')
+                .select('id, status')
                 .eq('campaign_id', this.activeCampaign.id)
                 .eq('user_id', friendUserId)
                 .single();
-            
-            if (checkError && checkError.code !== 'PGRST116') {
-                throw checkError;
-            }
             
             if (existing) {
                 if (existing.status === NETLINK_CONFIG.MEMBER_STATUS.ACTIVE) {
                     this.notify('Este jogador já está na campanha.', 'warn');
                 } else if (existing.status === NETLINK_CONFIG.MEMBER_STATUS.PENDING) {
-                    // Calcula há quanto tempo o convite está pendente
-                    const pendingHours = Math.floor((Date.now() - new Date(existing.created_at).getTime()) / (1000 * 60 * 60));
-                    if (pendingHours < 24) {
-                        this.notify(`Convite já enviado para este jogador (há ${pendingHours}h).`, 'warn');
-                    } else {
-                        // Se o convite está pendente há mais de 24h, permite reenviar
-                        await this._resendCampaignInvite(friendUserId, existing.id);
-                        this.notify('Convite reenviado com sucesso!', 'success');
-                        return true;
-                    }
+                    this.notify('Convite já enviado para este jogador.', 'warn');
                 }
                 return false;
             }
             
-            // Verifica limites de jogadores na campanha
-            const { data: memberCount, error: countError } = await this.supabase
-                .from('campaign_members')
-                .select('id', { count: 'exact', head: true })
-                .eq('campaign_id', this.activeCampaign.id)
-                .eq('status', NETLINK_CONFIG.MEMBER_STATUS.ACTIVE);
-            
-            if (countError) throw countError;
-            
-            const maxPlayers = this.activeCampaign.max_players || 8;
-            if (memberCount && memberCount.length >= maxPlayers) {
-                this.notify(`Campanha está cheia (${maxPlayers}/${maxPlayers} jogadores).`, 'error');
-                return false;
-            }
-            
-            // Cria convite pendente com metadados
-            const inviteData = {
-                campaign_id: this.activeCampaign.id,
-                user_id: friendUserId,
-                role: NETLINK_CONFIG.ROLES.PLAYER,
-                status: NETLINK_CONFIG.MEMBER_STATUS.PENDING,
-                char_data: null,
-                invited_by: this.user.id,
-                invited_at: new Date().toISOString(),
-                invite_metadata: {
-                    campaign_name: this.activeCampaign.name,
-                    gm_name: this.settings?.displayName || this.settings?.username || 'Mestre',
-                    gm_avatar: this.settings?.avatar || null
-                }
-            };
-            
+            // Cria convite pendente
             const { error } = await this.supabase
                 .from('campaign_members')
-                .insert([inviteData]);
+                .insert([{
+                    campaign_id: this.activeCampaign.id,
+                    user_id: friendUserId,
+                    role: NETLINK_CONFIG.ROLES.PLAYER,
+                    status: NETLINK_CONFIG.MEMBER_STATUS.PENDING,
+                    char_data: null
+                }]);
             
             if (error) throw error;
             
-            // Envia notificação em tempo real se disponível
-            await this._sendInviteNotification(friendUserId, friendName, inviteData);
-            
             playSFX('success');
-            this.notify(`Convite enviado para ${friendName || 'jogador'}!`, 'success');
+            this.notify('Convite enviado com sucesso!', 'success');
             
-            // Atualiza lista de amigos para mostrar status do convite
-            await this.loadFriends();
+            // Tenta enviar notificação realtime para o amigo
+            if (this.realtimeChannel) {
+                this.realtimeChannel.send({
+                    type: 'broadcast',
+                    event: 'campaign_invite',
+                    payload: {
+                        targetUserId: friendUserId,
+                        campaignName: this.activeCampaign.name,
+                        campaignId: this.activeCampaign.id,
+                        invitedBy: this.settings?.displayName || this.settings?.username || 'Mestre'
+                    }
+                });
+            }
             
             return true;
-            
-        } catch (error) {
-            netlinkLogger.error('Erro ao convidar amigo para campanha:', error);
-            this.notify('Erro ao enviar convite. Tente novamente.', 'error');
+        } catch (e) {
+            netlinkLogger.error('Erro ao convidar amigo:', e);
+            this.notify('Erro ao enviar convite.', 'error');
             return false;
         }
     },
     
     /**
-     * Reenvia um convite existente
-     * @private
-     */
-    async _resendCampaignInvite(friendUserId, inviteId) {
-        try {
-            // Atualiza timestamp do convite
-            const { error } = await this.supabase
-                .from('campaign_members')
-                .update({
-                    invited_at: new Date().toISOString(),
-                    invite_metadata: {
-                        campaign_name: this.activeCampaign.name,
-                        gm_name: this.settings?.displayName || this.settings?.username || 'Mestre',
-                        gm_avatar: this.settings?.avatar || null,
-                        resent: true
-                    }
-                })
-                .eq('id', inviteId);
-            
-            if (error) throw error;
-            
-            // Envia notificação de reenvio
-            const friend = this.friends.find(f => f.id === friendUserId);
-            if (friend) {
-                await this._sendInviteNotification(friendUserId, friend.displayName, {
-                    campaign_name: this.activeCampaign.name,
-                    gm_name: this.settings?.displayName || this.settings?.username || 'Mestre',
-                    gm_avatar: this.settings?.avatar || null,
-                    resent: true
-                });
-            }
-            
-        } catch (error) {
-            netlinkLogger.error('Erro ao reenviar convite:', error);
-            throw error;
-        }
-    },
-    
-    /**
-     * Envia notificação de convite em tempo real
-     * @private
-     */
-    async _sendInviteNotification(friendUserId, friendName, inviteData) {
-        try {
-            // Notificação via sistema de notificações do Zenite
-            if (this.realtimeChannel) {
-                await this.realtimeChannel.send({
-                    type: 'broadcast',
-                    event: 'campaign_invite',
-                    payload: {
-                        target_user: friendUserId,
-                        campaign_id: this.activeCampaign.id,
-                        campaign_name: inviteData.campaign_name,
-                        gm_name: inviteData.gm_name,
-                        gm_avatar: inviteData.gm_avatar,
-                        invite_code: this.activeCampaign.invite_code,
-                        resent: inviteData.resent || false
-                    }
-                });
-            }
-            
-            // Log para debugging
-            netlinkLogger.info(`Convite enviado: ${friendName} → ${inviteData.campaign_name}`);
-            
-        } catch (error) {
-            netlinkLogger.warn('Não foi possível enviar notificação em tempo real:', error);
-            // Não falha o convite se a notificação não funcionar
-        }
-    },
-    
-    /**
      * Carrega convites pendentes de campanhas para o usuário atual
-     * Sistema melhorado com metadados e ordenação
      */
     async loadPendingCampaignInvites() {
         if (!this.supabase || !this.user) return;
@@ -3314,115 +3254,46 @@ export const netlinkLogic = {
                 .select(`
                     id,
                     campaign_id,
-                    status,
                     created_at,
-                    invited_at,
-                    invited_by,
-                    invite_metadata,
-                    campaigns!inner (
+                    campaigns:campaign_id (
                         id,
                         name,
                         description,
-                        invite_code,
                         gm_id,
-                        max_players,
-                        system,
-                        is_public
+                        invite_code
                     )
                 `)
                 .eq('user_id', this.user.id)
-                .eq('status', NETLINK_CONFIG.MEMBER_STATUS.PENDING)
-                .order('invited_at', { ascending: false });
+                .eq('status', NETLINK_CONFIG.MEMBER_STATUS.PENDING);
             
             if (error) throw error;
             
-            // Processa dados com metadados ricos
-            this.pendingCampaignInvites = (data || []).map(invite => {
-                const hoursSinceInvite = Math.floor((Date.now() - new Date(invite.invited_at).getTime()) / (1000 * 60 * 60));
-                const canResend = hoursSinceInvite >= 24;
-                
-                return {
-                    id: invite.id,
-                    campaignId: invite.campaign_id,
-                    campaignName: invite.campaigns.name || 'Campanha',
-                    campaignDesc: invite.campaigns.description || '',
-                    inviteCode: invite.campaigns.invite_code,
-                    gmId: invite.campaigns.gm_id,
-                    system: invite.campaigns.system || 'Zenite',
-                    isPublic: invite.campaigns.is_public || false,
-                    maxPlayers: invite.campaigns.max_players || 8,
-                    invitedBy: invite.invited_by,
-                    invitedAt: invite.invited_at,
-                    createdAt: invite.created_at,
-                    hoursSinceInvite,
-                    canResend,
-                    metadata: invite.invite_metadata || {},
-                    gmName: invite.invite_metadata?.gm_name || 'Mestre',
-                    gmAvatar: invite.invite_metadata?.gm_avatar || null,
-                    isResent: invite.invite_metadata?.resent || false
-                };
-            });
+            this.pendingCampaignInvites = (data || []).map(invite => ({
+                id: invite.id,
+                campaignId: invite.campaign_id,
+                campaignName: invite.campaigns?.name || 'Campanha',
+                campaignDesc: invite.campaigns?.description || '',
+                inviteCode: invite.campaigns?.invite_code,
+                createdAt: invite.created_at
+            }));
             
-            // Se tem convites, mostra notificação melhorada
+            // Se tem convites, mostra notificação
             if (this.pendingCampaignInvites.length > 0) {
-                const newestInvite = this.pendingCampaignInvites[0];
-                const message = this.pendingCampaignInvites.length === 1 
-                    ? `Convite para "${newestInvite.campaignName}"`
-                    : `Você tem ${this.pendingCampaignInvites.length} convite(s) de campanha!`;
-                
-                // Usa o novo sistema de notificações
-                if (typeof this.notifyCampaignInvite === 'function') {
-                    this.notifyCampaignInvite(
-                        newestInvite.campaignName,
-                        newestInvite.inviteCode,
-                        () => this.acceptCampaignInvite(newestInvite.id)
-                    );
-                } else {
-                    this.notify(message, 'info');
-                }
+                this.notify(`Você tem ${this.pendingCampaignInvites.length} convite(s) de campanha pendente(s)!`, 'info');
             }
-            
-            netlinkLogger.info(`Carregados ${this.pendingCampaignInvites.length} convites pendentes`);
-            
-        } catch (error) {
-            netlinkLogger.error('Erro ao carregar convites:', error);
+        } catch (e) {
+            netlinkLogger.error('Erro ao carregar convites:', e);
         }
     },
     
     /**
      * Aceita um convite de campanha
-     * Sistema melhorado com validações e transição suave
      * @param {string} inviteId - ID do registro do convite em campaign_members
      */
     async acceptCampaignInvite(inviteId) {
-        if (!this.supabase || !this.user) {
-            this.notify('Erro ao aceitar convite.', 'error');
-            return false;
-        }
+        if (!this.supabase || !this.user) return false;
         
         try {
-            // Busca dados completos do convite
-            const invite = this.pendingCampaignInvites.find(i => i.id === inviteId);
-            if (!invite) {
-                this.notify('Convite não encontrado.', 'error');
-                return false;
-            }
-            
-            // Verifica se ainda é válido
-            const { data: currentInvite, error: checkError } = await this.supabase
-                .from('campaign_members')
-                .select('status')
-                .eq('id', inviteId)
-                .single();
-            
-            if (checkError) throw checkError;
-            
-            if (currentInvite.status !== NETLINK_CONFIG.MEMBER_STATUS.PENDING) {
-                this.notify('Este convite não está mais disponível.', 'warn');
-                await this.loadPendingCampaignInvites(); // Atualiza lista
-                return false;
-            }
-            
             // Atualiza status para ativo
             const { error } = await this.supabase
                 .from('campaign_members')
@@ -3430,28 +3301,29 @@ export const netlinkLogic = {
                     status: NETLINK_CONFIG.MEMBER_STATUS.ACTIVE,
                     joined_at: new Date().toISOString()
                 })
-                .eq('id', inviteId);
+                .eq('id', inviteId)
+                .eq('user_id', this.user.id);
             
             if (error) throw error;
             
             // Remove da lista de pendentes
+            const invite = this.pendingCampaignInvites.find(i => i.id === inviteId);
             this.pendingCampaignInvites = this.pendingCampaignInvites.filter(i => i.id !== inviteId);
             
+            // Recarrega campanhas
+            await this.loadCampaigns();
+            
             playSFX('success');
-            this.notify(`Convite aceito! Você agora faz parte de "${invite.campaignName}".`, 'success');
+            this.notify('Convite aceito! Você agora faz parte da campanha.', 'success');
             
             // Se temos o código de convite, entra na campanha
-            if (invite.inviteCode) {
+            if (invite?.inviteCode) {
                 await this.joinByCode(invite.inviteCode);
             }
             
-            // Envia confirmação para o GM
-            await this._sendInviteConfirmation(invite, 'accepted');
-            
             return true;
-            
-        } catch (error) {
-            netlinkLogger.error('Erro ao aceitar convite:', error);
+        } catch (e) {
+            netlinkLogger.error('Erro ao aceitar convite:', e);
             this.notify('Erro ao aceitar convite.', 'error');
             return false;
         }
@@ -3459,78 +3331,32 @@ export const netlinkLogic = {
     
     /**
      * Recusa um convite de campanha
-     * Sistema melhorado com feedback e notificação ao GM
      * @param {string} inviteId - ID do registro do convite em campaign_members
      */
     async declineCampaignInvite(inviteId) {
-        if (!this.supabase || !this.user) {
-            this.notify('Erro ao recusar convite.', 'error');
-            return false;
-        }
+        if (!this.supabase || !this.user) return false;
         
         try {
-            // Busca dados do convite antes de remover
-            const invite = this.pendingCampaignInvites.find(i => i.id === inviteId);
-            
             // Remove o registro de convite
             const { error } = await this.supabase
                 .from('campaign_members')
                 .delete()
-                .eq('id', inviteId);
+                .eq('id', inviteId)
+                .eq('user_id', this.user.id);
             
             if (error) throw error;
             
-            // Remove da lista local
+            // Remove da lista de pendentes
             this.pendingCampaignInvites = this.pendingCampaignInvites.filter(i => i.id !== inviteId);
             
             playSFX('click');
-            
-            const message = invite 
-                ? `Convite para "${invite.campaignName}" recusado.`
-                : 'Convite recusado.';
-            
-            this.notify(message, 'info');
-            
-            // Envia confirmação para o GM
-            if (invite) {
-                await this._sendInviteConfirmation(invite, 'declined');
-            }
+            this.notify('Convite recusado.', 'info');
             
             return true;
-            
-        } catch (error) {
-            netlinkLogger.error('Erro ao recusar convite:', error);
+        } catch (e) {
+            netlinkLogger.error('Erro ao recusar convite:', e);
             this.notify('Erro ao recusar convite.', 'error');
             return false;
-        }
-    },
-    
-    /**
-     * Envia confirmação de resposta ao convite para o GM
-     * @private
-     */
-    async _sendInviteConfirmation(invite, action) {
-        try {
-            if (this.realtimeChannel && invite.gmId) {
-                await this.realtimeChannel.send({
-                    type: 'broadcast',
-                    event: 'campaign_invite_response',
-                    payload: {
-                        target_gm: invite.gmId,
-                        campaign_id: invite.campaignId,
-                        campaign_name: invite.campaignName,
-                        player_name: this.settings?.displayName || this.settings?.username || 'Jogador',
-                        player_avatar: this.settings?.avatar || null,
-                        action, // 'accepted' or 'declined'
-                        responded_at: new Date().toISOString()
-                    }
-                });
-            }
-            
-            netlinkLogger.info(`Confirmação enviada: ${action} → ${invite.campaignName}`);
-            
-        } catch (error) {
-            netlinkLogger.warn('Não foi possível enviar confirmação ao GM:', error);
         }
     },
     

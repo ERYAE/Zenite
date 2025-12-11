@@ -100,32 +100,20 @@ class RateLimiter {
 
 // Create rate limiters for different actions
 export const rateLimiters = {
-    // 10 dice rolls per minute (mantido)
+    // 10 dice rolls per minute
     diceRoll: new RateLimiter(10, 60000),
     
-    // 30 chat messages per minute (aumentado de 20 para 30)
-    chatMessage: new RateLimiter(30, 60000),
+    // 20 chat messages per minute
+    chatMessage: new RateLimiter(20, 60000),
     
-    // 5 invite code attempts per minute (mantido)
+    // 5 invite code attempts per minute
     inviteCode: new RateLimiter(5, 60000),
     
-    // 3 password reset attempts per hour (mantido)
+    // 3 password reset attempts per hour
     passwordReset: new RateLimiter(3, 3600000),
     
-    // 40 API calls per minute (aumentado de 10 para 40)
-    apiCall: new RateLimiter(40, 60000),
-    
-    // NOVO: 10 dados sync por 15 segundos (reduzido drasticamente)
-    dataSync: new RateLimiter(10, 15000),
-    
-    // NOVO: 5 operações de save por 15 segundos
-    dataSave: new RateLimiter(5, 15000),
-    
-    // NOVO: 20 atualizações de perfil por minuto
-    profileUpdate: new RateLimiter(20, 60000),
-    
-    // NOVO: 15 convites de campanha por minuto
-    campaignInvite: new RateLimiter(15, 60000)
+    // 10 API calls per minute (generic)
+    apiCall: new RateLimiter(10, 60000)
 };
 
 /**

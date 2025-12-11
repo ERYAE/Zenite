@@ -42,155 +42,19 @@ export const uiLogic = {
     applyLowPerfMode() {
         if (this.settings.lowPerfMode) {
             document.body.classList.add('low-perf');
-            
             // Load low-perf CSS if not already loaded
             if (!document.getElementById('low-perf-css')) {
                 const link = document.createElement('link');
                 link.id = 'low-perf-css';
                 link.rel = 'stylesheet';
-                // Corrige o caminho do CSS para o diretório correto
-                link.href = './css/low-performance.css';
+                link.href = '/css/low-performance.css';
                 document.head.appendChild(link);
-                
-                // Adiciona CSS inline adicional para performance imediata
-                const inlineStyles = document.createElement('style');
-                inlineStyles.id = 'low-perf-inline';
-                inlineStyles.textContent = `
-                    body.low-perf *,
-                    body.low-perf *::before,
-                    body.low-perf *::after {
-                        animation: none !important;
-                        transition: none !important;
-                        transition-duration: 0ms !important;
-                    }
-                    
-                    body.low-perf .backdrop-blur,
-                    body.low-perf .backdrop-blur-xl,
-                    body.low-perf .backdrop-blur-sm {
-                        backdrop-filter: none !important;
-                        -webkit-backdrop-filter: none !important;
-                    }
-                    
-                    body.low-perf .glass {
-                        background: rgba(10, 10, 15, 0.98) !important;
-                        backdrop-filter: none !important;
-                        -webkit-backdrop-filter: none !important;
-                    }
-                    
-                    body.low-perf * {
-                        box-shadow: none !important;
-                        text-shadow: none !important;
-                        transform: none !important;
-                        filter: none !important;
-                    }
-                    
-                    body.low-perf .hover\\:scale-105:hover,
-                    body.low-perf .hover\\:scale-110:hover {
-                        transform: none !important;
-                    }
-                    
-                    body.low-perf .fa-spin {
-                        animation: none !important;
-                    }
-                    
-                    body.low-perf .bg-grid {
-                        display: none !important;
-                    }
-                    
-                    body.low-perf .font-brand {
-                        background: none !important;
-                        -webkit-background-clip: unset !important;
-                        -webkit-text-fill-color: var(--neon-core) !important;
-                        color: var(--neon-core) !important;
-                    }
-                `;
-                document.head.appendChild(inlineStyles);
             }
-            
-            // Aplica otimizações de performance adicionais
-            this._applyPerformanceOptimizations();
-            
-            this.notify('⚡ Modo Performance ativado! Animações desabilitadas.', 'success');
+            this.notify('Modo Performance ativado! Animações desabilitadas.', 'success');
         } else {
             document.body.classList.remove('low-perf');
-            
-            // Remove CSS inline se existir
-            const inlineStyles = document.getElementById('low-perf-inline');
-            if (inlineStyles) {
-                inlineStyles.remove();
-            }
-            
-            // Remove otimizações de performance
-            this._removePerformanceOptimizations();
-            
             this.notify('Modo Performance desativado.', 'info');
         }
-    },
-    
-    /**
-     * Aplica otimizações de performance adicionais
-     * @private
-     */
-    _applyPerformanceOptimizations() {
-        // Reduz frequência de updates em tempo real
-        if (this.realtimeChannel) {
-            this.realtimeChannel.throttleMs = 1000; // 1 segundo em vez de 100ms
-        }
-        
-        // Desabilita animações de dados
-        if (typeof window !== 'undefined') {
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches = true;
-        }
-        
-        // Reduz qualidade de imagens se possível
-        const images = document.querySelectorAll('img');
-        images.forEach(img => {
-            if (img.src && !img.src.includes('data:')) {
-                // Adiciona atributo de baixa qualidade
-                img.loading = 'eager';
-                img.decoding = 'sync';
-            }
-        });
-        
-        // Desabilita observadores de desempenho pesados
-        if (typeof IntersectionObserver !== 'undefined') {
-            // Desabilita lazy loading
-            const lazyImages = document.querySelectorAll('img[loading="lazy"]');
-            lazyImages.forEach(img => {
-                img.loading = 'eager';
-            });
-        }
-        
-        // Reduz updates do Alpine.js
-        if (typeof Alpine !== 'undefined') {
-            // Configura Alpine para modo de performance
-            Alpine.config('magics', false);
-        }
-        
-        console.log('⚡ Performance optimizations applied');
-    },
-    
-    /**
-     * Remove otimizações de performance
-     * @private
-     */
-    _removePerformanceOptimizations() {
-        // Restaura frequência de updates em tempo real
-        if (this.realtimeChannel) {
-            this.realtimeChannel.throttleMs = 100; // 100ms normal
-        }
-        
-        // Restaura preferências de movimento
-        if (typeof window !== 'undefined') {
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches = false;
-        }
-        
-        // Restaura configurações do Alpine.js
-        if (typeof Alpine !== 'undefined') {
-            Alpine.config('magics', true);
-        }
-        
-        console.log('⚡ Performance optimizations removed');
     },
 
     applyTheme(color) {
@@ -269,46 +133,6 @@ export const uiLogic = {
             return this.notify('Limite de 30 agentes atingido.', 'error'); 
         }
         
-        // Tenta carregar rascunho salvo do localStorage
-        const savedDraft = localStorage.getItem('zenite_wizard_draft');
-        let draftData = null;
-        
-        if (savedDraft) {
-            try {
-                draftData = JSON.parse(savedDraft);
-                // Verifica se o rascunho é recente (últimas 24h)
-                const draftAge = Date.now() - (draftData.timestamp || 0);
-                if (draftAge < 24 * 60 * 60 * 1000) { // 24 horas
-                    this.wizardStep = draftData.step || 1;
-                    this.wizardPoints = draftData.points || 8;
-                    this.wizardData = draftData.data || {
-                        class: '', 
-                        name: '', 
-                        identity: '', 
-                        age: '', 
-                        history: '', 
-                        photo: null, 
-                        attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
-                    };
-                    this.wizardFocusAttr = draftData.focusAttr;
-                } else {
-                    // Rascunho muito antigo, ignora
-                    localStorage.removeItem('zenite_wizard_draft');
-                    this.resetWizard();
-                }
-            } catch (e) {
-                console.error('Erro ao carregar rascunho do wizard:', e);
-                localStorage.removeItem('zenite_wizard_draft');
-                this.resetWizard();
-            }
-        } else {
-            this.resetWizard();
-        }
-        
-        this.wizardOpen = true; 
-    },
-
-    resetWizard() {
         this.wizardStep = 1; 
         this.wizardPoints = 8; 
         this.wizardData = { 
@@ -319,30 +143,8 @@ export const uiLogic = {
             history: '', 
             photo: null, 
             attrs: {for:-1, agi:-1, int:-1, von:-1, pod:-1} 
-        };
-        this.wizardFocusAttr = null;
-    },
-
-    saveWizardDraft() {
-        if (!this.wizardOpen) return;
-        
-        const draftData = {
-            step: this.wizardStep,
-            points: this.wizardPoints,
-            data: this.wizardData,
-            focusAttr: this.wizardFocusAttr,
-            timestamp: Date.now()
-        };
-        
-        try {
-            localStorage.setItem('zenite_wizard_draft', JSON.stringify(draftData));
-        } catch (e) {
-            console.error('Erro ao salvar rascunho do wizard:', e);
-        }
-    },
-
-    clearWizardDraft() {
-        localStorage.removeItem('zenite_wizard_draft');
+        }; 
+        this.wizardOpen = true; 
     },
 
     selectArchetype(a) { 
@@ -353,7 +155,6 @@ export const uiLogic = {
         this.wizardFocusAttr = a.focus; 
         this.wizardPoints = 8; // Reseta pontos disponíveis ao trocar de arquétipo
         this.wizardStep = 2; 
-        this.saveWizardDraft(); // Salva rascunho após selecionar arquétipo
         this.$nextTick(() => { this.updateWizardChart(); }); 
     },
 
@@ -365,14 +166,12 @@ export const uiLogic = {
             this.wizardData.attrs[k]++; 
             this.wizardPoints--; 
             this.updateWizardChart(); 
-            this.saveWizardDraft(); // Salva rascunho após modificar atributo
         } 
         
         if(v<0 && c>(f?0:-1)) { 
             this.wizardData.attrs[k]--; 
             this.wizardPoints++; 
             this.updateWizardChart(); 
-            this.saveWizardDraft(); // Salva rascunho após modificar atributo
         } 
     },
 
@@ -421,9 +220,6 @@ export const uiLogic = {
         }
         
         this.wizardOpen = false; 
-        
-        // Limpa rascunho após finalizar com sucesso
-        this.clearWizardDraft();
         
         // Verifica se há campanha pendente (usuário veio por link de convite)
         const pendingCampaignCode = sessionStorage.getItem('zenite_pending_campaign');
@@ -979,8 +775,8 @@ export const uiLogic = {
         this.logoClickTimer = setTimeout(() => {
             // Se foi um clique simples, vai para dashboard
             if (this.logoClickCount === 1) {
-                // Se estiver em campanha ativa, sai dela primeiro
-                if (this.activeCampaign && this.currentView === 'campaign') {
+                // Se estiver em campanha, sai dela primeiro
+                if (this.activeCampaign) {
                     this.leaveCampaign();
                 }
                 this.currentView = 'dashboard';

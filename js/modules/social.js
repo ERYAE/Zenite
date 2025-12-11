@@ -1365,7 +1365,7 @@ export const socialLogic = {
             this.chatMessages = (data || []).reverse().map(m => ({
                 id: m.msg_id || m.id,
                 content: m.content,
-                isMine: m.is_mine !== true,
+                isMine: m.is_mine,
                 createdAt: m.created_at,
                 isRead: m.is_read
             }));
@@ -1392,7 +1392,7 @@ export const socialLogic = {
             this.chatMessages = (data || []).map(m => ({
                 id: m.id,
                 content: m.content,
-                isMine: m.sender_id !== this.user.id,
+                isMine: m.sender_id === this.user.id,
                 createdAt: m.created_at,
                 isRead: m.is_read
             }));
@@ -1450,7 +1450,7 @@ export const socialLogic = {
         const optimisticMessage = {
             id: tempId,
             content: content,
-            isMine: false,
+            isMine: true,
             createdAt: new Date().toISOString(),
             isRead: false,
             sending: true
@@ -1520,7 +1520,7 @@ export const socialLogic = {
                         this.chatMessages.push({
                             id: msg.id,
                             content: msg.content,
-                            isMine: true,
+                            isMine: false,
                             createdAt: msg.created_at,
                             isRead: false
                         });

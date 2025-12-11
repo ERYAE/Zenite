@@ -57,11 +57,6 @@ export const router = {
     isInitialized: false,
     lastProcessedHash: null,
     
-    // Race condition prevention
-    navigationQueue: [],
-    isProcessingQueue: false,
-    navigationId: 0,
-    
     // Route configurations
     routes: {
         dashboard: { view: 'dashboard', title: 'Dashboard' },
@@ -133,7 +128,7 @@ export const router = {
      * @param {boolean} replace - If true, replace history instead of pushing
      * @param {boolean} skipProcess - If true, only update URL without processing
      */
-    async navigate(route, param = null, replace = false, skipProcess = false) {
+    navigate(route, param = null, replace = false, skipProcess = false) {
         const safeRoute = sanitizeRouteName(route);
         const safeParam = sanitizeParam(safeRoute, param);
 
@@ -149,83 +144,14 @@ export const router = {
             return;
         }
 
-        // Generate unique navigation ID for race condition tracking
-        const navId = ++this.navigationId;
-        
-        // Add to navigation queue to prevent race conditions
-        const navigationPromise = new Promise((resolve, reject) => {
-            this.navigationQueue.push({
-                id: navId,
-                route: safeRoute,
-                param: safeParam,
-                replace,
-                skipProcess,
-                hash,
-                resolve,
-                reject,
-                timestamp: Date.now()
-            });
-        });
-        
-        // Process queue if not already processing
-        if (!this.isProcessingQueue) {
-            this._processNavigationQueue();
-        }
-        
-        return navigationPromise;
-    },
-    
-    /**
-     * Process navigation queue sequentially to prevent race conditions
-     */
-    async _processNavigationQueue() {
-        if (this.isProcessingQueue || this.navigationQueue.length === 0) {
-            return;
-        }
-        
-        this.isProcessingQueue = true;
-        
-        while (this.navigationQueue.length > 0) {
-            const navigation = this.navigationQueue.shift();
-            
-            try {
-                // Skip if this navigation is outdated (newer one exists)
-                if (navigation.id < this.navigationId) {
-                    const newerNavigation = this.navigationQueue.find(n => n.id > navigation.id);
-                    if (newerNavigation) {
-                        logger.debug('ROUTER', 'Skipping outdated navigation:', navigation.hash);
-                        navigation.resolve();
-                        continue;
-                    }
-                }
-                
-                await this._executeNavigation(navigation);
-                navigation.resolve();
-                
-            } catch (error) {
-                logger.error('ROUTER', 'Navigation failed:', error);
-                navigation.reject(error);
-            }
-        }
-        
-        this.isProcessingQueue = false;
-    },
-    
-    /**
-     * Execute a single navigation with proper state management
-     */
-    async _executeNavigation(navigation) {
-        const { route, param, replace, skipProcess, hash } = navigation;
-        
         // Set navigating flag to prevent listener loops
         this.isNavigating = true;
         
         const url = window.location.pathname + window.location.search + hash;
         const stateObj = { 
-            route, 
-            param, 
-            timestamp: Date.now(),
-            navId: navigation.id
+            route: safeRoute, 
+            param: safeParam, 
+            timestamp: Date.now() 
         };
         
         // Update browser history
@@ -239,13 +165,15 @@ export const router = {
 
         // Process route unless skipped
         if (!skipProcess) {
-            await this.processRoute(route, param, false);
+            this.processRoute(safeRoute, safeParam, false);
         }
 
-        this.updateTitle(route, param);
+        this.updateTitle(safeRoute, safeParam);
         
-        // Reset flag after processing
-        this.isNavigating = false;
+        // Reset flag after microtask to allow next navigation
+        queueMicrotask(() => {
+            this.isNavigating = false;
+        });
     },
 
     /**
@@ -264,22 +192,23 @@ export const router = {
      * Parse and process the current URL hash.
      * Called by hashchange listener and on initial load.
      */
-    async handleRoute() {
+    handleRoute() {
         const hash = window.location.hash;
         
         // Skip if we just processed this hash (prevents double processing)
         if (hash === this.lastProcessedHash) {
+            logger.debug('ROUTER', 'Skipping duplicate hash:', hash);
             return;
         }
-        
-        // Skip if currently navigating (prevents race conditions)
-        if (this.isNavigating) {
-            // Queue this for processing after current navigation completes
-            setTimeout(() => this.handleRoute(), 10);
+
+        // Handle empty/missing hash: default to dashboard (if logged in) or login
+        if (!hash || hash === '#' || hash === '#/') {
+            const defaultRoute = (this.app?.user || this.app?.isGuest) ? 'dashboard' : 'login';
+            this.navigate(defaultRoute, null, true);
             return;
         }
-        
-        // Parse hash components
+
+        // Parse hash: #/route/param
         const parts = hash.slice(2).split('/').filter(p => p);
         const routeName = sanitizeRouteName(parts[0] || 'dashboard');
         const param = sanitizeParam(routeName, parts[1] || null);
