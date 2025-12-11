@@ -5,12 +5,15 @@
 
 // Variáveis sensíveis vêm de .env.local (Vite: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
 // Vercel: configurado nas environment variables do projeto
+// IMPORTANTE: Rodar via 'npm run dev' para Vite injetar as variáveis
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
+
 export const CONSTANTS = {
     MAX_ALUNOS: 30,
     SAVE_INTERVAL: 180000, 
     TOAST_DURATION: 3000,
-    SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
-    SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY
+    SUPABASE_URL: env.VITE_SUPABASE_URL || '',
+    SUPABASE_KEY: env.VITE_SUPABASE_ANON_KEY || ''
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
