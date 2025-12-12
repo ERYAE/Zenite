@@ -786,13 +786,15 @@ export const uiLogic = {
         this.logoClickTimer = setTimeout(() => {
             // Se foi um clique simples, vai para dashboard
             if (this.logoClickCount === 1) {
-                // Se estiver em campanha, sai dela primeiro
-                if (this.activeCampaign) {
+                // Se estiver em campanha E na view de campanha, sai dela primeiro
+                if (this.activeCampaign && this.currentView === 'campaign') {
                     this.leaveCampaign();
                 }
                 this.currentView = 'dashboard';
+                this.activeTab = 'profile';
                 this.selectedCharId = null;
-                this.char = null;
+                // Usar $nextTick para evitar erro de null safety no Alpine
+                this.$nextTick(() => { this.char = null; });
             }
             this.logoClickCount = 0; 
         }, 300);
