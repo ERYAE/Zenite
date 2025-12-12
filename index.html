@@ -4094,6 +4094,28 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         MODAL: CROPPER (EDITOR DE IMAGEM)
+         ═══════════════════════════════════════════════════════════════════════════ -->
+    <div x-show="cropperOpen && !systemLoading"  
+         class="fixed inset-0 z-[12000] bg-black/95 flex items-center justify-center p-4"
+         x-transition.opacity
+         @mousedown.self="modalClickStartedOutside = true"
+         @mouseup.self="if(modalClickStartedOutside) cropperOpen = false; modalClickStartedOutside = false"
+         @mouseup="modalClickStartedOutside = false">
+        <div class="w-full max-w-lg h-[70vh] flex flex-col">
+            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
+                <img id="crop-target" class="block max-w-full">
+            </div>
+            <div class="flex gap-3">
+                <input type="file" id="file-input" name="upload_image" class="hidden" accept="image/*" @change="initCropper($event)" aria-label="Upload de Imagem">
+                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-white">CARREGAR</button>
+                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
+                <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors" aria-label="Cancelar edição de imagem"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
 
