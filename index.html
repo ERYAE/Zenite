@@ -55,6 +55,9 @@
 
 
     <div x-show="migrationModalOpen" 
+     x-trap.noscroll="migrationModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[12000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition:enter="transition ease-out duration-300"
      x-transition:enter-start="opacity-0 scale-95"
@@ -2224,21 +2227,22 @@
                 </button>
             </div>
         </div>
-    </div>
-</div>
 
     <!-- Welcome Modal (sem username - já tem usernameModal separado) -->
     <div x-show="welcomeModal && !systemLoading"  
+         x-trap.noscroll="welcomeModal && !systemLoading"
+         role="dialog"
+         aria-modal="true"
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center px-4 py-6"
          x-transition.opacity
          @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) welcomeModal = false; modalClickStartedOutside = false"
+         @mouseup.self="if(modalClickStartedOutside) { welcomeModal = false; modalClickStartedOutside = false; }"
          @mouseup="modalClickStartedOutside = false">
         
         <div class="glass rounded-2xl w-full max-w-2xl relative border border-[var(--neon-core)] shadow-2xl modal-enter flex flex-col max-h-[90vh] overflow-hidden">
             
             <button @click="welcomeModal=false" class="absolute top-4 right-4 text-gray-500 hover:text-white z-20 bg-black/60 backdrop-blur-sm rounded-full p-2 w-9 h-9 flex items-center justify-center border border-white/10 hover:border-white/30 transition-all" aria-label="Fechar boas-vindas">
-                <i class="fa-solid fa-xmark text-sm"></i>
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
             </button>
             
             <div class="overflow-y-auto custom-scrollbar p-6 md:p-8">
@@ -2319,10 +2323,13 @@
     </div>
 
     <div x-show="configModal && !systemLoading"
+         x-trap.noscroll="configModal && !systemLoading"
+         role="dialog"
+         aria-modal="true"
          class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
          x-transition.opacity
          @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) configModal = false; modalClickStartedOutside = false"
+         @mouseup.self="if(modalClickStartedOutside) { configModal = false; modalClickStartedOutside = false; }"
          @mouseup="modalClickStartedOutside = false">
         <div class="glass p-6 md:p-8 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl modal-enter">
             <div class="flex justify-between items-center mb-6">
@@ -2392,660 +2399,15 @@
         </div>
     </div>
 
-    <div x-show="wizardOpen && !systemLoading"
-         class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-         x-transition.opacity
-         @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) wizardOpen = false; modalClickStartedOutside = false"
-         @mouseup="modalClickStartedOutside = false">
-            <div class="w-full max-w-4xl h-[85vh] bg-[#050505] border border-[var(--neon-core)] rounded-2xl flex flex-col relative overflow-hidden shadow-2xl modal-enter">
-                <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
-                    <div>
-                        <h2 class="text-2xl font-brand text-white">NOVO ALUNO</h2>
-                        <div class="text-[10px] text-[var(--neon-core)] font-bold tracking-widest uppercase">PASSO <span x-text="wizardStep"></span> / 3</div>
-                    </div>
-                    <button @click="wizardOpen=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors" aria-label="Fechar wizard"><i class="fa-solid fa-xmark fa-lg" aria-hidden="true"></i></button>
-                </div>
-                <div class="flex-grow overflow-y-auto p-8 custom-scrollbar">
-                    <div x-show="wizardStep === 1" class="animate-fade-in">
-                        <h3 class="text-center text-white font-bold mb-8 uppercase tracking-widest">Selecione o Arquétipo</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <template x-for="arch in archetypes">
-                                <div @click="selectArchetype(arch)" class="p-6 border border-white/10 rounded-xl hover:border-[var(--neon-core)] hover:bg-white/[0.02] cursor-pointer transition-all group text-center bg-black/40">
-                                    <i :class="arch.icon + ' text-4xl mb-4 ' + arch.color"></i>
-                                    <h3 class="text-xl font-bold text-white mb-2" x-text="arch.class"></h3>
-                                    <p class="text-xs text-gray-500 leading-relaxed" x-text="arch.desc"></p>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    <div x-show="wizardStep === 2" class="animate-fade-in">
-                        <div class="flex justify-between items-center mb-8 bg-white/5 p-4 rounded-lg border-l-4 border-[var(--neon-core)]">
-                            <div>
-                                <span class="text-2xl font-brand text-white uppercase" x-text="wizardData.class"></span>
-                                <p class="text-xs text-gray-500">Ajuste os atributos iniciais</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-[10px] text-gray-500 uppercase font-bold">Pontos Restantes</div>
-                                <div class="text-3xl font-mono font-bold" :class="wizardPoints>0?'text-[var(--neon-success)]':'text-gray-600'" x-text="wizardPoints"></div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-                            <div class="space-y-4">
-                                <template x-for="key in ['for','agi','int','von','pod']">
-                                    <div class="flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 hover:border-white/20 transition-colors relative group/attr">
-            
-                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black border border-white/20 text-[10px] text-white rounded opacity-0 group-hover/attr:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                                            <span x-show="key=='for'">Força física e vigor</span>
-                                            <span x-show="key=='agi'">Destreza e reflexos</span>
-                                            <span x-show="key=='int'">Intelecto e lógica</span>
-                                            <span x-show="key=='von'">Força de vontade</span>
-                                            <span x-show="key=='pod'">Poder sobrenatural</span>
-                                        </div>
-                                        <span class="uppercase font-bold text-xs w-12 cursor-help" :class="key===wizardFocusAttr?'text-[var(--neon-warn)]':'text-gray-400'" x-text="key"></span>
-                                        <div class="flex items-center gap-3">
-                                            <button @click="modWizardAttr(key, -1)" class="w-8 h-8 bg-white/5 hover:bg-white/10 rounded text-white disabled:opacity-20" :disabled="wizardData.attrs[key] <= (key===wizardFocusAttr?0:-1)">-</button>
-                                            <span class="w-8 text-center font-mono font-bold text-lg text-white" x-text="wizardData.attrs[key]"></span>
-                                            <button @click="modWizardAttr(key, 1)" class="w-8 h-8 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 disabled:opacity-50 disabled:bg-gray-700 disabled:scale-100 transition-transform" :disabled="wizardData.attrs[key]>=3 || wizardPoints<=0">+</button>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                            <div class="flex items-center justify-center bg-black/20 rounded-xl p-4 h-64 border border-white/5">
-                                <canvas id="wizChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div x-show="wizardStep === 3" class="animate-fade-in max-w-2xl mx-auto space-y-6">
-                        <div class="text-center mb-8">
-                            <h3 class="text-white font-bold uppercase tracking-widest text-lg">Identidade do Aluno</h3>
-                            <p class="text-xs text-gray-500">Finalize o registro no banco de dados.</p>
-                        </div>
-                        <div class="flex justify-center mb-6">
-                            <div @click="openImageEditor('wizard')" class="w-32 h-32 rounded-full border-2 border-dashed border-white/20 hover:border-[var(--neon-core)] cursor-pointer overflow-hidden bg-black relative group transition-colors">
-                                <img :src="wizardData.photo" class="w-full h-full object-cover" x-show="wizardData.photo">
-                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-2" :class="wizardData.photo ? 'bg-black/50 opacity-0 group-hover:opacity-100' : 'opacity-100'">
-                                    <i class="fa-solid fa-camera text-2xl text-gray-400 group-hover:text-white"></i>
-                                    <span class="text-[8px] uppercase font-bold text-gray-500 group-hover:text-white" x-text="wizardData.photo ? 'ALTERAR' : 'FOTO'"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="wiz-name" class="text-[10px] text-[var(--neon-core)] font-bold uppercase mb-1 block">Codinome (Obrigatório)</label>
-                                <input id="wiz-name" name="agent_name" x-model="wizardData.name" type="text" 
-                                    :class="{'shake-anim border-red-500 text-red-500': wizardNameError}"
-                                    class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none font-brand text-lg input-cyber" 
-                                    placeholder="Ex: ALL MIGHT">
-                            </div>
-                            <div>
-                                <label for="wiz-age" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Idade</label>
-                                <input id="wiz-age" name="agent_age" x-model="wizardData.age" type="number" min="0" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: 45">
-                            </div>
-                        </div>
-                        <div>
-                            <label for="wiz-identity" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Identidade Real</label>
-                            <input id="wiz-identity" name="agent_real_name" x-model="wizardData.identity" type="text" class="w-full bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none input-cyber" placeholder="Ex: Toshinori Yagi">
-                        </div>
-                        <div>
-                            <label for="wiz-history" class="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Histórico / Origem</label>
-                            <textarea id="wiz-history" name="agent_history" x-model="wizardData.history" class="w-full h-32 bg-black/50 border border-white/10 rounded p-3 text-white focus:border-[var(--neon-core)] outline-none resize-none custom-scrollbar text-sm input-cyber" placeholder="Origem dos poderes, traumas, motivação..."></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center backdrop-blur-sm">
-                    <button x-show="wizardStep > 1" @click="wizardStep--" class="px-6 py-2 border border-white/20 rounded text-xs font-bold hover:bg-white/5 text-gray-400 hover:text-white transition-colors">VOLTAR</button>
-                    <div class="flex-grow"></div>
-                    <button x-show="wizardStep < 3" @click="wizardStep++" class="px-8 py-2 bg-white/10 text-white font-bold rounded hover:bg-white/20 transition-colors border border-white/5">PRÓXIMO</button>
-                    <button x-show="wizardStep === 3" @click="finishWizard()" class="px-8 py-2 bg-[var(--neon-core)] text-black font-bold rounded hover:scale-105 shadow-[0_0_20px_rgba(var(--neon-rgb),0.4)] transition-all"><i class="fa-solid fa-check mr-2"></i>INICIALIZAR</button>
-                </div>
-            </div>
-        </div>
-
-    <div x-show="cropperOpen && !systemLoading"  
-         class="fixed inset-0 z-[12000] bg-black/95 flex items-center justify-center p-4"
-         @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) cropperOpen = false; modalClickStartedOutside = false"
-         @mouseup="modalClickStartedOutside = false">
-        <div class="w-full max-w-lg h-[70vh] flex flex-col">
-            <div class="flex-grow bg-[#111] relative rounded-lg overflow-hidden border border-white/10 mb-4">
-                <img id="crop-target" class="block max-w-full">
-            </div>
-            <div class="flex gap-3">
-                <input type="file" id="file-input" name="upload_image" class="hidden" accept="image/*" @change="initCropper($event)" aria-label="Upload de Imagem">
-                <button @click="document.getElementById('file-input').click()" class="flex-1 py-3 border border-white/20 rounded text-xs font-bold hover:bg-white/5">CARREGAR</button>
-                <button @click="applyCrop()" class="flex-1 py-3 bg-[var(--neon-core)] text-black rounded text-xs font-bold">SALVAR</button>
-                <button @click="cropperOpen=false" class="w-12 flex items-center justify-center border border-red-500/30 text-red-500 rounded hover:bg-red-500/10 transition-colors" aria-label="Cancelar edição de imagem"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         MEMBER INSPECTOR MODAL (GM ONLY)
-         ═══════════════════════════════════════════════════════════════════════
-         Modal para o Mestre inspecionar e editar fichas dos jogadores.
-         IMPORTANTE: Todo o conteúdo usa x-if para evitar erros quando inspectedMember é null.
-         Quando a estrutura da ficha (char) mudar, atualize também este modal!
-    -->
-    <template x-if="memberInspectorOpen && inspectedMember && inspectedMember.char_data">
-        <div class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4" x-transition.opacity>
-            <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]" x-data="{ tab: 'stats' }">
-                <!-- Header com foto e nome do personagem -->
-                <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center overflow-hidden border border-white/10">
-                            <img x-show="inspectedMember.char_data.photo" :src="inspectedMember.char_data.photo" class="w-full h-full object-cover">
-                            <i x-show="!inspectedMember.char_data.photo" class="fa-solid fa-user text-purple-400 text-xl"></i>
-                        </div>
-                        <div>
-                            <h2 class="text-lg font-bold text-white font-brand" x-text="inspectedMember.char_data.name || 'Sem Nome'"></h2>
-                            <p class="text-xs text-purple-400 font-bold uppercase" x-text="(inspectedMember.char_data.class || 'Desconhecido') + ' - NVL ' + (inspectedMember.char_data.level || 1)"></p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button @click="saveInspectedMember()" class="px-4 py-2 bg-green-500 text-black font-bold rounded-lg hover:bg-green-400 transition-colors text-xs">
-                            <i class="fa-solid fa-save mr-2"></i>SALVAR
-                        </button>
-                        <button @click="closeInspector()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Tabs de navegação -->
-                <div class="flex border-b border-white/10 overflow-x-auto">
-                    <button @click="tab = 'stats'" :class="tab === 'stats' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">STATUS</button>
-                    <button @click="tab = 'attrs'" :class="tab === 'attrs' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">ATRIBUTOS</button>
-                    <button @click="tab = 'powers'" :class="tab === 'powers' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">PODERES</button>
-                    <button @click="tab = 'inv'" :class="tab === 'inv' ? 'border-purple-500 text-purple-400 bg-purple-500/5' : 'border-transparent text-gray-500 hover:text-white'" class="px-6 py-3 text-xs font-bold border-b-2 transition-colors">INVENTÁRIO</button>
-                </div>
-
-                <!-- Conteúdo das tabs -->
-                <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    
-                    <!-- TAB: STATUS - PV, PF, PDF e stats derivados -->
-                    <div x-show="tab === 'stats'" class="space-y-6">
-                        <!-- Barras Principais de Recursos -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <!-- PV (Pontos de Vida) - IMPORTANTE: Se mudar estrutura de stats, atualize aqui -->
-                            <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-                                <div class="flex justify-between items-end mb-2">
-                                    <label class="text-red-400 font-bold text-xs">PONTOS DE VIDA</label>
-                                    <i class="fa-solid fa-heart text-red-500/50 text-xl"></i>
-                                </div>
-                                <div class="flex gap-2 items-center">
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pv?.current || 0" @input="inspectedMember.char_data.stats.pv.current = +$event.target.value" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-red-500 focus:outline-none">
-                                    <span class="text-gray-500">/</span>
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pv?.max || 0" @input="inspectedMember.char_data.stats.pv.max = +$event.target.value" class="w-full bg-black/40 border border-red-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-red-500 focus:outline-none">
-                                </div>
-                            </div>
-                            <!-- PF (Pontos de Esforço) -->
-                            <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-                                <div class="flex justify-between items-end mb-2">
-                                    <label class="text-blue-400 font-bold text-xs">PONTOS DE ESFORÇO</label>
-                                    <i class="fa-solid fa-bolt text-blue-500/50 text-xl"></i>
-                                </div>
-                                <div class="flex gap-2 items-center">
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pf?.current || 0" @input="inspectedMember.char_data.stats.pf.current = +$event.target.value" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-blue-500 focus:outline-none">
-                                    <span class="text-gray-500">/</span>
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pf?.max || 0" @input="inspectedMember.char_data.stats.pf.max = +$event.target.value" class="w-full bg-black/40 border border-blue-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-blue-500 focus:outline-none">
-                                </div>
-                            </div>
-                            <!-- PDF (Sanidade) -->
-                            <div class="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
-                                <div class="flex justify-between items-end mb-2">
-                                    <label class="text-purple-400 font-bold text-xs">SANIDADE</label>
-                                    <i class="fa-solid fa-brain text-purple-500/50 text-xl"></i>
-                                </div>
-                                <div class="flex gap-2 items-center">
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pdf?.current || 0" @input="inspectedMember.char_data.stats.pdf.current = +$event.target.value" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-white font-bold focus:border-purple-500 focus:outline-none">
-                                    <span class="text-gray-500">/</span>
-                                    <input type="number" :value="inspectedMember.char_data.stats?.pdf?.max || 0" @input="inspectedMember.char_data.stats.pdf.max = +$event.target.value" class="w-full bg-black/40 border border-purple-500/30 rounded p-2 text-center text-xl text-gray-400 font-bold focus:border-purple-500 focus:outline-none">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Stats Derivados - Defesa, Proteção, etc -->
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                                <label class="text-[10px] text-gray-500 font-bold block mb-1">DEFESA</label>
-                                <input type="number" :value="inspectedMember.char_data.defesa || 0" @input="inspectedMember.char_data.defesa = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
-                            </div>
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                                <label class="text-[10px] text-gray-500 font-bold block mb-1">PROTEÇÃO</label>
-                                <input type="number" :value="inspectedMember.char_data.protecao || 0" @input="inspectedMember.char_data.protecao = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
-                            </div>
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                                <label class="text-[10px] text-gray-500 font-bold block mb-1">DESLOCAMENTO</label>
-                                <input type="number" :value="inspectedMember.char_data.deslocamento || 0" @input="inspectedMember.char_data.deslocamento = +$event.target.value" class="w-full bg-transparent text-center text-xl text-white font-bold border-none focus:ring-0 p-0">
-                            </div>
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                                <label class="text-[10px] text-gray-500 font-bold block mb-1">NÍVEL</label>
-                                <input type="number" :value="inspectedMember.char_data.level || 1" @input="inspectedMember.char_data.level = +$event.target.value" class="w-full bg-transparent text-center text-xl text-yellow-500 font-bold border-none focus:ring-0 p-0">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- TAB: ATRIBUTOS - FOR, AGI, INT, VON, POD -->
-                    <div x-show="tab === 'attrs'" class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <template x-if="inspectedMember.char_data.attrs">
-                            <template x-for="attrKey in ['for', 'agi', 'int', 'von', 'pod']" :key="attrKey">
-                                <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center relative overflow-hidden">
-                                    <div class="absolute top-0 right-0 text-[40px] font-black text-white/5 uppercase pointer-events-none" x-text="attrKey"></div>
-                                    <label class="text-sm font-bold text-gray-400 uppercase mb-2" x-text="attrKey"></label>
-                                    <input type="number" :value="inspectedMember.char_data.attrs[attrKey] || 0" @input="inspectedMember.char_data.attrs[attrKey] = +$event.target.value" class="w-16 h-16 bg-black/40 border-2 border-white/20 rounded-full text-center text-2xl text-white font-bold focus:border-purple-500 focus:outline-none mb-2">
-                                </div>
-                            </template>
-                        </template>
-                    </div>
-
-                    <!-- TAB: PODERES - Passiva, Ativa, Técnicas -->
-                    <div x-show="tab === 'powers'" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-4">
-                                <label class="text-xs text-cyan-400 font-bold uppercase block mb-2">Passiva</label>
-                                <textarea :value="inspectedMember.char_data.powers?.passive || ''" @input="inspectedMember.char_data.powers.passive = $event.target.value" class="w-full h-24 bg-black/40 border border-white/10 rounded p-2 text-sm text-white focus:border-purple-500 focus:outline-none resize-none" placeholder="Habilidade passiva..."></textarea>
-                            </div>
-                            <div class="bg-white/5 border border-white/10 rounded-lg p-4">
-                                <label class="text-xs text-cyan-400 font-bold uppercase block mb-2">Ativa</label>
-                                <textarea :value="inspectedMember.char_data.powers?.active || ''" @input="inspectedMember.char_data.powers.active = $event.target.value" class="w-full h-24 bg-black/40 border border-white/10 rounded p-2 text-sm text-white focus:border-purple-500 focus:outline-none resize-none" placeholder="Habilidade ativa..."></textarea>
-                            </div>
-                        </div>
-                        <p class="text-xs text-gray-500 text-center">* Técnicas e evoluções estão disponíveis na ficha original do jogador.</p>
-                    </div>
-
-                    <!-- TAB: INVENTÁRIO - Itens, notas gerais -->
-                    <div x-show="tab === 'inv'" class="space-y-4">
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-4">
-                            <label class="text-xs text-amber-400 font-bold uppercase block mb-2">Notas de Inventário</label>
-                            <textarea :value="inspectedMember.char_data.inventory || ''" @input="inspectedMember.char_data.inventory = $event.target.value" class="w-full h-48 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-purple-500 focus:outline-none font-code resize-none" placeholder="Inventário vazio..."></textarea>
-                        </div>
-                        <div class="bg-white/5 border border-white/10 rounded-lg p-4">
-                            <label class="text-xs text-gray-400 font-bold uppercase block mb-2">Créditos</label>
-                            <input type="number" :value="inspectedMember.char_data.credits || 0" @input="inspectedMember.char_data.credits = +$event.target.value" class="w-32 bg-black/40 border border-amber-500/30 rounded p-2 text-center text-xl text-amber-400 font-bold focus:border-amber-500 focus:outline-none">
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         NPC EDITOR MODAL (BESTIÁRIO)
-         ═══════════════════════════════════════════════════════════════════════
-         Modal para criar e editar NPCs do Bestiário do Mestre.
-         Os NPCs são armazenados localmente no localStorage.
-    -->
-    <template x-if="bestiaryModalOpen && editingNPC && !systemLoading">
-        <div class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-             x-transition.opacity
-             @mousedown.self="modalClickStartedOutside = true"
-             @mouseup.self="if(modalClickStartedOutside) { bestiaryModalOpen = false; editingNPC = null; } modalClickStartedOutside = false"
-             @mouseup="modalClickStartedOutside = false">
-            <div class="bg-[#0a0a0c] border border-rose-500/30 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-[0_0_60px_rgba(244,63,94,0.15)]">
-                <!-- Header -->
-                <div class="p-4 border-b border-white/10 flex justify-between items-center bg-rose-500/5">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-rose-500/20 flex items-center justify-center">
-                            <i class="fa-solid fa-dragon text-rose-400"></i>
-                        </div>
-                        <div>
-                            <h2 class="text-lg font-bold text-white font-brand" x-text="editingNPC?.name || 'Novo NPC'"></h2>
-                            <p class="text-[10px] text-gray-500 uppercase">Editor de NPC</p>
-                        </div>
-                    </div>
-                    <button @click="bestiaryModalOpen = false; editingNPC = null" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                
-                <!-- Content -->
-                <div class="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <!-- Nome e Tipo -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label for="npc-name" class="text-[10px] text-rose-400 font-bold uppercase block mb-1">Nome *</label>
-                            <input type="text" id="npc-name" name="npc_name" x-model="editingNPC.name" placeholder="Nome do NPC" 
-                                   class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label for="npc-type" class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Tipo</label>
-                            <select id="npc-type" name="npc_type" x-model="editingNPC.type" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
-                                <option value="enemy">Inimigo</option>
-                                <option value="ally">Aliado</option>
-                                <option value="neutral">Neutro</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Stats Principais -->
-                    <div class="grid grid-cols-3 gap-3">
-                        <!-- PV -->
-                        <div class="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
-                            <label for="npc-pv-current" class="text-[9px] text-red-400 font-bold uppercase block mb-1">PV</label>
-                            <div class="flex gap-1 items-center">
-                                <input type="number" id="npc-pv-current" name="npc_pv_current" x-model.number="editingNPC.pv.current" class="w-full bg-black/40 border border-red-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
-                                <span class="text-gray-500">/</span>
-                                <input type="number" id="npc-pv-max" name="npc_pv_max" x-model.number="editingNPC.pv.max" class="w-full bg-black/40 border border-red-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
-                            </div>
-                        </div>
-                        <!-- PF -->
-                        <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
-                            <label for="npc-pf-current" class="text-[9px] text-blue-400 font-bold uppercase block mb-1">PF</label>
-                            <div class="flex gap-1 items-center">
-                                <input type="number" id="npc-pf-current" name="npc_pf_current" x-model.number="editingNPC.pf.current" class="w-full bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
-                                <span class="text-gray-500">/</span>
-                                <input type="number" id="npc-pf-max" name="npc_pf_max" x-model.number="editingNPC.pf.max" class="w-full bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
-                            </div>
-                        </div>
-                        <!-- PDF -->
-                        <div class="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
-                            <label for="npc-san-current" class="text-[9px] text-purple-400 font-bold uppercase block mb-1">SAN</label>
-                            <div class="flex gap-1 items-center">
-                                <input type="number" id="npc-san-current" name="npc_san_current" x-model.number="editingNPC.pdf.current" class="w-full bg-black/40 border border-purple-500/30 rounded px-2 py-1 text-center text-white font-bold focus:outline-none">
-                                <span class="text-gray-500">/</span>
-                                <input type="number" id="npc-san-max" name="npc_san_max" x-model.number="editingNPC.pdf.max" class="w-full bg-black/40 border border-purple-500/30 rounded px-2 py-1 text-center text-gray-400 focus:outline-none">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Defesa -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label for="npc-defesa" class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Defesa</label>
-                            <input type="number" id="npc-defesa" name="npc_defesa" x-model.number="editingNPC.defesa" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-center text-white font-bold focus:border-rose-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label for="npc-tags" class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Tags (separadas por vírgula)</label>
-                            <input type="text" id="npc-tags" name="npc_tags" :value="editingNPC?.tags?.join(', ') || ''" @input="editingNPC.tags = $event.target.value.split(',').map(t => t.trim()).filter(t => t)" placeholder="boss, undead, etc" 
-                                   class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none">
-                        </div>
-                    </div>
-                    
-                    <!-- Notas -->
-                    <div>
-                        <label for="npc-notes" class="text-[10px] text-gray-400 font-bold uppercase block mb-1">Notas / Habilidades</label>
-                        <textarea id="npc-notes" name="npc_notes" x-model="editingNPC.notes" placeholder="Ataques, resistências, comportamento..." 
-                                  class="w-full h-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-rose-500 focus:outline-none resize-none"></textarea>
-                    </div>
-                </div>
-                
-                <!-- Footer -->
-                <div class="p-4 border-t border-white/10 flex justify-end gap-2">
-                    <button @click="bestiaryModalOpen = false; editingNPC = null" class="px-4 py-2 border border-white/20 rounded-lg text-xs font-bold text-gray-400 hover:bg-white/5 transition-colors">
-                        CANCELAR
-                    </button>
-                    <button @click="saveNPC()" class="px-4 py-2 bg-rose-500 text-white rounded-lg text-xs font-bold hover:bg-rose-400 transition-colors">
-                        <i class="fa-solid fa-save mr-2"></i>SALVAR NPC
-                    </button>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         MODAL DE SELEÇÃO DE PERSONAGEM PARA CAMPANHA
-         ═══════════════════════════════════════════════════════════════════════
-         Exibido quando o usuário tenta entrar em uma campanha via link
-         e precisa selecionar qual personagem usar.
-    -->
-    <template x-if="characterSelectModalOpen && characterSelectCampaign">
-        <div class="fixed inset-0 z-[12000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-             x-transition.opacity>
-            <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]">
-                <!-- Header -->
-                <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                            <i class="fa-solid fa-users text-purple-400"></i>
-                        </div>
-                        <div>
-                            <h2 class="text-lg font-bold text-white font-brand">Entrar na Campanha</h2>
-                            <p class="text-[10px] text-purple-400 uppercase" x-text="characterSelectCampaign?.name"></p>
-                        </div>
-                    </div>
-                    <button @click="characterSelectModalOpen = false; characterSelectCampaign = null; selectedCharForCampaign = null" 
-                            class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                
-                <!-- Content -->
-                <div class="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <p class="text-sm text-gray-400 text-center">
-                        Selecione o personagem que deseja usar nesta campanha:
-                    </p>
-                    
-                    <!-- Lista de Personagens -->
-                    <div class="grid grid-cols-1 gap-3">
-                        <template x-for="[id, char] in Object.entries(chars || {})" :key="id">
-                            <button @click="selectedCharForCampaign = id"
-                                    class="w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3"
-                                    :class="selectedCharForCampaign === id 
-                                        ? 'bg-purple-500/20 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.2)]' 
-                                        : 'bg-black/40 border-white/10 hover:border-purple-500/50 hover:bg-white/5'">
-                                <!-- Foto -->
-                                <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex-shrink-0 flex items-center justify-center overflow-hidden border border-white/10">
-                                    <img x-show="char?.photo" :src="char?.photo" class="w-full h-full object-cover">
-                                    <i x-show="!char?.photo" class="fa-solid fa-user text-purple-400"></i>
-                                </div>
-                                <!-- Info -->
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-bold text-white truncate" x-text="char?.name || 'Sem nome'"></p>
-                                    <p class="text-[10px] text-gray-500 flex items-center gap-2">
-                                        <span x-text="char?.class || 'Sem classe'"></span>
-                                        <span x-show="char?.level" class="text-yellow-500">NVL <span x-text="char?.level"></span></span>
-                                    </p>
-                                </div>
-                                <!-- Check -->
-                                <div x-show="selectedCharForCampaign === id" class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center">
-                                    <i class="fa-solid fa-check text-white text-xs"></i>
-                                </div>
-                            </button>
-                        </template>
-                    </div>
-                    
-                    <!-- Mensagem se não tiver personagens -->
-                    <div x-show="Object.keys(chars || {}).length === 0" class="text-center py-8 text-gray-600">
-                        <i class="fa-solid fa-user-plus text-3xl mb-3 opacity-30"></i>
-                        <p class="text-sm">Você não tem personagens.</p>
-                        <p class="text-xs mt-1">Crie um personagem primeiro para entrar na campanha.</p>
-                    </div>
-                </div>
-                
-                <!-- Footer -->
-                <div class="p-4 border-t border-white/10 flex justify-end gap-2">
-                    <button @click="characterSelectModalOpen = false; characterSelectCampaign = null; selectedCharForCampaign = null" 
-                            class="px-4 py-2 border border-white/20 rounded-lg text-xs font-bold text-gray-400 hover:bg-white/5 transition-colors">
-                        CANCELAR
-                    </button>
-                    <button @click="confirmCharacterSelection(selectedCharForCampaign)" 
-                            :disabled="!selectedCharForCampaign"
-                            class="px-4 py-2 bg-purple-500 text-white rounded-lg text-xs font-bold hover:bg-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i class="fa-solid fa-sign-in-alt mr-2"></i>ENTRAR NA CAMPANHA
-                    </button>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <div x-show="campaignSettingsOpen && !systemLoading"
-         class="fixed inset-0 z-[11000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-         x-transition.opacity
-         @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) campaignSettingsOpen = false; modalClickStartedOutside = false"
-         @mouseup="modalClickStartedOutside = false">
-        <div class="bg-[#0a0a0c] border border-gray-500/30 rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(107,114,128,0.15)]">
-            <!-- Header -->
-            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-                        <i class="fa-solid fa-gear text-gray-400"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-white font-brand">Configurações</h2>
-                        <p class="text-[10px] text-gray-500 uppercase" x-text="activeCampaign?.name || 'Campanha'"></p>
-                    </div>
-                </div>
-                <button @click="campaignSettingsOpen = false" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-            
-            <!-- Content -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                <!-- Opções Gerais -->
-                <div class="space-y-3">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase">Opções Gerais</h3>
-                    
-                    <label class="flex items-center justify-between bg-black/40 rounded-lg p-3 cursor-pointer hover:bg-black/60 transition-colors">
-                        <div class="flex items-center gap-3">
-                            <i class="fa-solid fa-comments text-cyan-400"></i>
-                            <span class="text-sm text-white">Chat habilitado</span>
-                        </div>
-                        <input type="checkbox" x-model="campaignSettings.chatEnabled" class="accent-cyan-500 w-4 h-4">
-                    </label>
-                    
-                    <label class="flex items-center justify-between bg-black/40 rounded-lg p-3 cursor-pointer hover:bg-black/60 transition-colors">
-                        <div class="flex items-center gap-3">
-                            <i class="fa-solid fa-dice text-purple-400"></i>
-                            <span class="text-sm text-white">Log de dados público</span>
-                        </div>
-                        <input type="checkbox" x-model="campaignSettings.diceLogEnabled" class="accent-purple-500 w-4 h-4">
-                    </label>
-                    
-                    <label class="flex items-center justify-between bg-black/40 rounded-lg p-3 cursor-pointer hover:bg-black/60 transition-colors">
-                        <div class="flex items-center gap-3">
-                            <i class="fa-solid fa-image text-green-400"></i>
-                            <span class="text-sm text-white">Permitir imagens no chat</span>
-                        </div>
-                        <input type="checkbox" x-model="campaignSettings.imagesEnabled" class="accent-green-500 w-4 h-4">
-                    </label>
-                </div>
-                
-                <!-- Info -->
-                <div class="bg-white/5 rounded-lg p-3 text-xs text-gray-500">
-                    <p><i class="fa-solid fa-cloud mr-1"></i> As configurações são salvas na nuvem e compartilhadas com todos os jogadores.</p>
-                </div>
-            </div>
-            
-            <!-- Footer -->
-            <div class="p-4 border-t border-white/10 flex justify-end gap-2">
-                <button @click="campaignSettingsOpen = false" class="px-4 py-2 border border-white/20 rounded-lg text-xs font-bold text-gray-400 hover:bg-white/5 transition-colors">
-                    CANCELAR
-                </button>
-                <button @click="saveCampaignSettings(); campaignSettingsOpen = false" class="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
-                    <i class="fa-solid fa-save mr-2"></i>SALVAR
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         MODAL DE HISTÓRICO DE ROLAGENS
-         ═══════════════════════════════════════════════════════════════════════
-         Mostra todas as rolagens da sessão. Pode filtrar por jogador.
-    -->
-    <div x-show="diceLogModalOpen"
-         class="fixed inset-0 z-[11500] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-         x-transition.opacity
-         @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) { diceLogModalOpen = false; diceLogModalMember = null; } modalClickStartedOutside = false"
-         @mouseup="modalClickStartedOutside = false"
-         @keydown.escape.window="diceLogModalOpen = false; diceLogModalMember = null">
-        <div class="bg-[#0a0a0c] border border-green-500/30 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(16,185,129,0.15)]">
-            <!-- Header -->
-            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-green-500/5">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                        <i class="fa-solid fa-dice-d20 text-green-400"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-white font-brand">Histórico de Dados</h2>
-                        <p class="text-[10px] text-gray-500 uppercase" x-text="diceLogModalMember ? 'Rolagens de ' + diceLogModalMember : 'Todas as rolagens'"></p>
-                    </div>
-                </div>
-                <button @click="diceLogModalOpen = false; diceLogModalMember = null" 
-                        class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-            
-            <!-- Filtros -->
-            <div class="p-3 border-b border-white/5 flex gap-2 flex-wrap">
-                <button @click="diceLogModalMember = null" 
-                        class="px-3 py-1 rounded-full text-[10px] font-bold transition-colors"
-                        :class="!diceLogModalMember ? 'bg-green-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20'">
-                    TODOS
-                </button>
-                <template x-for="member in campaignMembers.filter(m => m.char_data?.name)" :key="member.id">
-                    <button @click="diceLogModalMember = member.char_data.name" 
-                            class="px-3 py-1 rounded-full text-[10px] font-bold transition-colors"
-                            :class="diceLogModalMember === member.char_data.name ? 'bg-green-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20'"
-                            x-text="member.char_data.name">
-                    </button>
-                </template>
-            </div>
-            
-            <!-- Lista de Rolagens -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
-                <template x-for="log in (diceLogModalMember ? sessionDiceLog.filter(l => l.username === diceLogModalMember) : sessionDiceLog)" :key="log.id">
-                    <div class="text-xs bg-black/40 rounded-lg p-3 border-l-2 transition-all"
-                         :class="log.crit ? 'border-yellow-500 bg-yellow-500/5' : log.fumble ? 'border-red-500 bg-red-500/5' : 'border-green-500/30'">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400 font-medium" x-text="log.username"></span>
-                            <div class="flex items-center gap-2">
-                                <span class="text-gray-600 text-[10px]" x-text="'(' + log.natural + (log.mod !== 0 ? (log.mod > 0 ? '+' : '') + log.mod : '') + ')'"></span>
-                                <span class="font-bold font-code text-lg" 
-                                      :class="log.crit ? 'text-yellow-400' : log.fumble ? 'text-red-400' : 'text-white'" 
-                                      x-text="log.result"></span>
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-center mt-1">
-                            <span class="text-[10px] text-gray-500" x-text="log.formula"></span>
-                            <span class="text-[9px] text-gray-600" x-text="log.time"></span>
-                        </div>
-                        <!-- Motivo da rolagem se existir -->
-                        <div x-show="log.reason" class="mt-2 text-[10px] text-cyan-400/80 italic bg-cyan-500/10 rounded px-2 py-1" x-text="'→ ' + log.reason"></div>
-                        <!-- Badges -->
-                        <div class="flex gap-1 mt-2" x-show="log.crit || log.fumble || log.isPrivate">
-                            <span x-show="log.crit" class="text-[8px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded font-bold">CRÍTICO!</span>
-                            <span x-show="log.fumble" class="text-[8px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold">FALHA CRÍTICA</span>
-                            <span x-show="log.isPrivate" class="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold">PRIVADO</span>
-                        </div>
-                    </div>
-                </template>
-                
-                <!-- Mensagem se não houver rolagens -->
-                <div x-show="(diceLogModalMember ? sessionDiceLog.filter(l => l.username === diceLogModalMember) : sessionDiceLog).length === 0" 
-                     class="text-center py-8 text-gray-600">
-                    <i class="fa-solid fa-dice text-3xl mb-3 opacity-30"></i>
-                    <p class="text-sm">Nenhuma rolagem ainda</p>
-                    <p class="text-xs mt-1" x-text="diceLogModalMember ? 'Este jogador ainda não rolou dados' : 'Role dados para ver o histórico aqui'"></p>
-                </div>
-            </div>
-            
-            <!-- Footer -->
-            <div class="p-3 border-t border-white/10 flex justify-between items-center">
-                <button @click="sessionDiceLog = []" x-show="sessionDiceLog.length > 0" 
-                        class="text-[10px] text-gray-500 hover:text-red-400 transition-colors">
-                    <i class="fa-solid fa-trash mr-1"></i> LIMPAR HISTÓRICO
-                </button>
-                <button @click="diceLogModalOpen = false; diceLogModalMember = null" 
-                        class="px-4 py-2 bg-white/10 text-white rounded-lg text-xs font-bold hover:bg-white/20 transition-colors">
-                    FECHAR
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- NETLINK MODAL -->
     <div x-show="netlinkModal && !systemLoading"  
+         x-trap.noscroll="netlinkModal && !systemLoading"
+         role="dialog"
+         aria-modal="true"
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4" 
          x-transition.opacity
          @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) { netlinkModal = false; netlinkCreateMode = false; } modalClickStartedOutside = false"
+         @mouseup.self="if(modalClickStartedOutside) { netlinkModal = false; modalClickStartedOutside = false; }"
          @mouseup="modalClickStartedOutside = false">
         <div class="bg-[#0a0a0c] border border-purple-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-[0_0_60px_rgba(168,85,247,0.15)]">
             <!-- Header -->
@@ -3059,7 +2421,7 @@
                         <p class="text-[10px] text-gray-500 uppercase">Sistema de Campanhas Online</p>
                     </div>
                 </div>
-                <button @click="netlinkModal = false; netlinkCreateMode = false" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                <button @click="netlinkModal = false" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -3142,7 +2504,7 @@
                                                 </div>
                                                 <!-- Info -->
                                                 <div class="flex-1 min-w-0">
-                                                    <p class="font-bold text-sm text-white truncate" x-text="c.name"></p>
+                                                    <p class="text-sm text-white truncate" x-text="c.name"></p>
                                                     <p class="text-[10px] text-gray-500" x-text="c.class + ' • NVL ' + c.level"></p>
                                                 </div>
                                                 <!-- Check -->
@@ -3180,7 +2542,7 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-[9px] font-code text-purple-400 bg-purple-500/10 px-2 py-1 rounded" x-text="campaign.invite_code"></span>
-                                            <button @click.stop="copyToClipboard(campaign.invite_code).then(ok => ok && notify('Código copiado!', 'success'))" class="text-gray-500 hover:text-white p-1" title="Copiar código">
+                                            <button @click="copyToClipboard(campaign.invite_code).then(ok => ok && notify('Código copiado!', 'success'))" class="text-gray-500 hover:text-white p-1" title="Copiar código">
                                                 <i class="fa-solid fa-copy text-xs"></i>
                                             </button>
                                         </div>
@@ -3249,505 +2611,91 @@
         </div>
     </div>
 
-    <div x-show="confirmOpen"  class="fixed inset-0 z-[11000] bg-black/95 flex items-center justify-center p-4" x-transition.opacity>
-        <div class="glass p-6 rounded-xl max-w-sm w-full text-center border modal-enter" :class="confirmData.type==='danger'?'border-red-500/50':'border-[var(--neon-core)]'">
-            <div class="text-4xl mb-4" :class="confirmData.type==='danger'?'text-red-500':'text-[var(--neon-core)]'">
-                <i class="fa-solid" :class="confirmData.type==='danger'?'fa-triangle-exclamation':'fa-circle-info'"></i>
-            </div>
-            <h3 class="text-xl font-bold text-white mb-2" x-text="confirmData.title"></h3>
-            <p class="text-sm text-gray-400 mb-6" x-text="confirmData.desc"></p>
-            <div class="flex gap-3">
-                <button @click="confirmOpen=false" class="flex-1 py-2 border border-white/10 rounded text-xs font-bold hover:bg-white/5">CANCELAR</button>
-                <button @click="confirmYes()" class="flex-1 py-2 rounded text-black font-bold text-xs" :class="confirmData.type==='danger'?'bg-red-500 hover:bg-red-400':'bg-[var(--neon-core)] hover:bg-cyan-300'">CONFIRMAR</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Ficha do Jogador na Campanha -->
-    <div x-show="playerSheetOpen && getMyMembership()?.char_data"  
+    <div x-show="achievementsModalOpen"  
+         x-trap.noscroll="achievementsModalOpen"
+         role="dialog"
+         aria-modal="true"
          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-         x-transition.opacity @keydown.escape.window="playerSheetOpen = false"
+         x-transition.opacity @keydown.escape.window="achievementsModalOpen = false"
          @mousedown.self="modalClickStartedOutside = true"
-         @mouseup.self="if(modalClickStartedOutside) playerSheetOpen = false; modalClickStartedOutside = false"
+         @mouseup.self="if(modalClickStartedOutside) { achievementsModalOpen = false; modalClickStartedOutside = false; }"
          @mouseup="modalClickStartedOutside = false">
-        <div class="glass rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-cyan-500/30 shadow-2xl modal-enter overflow-hidden">
+        <div class="glass rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-yellow-500/30 shadow-2xl modal-enter overflow-hidden">
             <!-- Header -->
-            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-cyan-500/5 flex-shrink-0">
-                <div class="flex items-center gap-4">
-                    <div class="w-16 h-16 rounded-xl bg-cyan-500/20 flex items-center justify-center overflow-hidden border border-white/20">
-                        <img x-show="getMyMembership()?.char_data?.photo" :src="getMyMembership()?.char_data?.photo" class="w-full h-full object-cover">
-                        <i x-show="!getMyMembership()?.char_data?.photo" class="fa-solid fa-user text-cyan-400 text-2xl"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-bold text-white font-brand" x-text="getMyMembership()?.char_data?.name"></h2>
-                        <p class="text-xs text-gray-400">
-                            <span x-text="getMyMembership()?.char_data?.class"></span>
-                            <span class="text-cyan-400 ml-2">NVL <span x-text="getMyMembership()?.char_data?.level"></span></span>
-                        </p>
-                        <p class="text-[10px] text-gray-600 mt-1">Ficha sincronizada com a campanha</p>
-                    </div>
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-yellow-500/5 flex-shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
+                        <i class="fa-solid fa-trophy text-yellow-400"></i> ACHIEVEMENTS
+                    </h2>
+                    <p class="text-[10px] text-gray-500 mt-1">
+                        <span x-text="getAchievementProgress().unlocked"></span>/<span x-text="getAchievementProgress().total"></span> desbloqueados
+                        (<span x-text="getAchievementProgress().percentage"></span>%)
+                    </p>
                 </div>
-                <button @click="playerSheetOpen = false" class="w-10 h-10 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-                    <i class="fa-solid fa-xmark text-xl"></i>
+                <button @click="achievementsModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="px-4 pt-3">
+                <div class="h-2 bg-black/40 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-yellow-500 to-amber-400 transition-all" 
+                         :style="'width: ' + getAchievementProgress().percentage + '%'"></div>
+                </div>
             </div>
             
             <!-- Content -->
-            <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Stats -->
-                    <div class="space-y-4">
-                        <h3 class="text-sm font-bold text-cyan-400 uppercase flex items-center gap-2"><i class="fa-solid fa-heart-pulse"></i> Status</h3>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
-                                <div class="text-[10px] text-red-400 font-bold mb-1">PONTOS DE VIDA</div>
-                                <div class="text-2xl font-bold text-white font-code" x-text="(getMyMembership()?.char_data?.stats?.pv?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pv?.max || 0)"></div>
-                                <div class="w-full h-2 bg-black/40 rounded-full mt-2 overflow-hidden">
-                                    <div class="h-full bg-red-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pv?.current || 0) / (getMyMembership()?.char_data?.stats?.pv?.max || 1)) * 100) + '%'"></div>
+            <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <template x-for="(achievement, id) in ACHIEVEMENTS" :key="id">
+                        <div class="rounded-xl p-3 border transition-all"
+                             :class="unlockedAchievements.includes(id) 
+                                 ? 'bg-' + achievement.color + '-500/10 border-' + achievement.color + '-500/30' 
+                                 : 'bg-black/40 border-white/5 opacity-50'">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                     :class="unlockedAchievements.includes(id) 
+                                         ? 'bg-' + achievement.color + '-500/20 text-' + achievement.color + '-400' 
+                                         : 'bg-white/5 text-gray-600'">
+                                    <i class="fa-solid" :class="achievement.icon"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-bold text-sm truncate" 
+                                       :class="unlockedAchievements.includes(id) ? 'text-white' : 'text-gray-500'"
+                                       x-text="achievement.name"></p>
+                                    <p class="text-[10px] text-gray-500 truncate" x-text="achievement.description"></p>
+                                </div>
+                                <div x-show="unlockedAchievements.includes(id)" class="text-yellow-400">
+                                    <i class="fa-solid fa-check-circle"></i>
                                 </div>
                             </div>
-                            <div class="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
-                                <div class="text-[10px] text-blue-400 font-bold mb-1">PONTOS DE FÔLEGO</div>
-                                <div class="text-2xl font-bold text-white font-code" x-text="(getMyMembership()?.char_data?.stats?.pf?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pf?.max || 0)"></div>
-                                <div class="w-full h-2 bg-black/40 rounded-full mt-2 overflow-hidden">
-                                    <div class="h-full bg-blue-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pf?.current || 0) / (getMyMembership()?.char_data?.stats?.pf?.max || 1)) * 100) + '%'"></div>
-                                </div>
-                            </div>
-                            <div class="bg-purple-500/10 rounded-lg p-3 border border-purple-500/20">
-                                <div class="text-[10px] text-purple-400 font-bold mb-1">SANIDADE</div>
-                                <div class="text-2xl font-bold text-white font-code" x-text="(getMyMembership()?.char_data?.stats?.pdf?.current || 0) + '/' + (getMyMembership()?.char_data?.stats?.pdf?.max || 0)"></div>
-                                <div class="w-full h-2 bg-black/40 rounded-full mt-2 overflow-hidden">
-                                    <div class="h-full bg-purple-500 transition-all" :style="'width: ' + Math.min(100, ((getMyMembership()?.char_data?.stats?.pdf?.current || 0) / (getMyMembership()?.char_data?.stats?.pdf?.max || 1)) * 100) + '%'"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Atributos -->
-                    <div class="space-y-4">
-                        <h3 class="text-sm font-bold text-cyan-400 uppercase flex items-center gap-2"><i class="fa-solid fa-chart-radar"></i> Atributos</h3>
-                        <div class="grid grid-cols-5 gap-2">
-                            <template x-for="(val, key) in (getMyMembership()?.char_data?.attrs || {})" :key="key">
-                                <div class="bg-white/5 rounded-lg p-2 text-center border border-white/10">
-                                    <div class="text-[10px] text-gray-500 uppercase" x-text="key"></div>
-                                    <div class="text-xl font-bold text-white" x-text="val"></div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    
-                    <!-- Perícias -->
-                    <div class="space-y-4" x-show="getMyMembership()?.char_data?.skills?.length > 0">
-                        <h3 class="text-sm font-bold text-cyan-400 uppercase flex items-center gap-2"><i class="fa-solid fa-graduation-cap"></i> Perícias</h3>
-                        <div class="grid grid-cols-2 gap-2">
-                            <template x-for="(skill, idx) in (getMyMembership()?.char_data?.skills || [])" :key="idx">
-                                <div class="bg-white/5 rounded-lg px-3 py-2 flex justify-between items-center border border-white/5">
-                                    <span class="text-sm text-white" x-text="skill.name"></span>
-                                    <span class="text-xs font-code text-cyan-400" x-text="'+' + skill.level"></span>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    
-                    <!-- Identidade -->
-                    <div class="space-y-4">
-                        <h3 class="text-sm font-bold text-cyan-400 uppercase flex items-center gap-2"><i class="fa-solid fa-fingerprint"></i> Identidade</h3>
-                        <div class="bg-white/5 rounded-lg p-4 border border-white/5 space-y-3">
-                            <div x-show="getMyMembership()?.char_data?.identity">
-                                <div class="text-[10px] text-gray-500 uppercase">Nome Real</div>
-                                <div class="text-sm text-white" x-text="getMyMembership()?.char_data?.identity"></div>
-                            </div>
-                            <div x-show="getMyMembership()?.char_data?.age">
-                                <div class="text-[10px] text-gray-500 uppercase">Idade</div>
-                                <div class="text-sm text-white" x-text="getMyMembership()?.char_data?.age + ' anos'"></div>
-                            </div>
-                            <div x-show="getMyMembership()?.char_data?.history">
-                                <div class="text-[10px] text-gray-500 uppercase">História</div>
-                                <div class="text-sm text-gray-300 whitespace-pre-line" x-text="getMyMembership()?.char_data?.history"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Footer -->
-            <div class="p-4 border-t border-white/10 bg-black/20 flex justify-between items-center flex-shrink-0">
-                <p class="text-[10px] text-gray-600"><i class="fa-solid fa-info-circle mr-1"></i> As alterações são feitas pelo Mestre e sincronizadas automaticamente</p>
-                <button @click="playerSheetOpen = false" class="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg font-bold text-xs hover:bg-cyan-500/30 transition-colors">
-                    FECHAR
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Cookie Consent Bar - Fixed at very bottom -->
-    <div x-data="{ show: !localStorage.getItem('zenite_cookies_accepted') }" 
-         x-show="show && !systemLoading" 
-         x-transition.duration.500ms
-         class="fixed inset-x-0 bottom-0 z-[12000] bg-black/95 border-t border-[var(--neon-core)]/50 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.8)]"
-         style="padding-bottom: env(safe-area-inset-bottom, 0px);">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 p-4">
-            <div class="flex items-center gap-3 flex-1 min-w-0">
-                <i class="fa-solid fa-cookie-bite text-[var(--neon-core)] text-xl flex-shrink-0"></i>
-                <p class="text-xs text-gray-300 leading-relaxed">
-                    Utilizamos cookies essenciais para o funcionamento do Neural Link (Login e Cache Local). 
-                    Ao continuar, você concorda com o processamento de dados.
-                </p>
-            </div>
-            <div class="flex items-center gap-3 flex-shrink-0">
-                <button @click="localStorage.setItem('zenite_cookies_accepted', 'ignored'); show = false" 
-                        class="text-gray-500 text-[10px] hover:text-white transition-colors whitespace-nowrap">
-                    IGNORAR
-                </button>
-                <button @click="localStorage.setItem('zenite_cookies_accepted', 'true'); show = false" 
-                        class="px-5 py-2 bg-[var(--neon-core)] text-black text-xs font-bold rounded-lg shadow-[0_0_15px_rgba(var(--neon-rgb),0.3)] hover:scale-105 active:scale-95 transition-transform whitespace-nowrap">
-                    ACEITAR
-                </button>
-            </div>
-        </div>
-    </div>
-
-
-    <div x-show="historyModal"  
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity
-     @mousedown.self="modalClickStartedOutside = true"
-     @mouseup.self="if(modalClickStartedOutside) historyModal = false; modalClickStartedOutside = false"
-     @mouseup="modalClickStartedOutside = false">
-    <div class="glass p-6 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col relative border border-white/10 shadow-2xl modal-enter">
-        <div class="flex justify-between items-start mb-4">
-            <div>
-                <h2 class="text-xl font-brand text-white">HISTÓRICO DE VERSÕES</h2>
-                <p class="text-xs text-gray-500">Últimas 50 alterações salvas</p>
-            </div>
-            <button @click="historyModal=false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors flex-shrink-0">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        
-        <div class="flex-grow overflow-y-auto custom-scrollbar space-y-2">
-            <template x-for="snapshot in saveHistory" :key="snapshot.id">
-                <div class="bg-black/40 p-4 rounded-lg border border-white/10 hover:border-[var(--neon-core)] transition-colors">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <h3 class="text-sm font-bold text-white" x-text="snapshot.data.name"></h3>
-                            <p class="text-xs text-gray-500" x-text="new Date(snapshot.timestamp).toLocaleString('pt-BR')"></p>
-                        </div>
-                        <button @click="restoreFromHistory(snapshot.id)" 
-                                class="px-3 py-1 bg-blue-600/20 border border-blue-500/50 text-blue-400 rounded text-xs font-bold hover:bg-blue-600/30 transition-colors">
-                            RESTAURAR
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-5 gap-2 text-[10px]">
-                        <div class="text-center">
-                            <p class="text-gray-500">NVL</p>
-                            <p class="text-white font-bold" x-text="snapshot.data.level"></p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-gray-500">PV</p>
-                            <p class="text-white font-bold" x-text="snapshot.data.stats.pv.current + '/' + snapshot.data.stats.pv.max"></p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-gray-500">PF</p>
-                            <p class="text-white font-bold" x-text="snapshot.data.stats.pf.current + '/' + snapshot.data.stats.pf.max"></p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-gray-500">PDF</p>
-                            <p class="text-white font-bold" x-text="snapshot.data.stats.pdf.current + '/' + snapshot.data.stats.pdf.max"></p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-gray-500">CLASSE</p>
-                            <p class="text-white font-bold text-[9px]" x-text="snapshot.data.class"></p>
-                        </div>
-                    </div>
-                </div>
-            </template>
-            
-            <div x-show="saveHistory.length === 0" class="text-center py-20 text-gray-600">
-                <i class="fa-solid fa-clock-rotate-left text-4xl mb-4"></i>
-                <p class="text-sm">Nenhuma versão salva ainda</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Player de Música Ambiente (para jogadores) - Mini floating player -->
-<div x-show="activeCampaign && ambientMusic.playing && !isGMOfActiveCampaign()" 
-     class="fixed bottom-4 right-4 z-[100] glass rounded-xl border border-purple-500/30 shadow-lg overflow-hidden"
-     x-data="{ expanded: false }">
-    <div class="p-3 flex items-center gap-3 cursor-pointer" @click="expanded = !expanded">
-        <i class="fa-solid fa-music text-purple-400 animate-pulse"></i>
-        <span class="text-xs text-gray-400">Música Ambiente</span>
-        <i class="fa-solid fa-chevron-up text-[10px] text-gray-500 transition-transform" :class="expanded && 'rotate-180'"></i>
-    </div>
-    <div x-show="expanded" x-transition class="border-t border-white/10">
-        <!-- Aviso de AdBlock -->
-        <div x-show="ambientMusic.blocked" class="p-4 bg-yellow-500/10 border-t border-yellow-500/30">
-            <div class="flex items-start gap-3">
-                <i class="fa-solid fa-shield-halved text-yellow-500 text-lg mt-0.5"></i>
-                <div class="flex-1">
-                    <p class="text-xs font-bold text-yellow-400 mb-1">ADBLOCKER DETECTADO</p>
-                    <p class="text-[10px] text-gray-400 leading-relaxed">
-                        Seu bloqueador de anúncios está impedindo a música de tocar. 
-                        <span class="text-white font-bold">Desative-o para youtube.com</span> ou adicione este site à lista de exceções.
-                    </p>
-                </div>
-            </div>
-        </div>
-        <iframe id="ambient-music-player" 
-                class="w-72 aspect-video"
-                :class="ambientMusic.blocked && 'opacity-30'"
-                allow="autoplay; encrypted-media" 
-                frameborder="0">
-        </iframe>
-    </div>
-</div>
-
-<!-- Modal: Música Ambiente (GM) - Redesenhado -->
-<div x-show="musicModalOpen"  
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="musicModalOpen = false"
-     @mousedown.self="modalClickStartedOutside = true"
-     @mouseup.self="if(modalClickStartedOutside) musicModalOpen = false; modalClickStartedOutside = false"
-     @mouseup="modalClickStartedOutside = false">
-    <div class="glass rounded-2xl w-full max-w-lg border border-purple-500/30 shadow-2xl modal-enter overflow-hidden max-h-[90vh] flex flex-col">
-        <!-- Header -->
-        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-500/5 flex-shrink-0">
-            <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
-                <i class="fa-solid fa-music text-purple-400"></i> MÚSICA AMBIENTE
-            </h2>
-            <button @click="musicModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        
-        <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            <!-- Player Principal -->
-            <div class="bg-black/40 rounded-xl border border-purple-500/20 overflow-hidden">
-                <!-- Thumbnail / Video Preview -->
-                <template x-if="ambientMusic.url && extractYouTubeId(ambientMusic.url)">
-                    <div class="relative">
-                        <img :src="'https://img.youtube.com/vi/' + extractYouTubeId(ambientMusic.url) + '/mqdefault.jpg'" 
-                             class="w-full aspect-video object-cover" :class="ambientMusic.playing ? 'opacity-100' : 'opacity-50'">
-                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <button @click="toggleMusic()" 
-                                class="w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                                :class="ambientMusic.playing ? 'bg-red-500 hover:bg-red-400' : 'bg-purple-500 hover:bg-purple-400'">
-                            <i class="fa-solid text-2xl text-white" :class="ambientMusic.playing ? 'fa-pause' : 'fa-play ml-1'"></i>
-                        </button>
-                    </div>
-                    <div x-show="ambientMusic.playing" class="absolute bottom-2 left-2 px-2 py-1 bg-red-500 rounded text-[10px] text-white font-bold flex items-center gap-1">
-                        <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> TOCANDO
-                    </div>
-                </div>
-                </template>
-                
-                <!-- Empty State -->
-                <div x-show="!ambientMusic.url || !extractYouTubeId(ambientMusic.url)" class="p-8 text-center">
-                    <i class="fa-solid fa-compact-disc text-4xl text-purple-500/30 mb-3"></i>
-                    <p class="text-sm text-gray-500">Nenhuma música selecionada</p>
-                    <p class="text-[10px] text-gray-600">Adicione uma URL do YouTube abaixo</p>
-                </div>
-                
-                <!-- Controls -->
-                <div class="p-4 space-y-3">
-                    <!-- Timeline / Seek Bar -->
-                    <div class="space-y-1" x-show="ambientMusic.playing">
-                        <div class="flex items-center justify-between text-[10px] text-gray-500 font-code">
-                            <span x-text="formatMusicTime(ambientMusic.currentTime || 0)">0:00</span>
-                            <span x-text="formatMusicTime(ambientMusic.duration || 0)">0:00</span>
-                        </div>
-                        <div class="relative h-2 bg-white/10 rounded-full overflow-hidden group cursor-pointer" 
-                             @click="seekMusic($event)">
-                            <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all"
-                                 :style="'width: ' + ((ambientMusic.currentTime || 0) / (ambientMusic.duration || 1) * 100) + '%'"></div>
-                            <div class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                 :style="'left: calc(' + ((ambientMusic.currentTime || 0) / (ambientMusic.duration || 1) * 100) + '% - 6px)'"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Playback Controls -->
-                    <div class="flex items-center justify-center gap-2" x-show="ambientMusic.playing">
-                        <button @click="seekRelative(-10)" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center" title="-10s">
-                            <i class="fa-solid fa-backward text-xs"></i>
-                        </button>
-                        <button @click="toggleMusic()" 
-                                class="w-10 h-10 rounded-full flex items-center justify-center transition-all"
-                                :class="ambientMusic.playing ? 'bg-purple-500 hover:bg-purple-400 text-white' : 'bg-white/10 hover:bg-white/20 text-gray-400'">
-                            <i class="fa-solid" :class="ambientMusic.playing ? 'fa-pause' : 'fa-play ml-0.5'"></i>
-                        </button>
-                        <button @click="seekRelative(10)" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center" title="+10s">
-                            <i class="fa-solid fa-forward text-xs"></i>
-                        </button>
-                    </div>
-                    
-                    <!-- Volume Slider Estilizado -->
-                    <div class="flex items-center gap-3">
-                        <button @click="ambientMusic.volume = ambientMusic.volume > 0 ? 0 : 50; updateMusicVolume()" class="text-gray-400 hover:text-white transition-colors flex-shrink-0">
-                            <i class="fa-solid" :class="ambientMusic.volume == 0 ? 'fa-volume-xmark text-red-400' : (ambientMusic.volume < 50 ? 'fa-volume-low' : 'fa-volume-high')"></i>
-                        </button>
-                        <div class="flex-1 relative h-6 flex items-center">
-                            <div class="absolute inset-x-0 h-2 bg-white/10 rounded-full overflow-hidden top-1/2 -translate-y-1/2">
-                                <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all pointer-events-none"
-                                     :style="'width: ' + ambientMusic.volume + '%'"></div>
-                            </div>
-                            <input type="range" x-model="ambientMusic.volume" min="0" max="100" step="5"
-                                   @input="updateMusicVolume()"
-                                   class="relative w-full h-6 cursor-pointer appearance-none bg-transparent z-10 
-                                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:cursor-pointer
-                                          [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-runnable-track]:h-2
-                                          [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer
-                                          [&::-moz-range-track]:bg-transparent [&::-moz-range-track]:h-2">
-                        </div>
-                        <span class="text-xs text-gray-400 w-10 text-right font-code flex-shrink-0" x-text="ambientMusic.volume + '%'"></span>
-                    </div>
-                    
-                    <!-- Info -->
-                    <p class="text-[9px] text-gray-600 text-center">
-                        <i class="fa-solid fa-info-circle mr-1"></i>
-                        Volume e timeline controlam o player para todos (incluindo você)
-                    </p>
-                </div>
-            </div>
-            
-            <!-- Input Nova Música -->
-            <div x-data="{ newUrl: '', newTitle: '' }">
-                <label class="text-[10px] text-gray-500 font-bold uppercase block mb-2">Adicionar Música</label>
-                <div class="flex gap-2">
-                    <input type="text" x-model="newUrl" 
-                           placeholder="https://youtube.com/watch?v=..."
-                           class="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none">
-                    <button @click="if(newUrl) { ambientMusic.url = newUrl; addToPlaylist(newUrl, newTitle || 'Música'); newUrl = ''; newTitle = ''; }" 
-                            class="px-3 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
-                            title="Adicionar à playlist e tocar">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-                </div>
-                <input type="text" x-model="newTitle" 
-                       placeholder="Nome da música (opcional)"
-                       class="w-full mt-2 bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500/50 focus:outline-none">
-            </div>
-            
-            <!-- Playlist -->
-            <div>
-                <div class="flex items-center justify-between mb-2">
-                    <label class="text-[10px] text-gray-500 font-bold uppercase">Playlist da Campanha</label>
-                    <span class="text-[9px] text-purple-400" x-text="musicPlaylist.length + ' música(s)'"></span>
-                </div>
-                
-                <div x-show="musicPlaylist.length === 0" class="text-center py-6 text-gray-600">
-                    <i class="fa-solid fa-list-music text-2xl mb-2 opacity-50"></i>
-                    <p class="text-xs">Playlist vazia</p>
-                    <p class="text-[10px]">Adicione músicas acima para criar sua playlist</p>
-                </div>
-                
-                <div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                    <template x-for="music in musicPlaylist" :key="music.id">
-                        <div class="flex items-center gap-2 bg-black/40 rounded-lg p-2 group hover:bg-black/60 transition-colors">
-                            <img :src="music.thumbnail" class="w-12 h-9 rounded object-cover" :alt="music.title">
-                            <div class="flex-1 min-w-0">
-                                <p class="text-xs text-white truncate" x-text="music.title"></p>
-                                <p class="text-[9px] text-gray-500 truncate" x-text="music.url"></p>
-                            </div>
-                            <button @click="playFromPlaylist(music)" 
-                                    class="w-8 h-8 rounded flex items-center justify-center text-purple-400 hover:bg-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Tocar">
-                                <i class="fa-solid fa-play text-xs"></i>
-                            </button>
-                            <button @click="removeFromPlaylist(music.id)" 
-                                    class="w-8 h-8 rounded flex items-center justify-center text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Remover">
-                                <i class="fa-solid fa-trash text-xs"></i>
-                            </button>
                         </div>
                     </template>
                 </div>
             </div>
-            
-            <p class="text-[10px] text-gray-500 text-center">
-                <i class="fa-solid fa-info-circle mr-1"></i>
-                A música será tocada para todos os jogadores na campanha
-            </p>
         </div>
     </div>
-</div>
 
-<!-- Modal: Achievements -->
-<div x-show="achievementsModalOpen"  
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="achievementsModalOpen = false"
-     @mousedown.self="modalClickStartedOutside = true"
-     @mouseup.self="if(modalClickStartedOutside) achievementsModalOpen = false; modalClickStartedOutside = false"
-     @mouseup="modalClickStartedOutside = false">
-    <div class="glass rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-yellow-500/30 shadow-2xl modal-enter overflow-hidden">
-        <!-- Header -->
-        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-yellow-500/5 flex-shrink-0">
-            <div>
+    <div x-show="friendsModalOpen"  
+         x-trap.noscroll="friendsModalOpen"
+         role="dialog"
+         aria-modal="true"
+         class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+         x-transition.opacity @keydown.escape.window="friendsModalOpen = false"
+         @mousedown.self="modalClickStartedOutside = true"
+         @mouseup.self="if(modalClickStartedOutside) { friendsModalOpen = false; modalClickStartedOutside = false; }"
+         @mouseup="modalClickStartedOutside = false">
+        <div class="glass rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col border border-pink-500/30 shadow-2xl modal-enter overflow-hidden">
+            <!-- Header -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-pink-500/5 flex-shrink-0">
                 <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
-                    <i class="fa-solid fa-trophy text-yellow-400"></i> ACHIEVEMENTS
+                    <i class="fa-solid fa-user-group text-pink-400"></i> AMIGOS
                 </h2>
-                <p class="text-[10px] text-gray-500 mt-1">
-                    <span x-text="getAchievementProgress().unlocked"></span>/<span x-text="getAchievementProgress().total"></span> desbloqueados
-                    (<span x-text="getAchievementProgress().percentage"></span>%)
-                </p>
+                <button @click="friendsModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
-            <button @click="achievementsModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        
-        <!-- Progress Bar -->
-        <div class="px-4 pt-3">
-            <div class="h-2 bg-black/40 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-yellow-500 to-amber-400 transition-all" 
-                     :style="'width: ' + getAchievementProgress().percentage + '%'"></div>
-            </div>
-        </div>
-        
-        <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <template x-for="(achievement, id) in ACHIEVEMENTS" :key="id">
-                    <div class="rounded-xl p-3 border transition-all"
-                         :class="unlockedAchievements.includes(id) 
-                             ? 'bg-' + achievement.color + '-500/10 border-' + achievement.color + '-500/30' 
-                             : 'bg-black/40 border-white/5 opacity-50'">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                                 :class="unlockedAchievements.includes(id) 
-                                     ? 'bg-' + achievement.color + '-500/20 text-' + achievement.color + '-400' 
-                                     : 'bg-white/5 text-gray-600'">
-                                <i class="fa-solid" :class="achievement.icon"></i>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="font-bold text-sm truncate" 
-                                   :class="unlockedAchievements.includes(id) ? 'text-white' : 'text-gray-500'"
-                                   x-text="achievement.name"></p>
-                                <p class="text-[10px] text-gray-500 truncate" x-text="achievement.description"></p>
-                            </div>
-                            <div x-show="unlockedAchievements.includes(id)" class="text-yellow-400">
-                                <i class="fa-solid fa-check-circle"></i>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Amigos -->
-<div x-show="friendsModalOpen"  
-     class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
-     x-transition.opacity @keydown.escape.window="friendsModalOpen = false"
-     @mousedown.self="modalClickStartedOutside = true"
-     @mouseup.self="if(modalClickStartedOutside) friendsModalOpen = false; modalClickStartedOutside = false"
-     @mouseup="modalClickStartedOutside = false">
-    <div class="glass rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col border border-pink-500/30 shadow-2xl modal-enter overflow-hidden">
-        <!-- Header -->
-        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-pink-500/5 flex-shrink-0">
-            <h2 class="text-lg font-bold text-white font-brand flex items-center gap-2">
                 <i class="fa-solid fa-user-group text-pink-400"></i> AMIGOS
             </h2>
             <button @click="friendsModalOpen = false" class="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">
@@ -3918,6 +2866,9 @@
      MODAL: CHAT COM AMIGO (Whisper/Cochicho)
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div x-show="chatModalOpen"  
+     x-trap.noscroll="chatModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="closeChat()">
     <div class="glass rounded-2xl w-full max-w-lg h-[80vh] flex flex-col border border-pink-500/30 shadow-2xl modal-enter overflow-hidden">
@@ -3981,6 +2932,9 @@
      MODAL: CONVITE PARA CAMPANHA
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div x-show="inviteCampaignModalOpen"  
+     x-trap.noscroll="inviteCampaignModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="inviteCampaignModalOpen = false"
      @mousedown.self="inviteCampaignModalOpen = false">
@@ -4037,6 +2991,9 @@
      ⚠️ IMPORTANTE: Sempre atualizar js/modules/changelog.js quando houver mudanças!
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div x-show="changelogModalOpen"  
+     x-trap.noscroll="changelogModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="changelogModalOpen = false"
      @mousedown.self="modalClickStartedOutside = true"
@@ -4187,6 +3144,9 @@
 
 <!-- Modal: Meu Perfil - Otimizado para Performance -->
 <div x-show="profileModalOpen"  
+     x-trap.noscroll="profileModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
      x-transition.opacity.duration.200ms @keydown.escape.window="profileModalOpen = false"
      @mousedown.self="modalClickStartedOutside = true"
@@ -4470,6 +3430,10 @@
 
 <!-- Modal: Username Obrigatório -->
 <div x-show="usernameModalOpen"  
+     x-trap.noscroll="usernameModalOpen"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="username-modal-title"
      class="fixed inset-0 z-[10001] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity>
     <div class="glass rounded-2xl w-full max-w-sm border border-[var(--neon-core)]/30 shadow-2xl modal-enter overflow-hidden">
@@ -4521,6 +3485,9 @@
 
 <!-- Modal: Emotes -->
 <div x-show="emotesModalOpen"  
+     x-trap.noscroll="emotesModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10001] bg-black/80 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="emotesModalOpen = false"
      @mousedown.self="modalClickStartedOutside = true"
@@ -4564,6 +3531,9 @@
 
 <!-- Modal: Macros de Dados -->
 <div x-show="macrosModalOpen"  
+     x-trap.noscroll="macrosModalOpen"
+     role="dialog"
+     aria-modal="true"
      class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
      x-transition.opacity @keydown.escape.window="macrosModalOpen = false"
      @mousedown.self="modalClickStartedOutside = true"
@@ -4668,7 +3638,11 @@
 </div>
 
     <!-- Modal: Account Settings -->
-    <div x-show="accountSettingsOpen"          class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
+    <div x-show="accountSettingsOpen"
+         x-trap.noscroll="accountSettingsOpen"
+         role="dialog"
+         aria-modal="true"
+         class="fixed inset-0 z-[10000] bg-black/95 backdrop-blur flex items-center justify-center p-4"
          x-transition.opacity @keydown.escape.window="accountSettingsOpen = false"
          @click.self="accountSettingsOpen = false">
         <div class="glass rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/20 shadow-2xl modal-enter overflow-hidden">

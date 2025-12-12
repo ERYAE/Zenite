@@ -100,11 +100,11 @@ class RateLimiter {
 
 // Create rate limiters for different actions
 export const rateLimiters = {
-    // 10 dice rolls per minute
-    diceRoll: new RateLimiter(10, 60000),
+    // 10 dice rolls per 15 seconds
+    diceRoll: new RateLimiter(10, 15000),
     
-    // 20 chat messages per minute
-    chatMessage: new RateLimiter(20, 60000),
+    // 30 chat messages per minute
+    chatMessage: new RateLimiter(30, 60000),
     
     // 5 invite code attempts per minute
     inviteCode: new RateLimiter(5, 60000),

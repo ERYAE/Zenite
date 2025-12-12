@@ -18,6 +18,7 @@
 
 import { playSFX } from './audio.js';
 import { socialLogger } from './logger.js';
+import { NotificationCenter } from './notifications.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFINIÇÃO DE ACHIEVEMENTS (local, sem banco)
@@ -1132,15 +1133,27 @@ export const socialLogic = {
                     
                     // INSERT = novo pedido de amizade
                     if (eventType === 'INSERT' && record.friend_id === this.user.id && record.status === 'pending') {
-                        this.notify('Você recebeu um pedido de amizade!', 'info');
-                        playSFX('notification');
+                        NotificationCenter.show('invite', 'Você recebeu um pedido de amizade!', {
+                            action: () => {
+                                this.currentView = 'dashboard';
+                                this.activeTab = 'social';
+                                this.socialTab = 'friends';
+                            },
+                            actionLabel: 'Ver Pedidos'
+                        });
                     }
                     
                     // UPDATE = pedido aceito/recusado
                     if (eventType === 'UPDATE') {
                         if (record.status === 'accepted' && record.user_id === this.user.id) {
-                            this.notify('Seu pedido de amizade foi aceito!', 'success');
-                            playSFX('success');
+                            NotificationCenter.show('success', 'Seu pedido de amizade foi aceito!', {
+                                action: () => {
+                                    this.currentView = 'dashboard';
+                                    this.activeTab = 'social';
+                                    this.socialTab = 'friends';
+                                },
+                                actionLabel: 'Ver Amigos'
+                            });
                         }
                     }
                     
@@ -1536,7 +1549,15 @@ export const socialLogic = {
                             playSFX('notification');
                             await this.markMessagesAsRead(friendId);
                         } else {
-                            playSFX('notification');
+                            // Chat fechado - mostra notificação
+                            const friend = this.friends.find(f => f.friendId === friendId);
+                            const friendName = friend?.friendName || 'Um amigo';
+                            
+                            NotificationCenter.show('message', `${friendName} enviou uma mensagem`, {
+                                action: () => this.openChat(friendId),
+                                actionLabel: 'Abrir Chat'
+                            });
+                            
                             // Atualiza contador se o chat não estiver focado
                             this.incrementUnreadCount(friendId);
                         }

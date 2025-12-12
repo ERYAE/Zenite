@@ -1143,13 +1143,15 @@ export const netlinkLogic = {
             return;
         }
         
-        // Rate limiting: 10 rolls per minute
+        // Rate limiting: 10 rolls per 15 seconds
         if (!window._diceRollTimestamps) window._diceRollTimestamps = [];
         const now = Date.now();
-        window._diceRollTimestamps = window._diceRollTimestamps.filter(t => now - t < 60000);
+        window._diceRollTimestamps = window._diceRollTimestamps.filter(t => now - t < 15000);
         
         if (window._diceRollTimestamps.length >= 10) {
-            this.notify('Limite de rolagens atingido! Aguarde um momento.', 'warn');
+            const oldestTime = Math.min(...window._diceRollTimestamps);
+            const waitSec = Math.ceil((15000 - (now - oldestTime)) / 1000);
+            this.notify(`Aguarde ${waitSec}s para rolar novamente.`, 'warn');
             return;
         }
         window._diceRollTimestamps.push(now);

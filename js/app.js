@@ -3,6 +3,12 @@
  * Projeto desenvolvido com assistência de IA
  */
 
+import Alpine from 'alpinejs';
+import focus from '@alpinejs/focus';
+
+Alpine.plugin(focus);
+window.Alpine = Alpine;
+
 import { CONSTANTS, ARCHETYPES } from './modules/config.js';
 import { playSFX, setSfxEnabled, initAudio } from './modules/audio.js';
 import { debounce, sanitizeChar, calculateBaseStats } from './modules/utils.js';
@@ -14,6 +20,9 @@ import { socialLogic, ACHIEVEMENTS } from './modules/social.js';
 import { router } from './modules/router.js';
 import { logger } from './modules/logger.js';
 import { hasNewUpdate, markUpdateSeen } from './modules/changelog.js';
+import './modules/notifications.js'; // Sistema de notificações (NotificationCenter global)
+import { realtimeManager } from './modules/realtime-manager.js'; // Gerenciamento de conexões Realtime
+import { compressForUpload } from './modules/image-compression.js'; // Compressão de imagens
 
 function zeniteSystem() {
     return {
@@ -640,14 +649,10 @@ function zeniteSystem() {
             // Verifica se há update novo do changelog
             const userId = this.user?.id || null;
             
-            // Só verifica se usuário está logado
-            if (!userId) {
-                this.hasUnseenChangelog = false;
-                return;
-            }
-            
-            // Verifica no localStorage por userId
+            // Verifica no localStorage por userId (funciona para logados e guests)
             this.hasUnseenChangelog = hasNewUpdate(userId);
+            
+            logger.info('CHANGELOG', `Verificando changelog - userId: ${userId ? userId.substring(0, 8) + '...' : 'guest'}, hasNew: ${this.hasUnseenChangelog}`);
             
             // Se tem update novo, abre modal automaticamente UMA VEZ
             if (this.hasUnseenChangelog) {
@@ -656,6 +661,8 @@ function zeniteSystem() {
                     if (this.currentView === 'dashboard' && !this.welcomeModal && !this.migrationModalOpen && !this.usernameModalOpen) {
                         this.changelogModalOpen = true;
                         logger.info('CHANGELOG', 'Novo update detectado - abrindo modal automaticamente');
+                    } else {
+                        logger.info('CHANGELOG', `Modal não aberto - currentView: ${this.currentView}, welcomeModal: ${this.welcomeModal}, migrationModal: ${this.migrationModalOpen}`);
                     }
                 }, 3000); // Delay maior para garantir que outros modais fechem primeiro
             }
@@ -961,8 +968,31 @@ function zeniteSystem() {
         },
 
         // --- NOTIFICAÇÕES ---
-        // Suporta notificações simples e com ações (convites, etc)
+        // Agora usa NotificationCenter por baixo, mantendo compatibilidade
         notify(msg, type='info', options = {}) {
+            // Se NotificationCenter disponível, usa ele (sistema novo)
+            if (window.NotificationCenter) {
+                // Mapeia tipos antigos para os do NotificationCenter
+                const typeMap = {
+                    'info': 'system',
+                    'success': 'success',
+                    'error': 'error',
+                    'warn': 'system',
+                    'invite': 'invite',
+                    'campaign': 'campaign'
+                };
+                
+                const mappedType = typeMap[type] || 'system';
+                
+                return window.NotificationCenter.show(mappedType, msg, {
+                    action: options.action,
+                    actionLabel: options.actionLabel,
+                    persistent: options.persistent,
+                    duration: options.duration || (type === 'error' ? 5000 : 3000)
+                });
+            }
+            
+            // Fallback para sistema legado (se NotificationCenter não carregou)
             const id = Date.now();
             let icon = 'fa-circle-info';
             if(type === 'success') icon = 'fa-circle-check';
@@ -976,25 +1006,29 @@ function zeniteSystem() {
                 message: msg, 
                 type, 
                 icon,
-                action: options.action || null, // Função a executar ao clicar
-                actionLabel: options.actionLabel || null, // Texto do botão
-                persistent: options.persistent || false, // Não desaparece automaticamente
-                dismissable: options.dismissable !== false // Pode fechar manualmente
+                action: options.action || null,
+                actionLabel: options.actionLabel || null,
+                persistent: options.persistent || false,
+                dismissable: options.dismissable !== false
             };
             
             this.notifications.push(notification);
             
-            // Notificações persistentes não desaparecem automaticamente
             if (!options.persistent) {
                 const duration = options.duration || (type === 'error' ? 5000 : 3000);
                 setTimeout(() => {
                     this.notifications = this.notifications.filter(n => n.id !== id);
                 }, duration);
             }
+            
+            return id;
         },
         
         // Remove notificação específica
         dismissNotification(id) {
+            if (window.NotificationCenter) {
+                window.NotificationCenter.dismiss(id);
+            }
             this.notifications = this.notifications.filter(n => n.id !== id);
         },
         

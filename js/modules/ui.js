@@ -112,8 +112,16 @@ export const uiLogic = {
     updateVisualState() {
         const isAuthenticated = this.user || this.isGuest;
         
+        // Se não está logado, reseta para tema padrão (Zenite azul)
+        if (!isAuthenticated) {
+            document.body.classList.remove('crt-mode', 'theme-hacker');
+            this.applyTheme('cyan'); // Tema padrão do Zenite
+            localStorage.removeItem('zenite_hacker_mode');
+            return;
+        }
+        
         // CRT Mode
-        if (isAuthenticated && this.settings.crtMode) {
+        if (this.settings.crtMode) {
             document.body.classList.add('crt-mode');
         } else {
             document.body.classList.remove('crt-mode');
@@ -124,6 +132,9 @@ export const uiLogic = {
         if (hackerActive) {
             this.isHackerMode = true;
             document.body.classList.add('theme-hacker');
+        } else {
+            this.isHackerMode = false;
+            document.body.classList.remove('theme-hacker');
         }
     },
 

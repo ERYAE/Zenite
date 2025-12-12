@@ -426,17 +426,26 @@ $$;
 -- 3.2 get_friend_conversation
 CREATE FUNCTION public.get_friend_conversation(friend_uuid uuid, msg_limit integer DEFAULT 50)
 RETURNS TABLE(
+  msg_id uuid,
   id uuid,
   sender_id uuid,
   content text,
   is_read boolean,
+  is_mine boolean,
   created_at timestamp with time zone
 )
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT id, sender_id, content, is_read, created_at
+  SELECT 
+    id as msg_id,
+    id,
+    sender_id, 
+    content, 
+    is_read,
+    (sender_id = auth.uid()) as is_mine,
+    created_at
   FROM public.friend_messages
   WHERE (sender_id = auth.uid() AND receiver_id = friend_uuid)
      OR (sender_id = friend_uuid AND receiver_id = auth.uid())
