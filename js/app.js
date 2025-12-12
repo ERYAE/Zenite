@@ -1137,16 +1137,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     try {
         // Carregar Alpine e plugins dinamicamente
-        const [alpineModule, collapseModule] = await Promise.all([
+        const [alpineModule, collapseModule, focusModule] = await Promise.all([
             import('https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/module.esm.js'),
-            import('https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/module.esm.js')
+            import('https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/module.esm.js'),
+            import('https://cdn.jsdelivr.net/npm/@alpinejs/focus@3.13.3/dist/module.esm.js')
         ]);
         
         const Alpine = alpineModule.default;
         const collapse = collapseModule.default;
+        const focus = focusModule.default;
         
         // Registrar plugins
         Alpine.plugin(collapse);
+        Alpine.plugin(focus);
         
         // Expor Alpine globalmente
         window.Alpine = Alpine;
