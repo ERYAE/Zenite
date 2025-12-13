@@ -786,19 +786,19 @@
         </div>
     </header>
 
-    <!-- Notification Panel (Dropdown) - Abre para esquerda (dentro da tela) -->
+    <!-- Notification Panel (posição fixa, abaixo do header) -->
     <div x-show="notificationPanelOpen && user && !isGuest" 
          x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0 translate-y-2"
-         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
          x-transition:leave="transition ease-in duration-150"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-2"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
          @click.outside="notificationPanelOpen = false"
-         class="fixed top-16 z-[9999] w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] glass rounded-2xl border border-yellow-500/30 shadow-2xl overflow-hidden flex flex-col"
-         style="right: max(1rem, min(calc(100vw - 340px), 200px));">
+         class="w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] glass rounded-2xl border border-yellow-500/30 shadow-2xl overflow-hidden flex flex-col"
+         style="position: fixed; top: 64px; right: 16px; z-index: 9999;">
         <!-- Arrow pointing to notification button -->
-        <div class="absolute -top-2 right-6 w-4 h-4 bg-[#0a0a0f] border-t border-l border-yellow-500/30 transform rotate-45"></div>
+        <div class="absolute -top-2 right-20 w-4 h-4 bg-[#0a0a0f] border-t border-l border-yellow-500/30 transform rotate-45"></div>
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-white/10">
             <h3 class="text-sm font-bold text-white flex items-center gap-2">
@@ -2916,17 +2916,19 @@
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      FLOATING CHAT BUTTON & PANEL
-     Dashboard: canto inferior direito | Ficha: canto inferior esquerdo
+     Aparece em todo o site quando tem amigos
+     Posição: Dashboard = direita | Sheet = esquerda (não conflitar com botão de dados)
      ═══════════════════════════════════════════════════════════════════════════ -->
 
-<!-- Botão flutuante de chat (só aparece quando tem amigos e não está no chat) -->
-<button x-show="user && !isGuest && friends.length > 0 && !chatModalOpen && (currentView === 'dashboard' || currentView === 'sheet')"
+<!-- Botão flutuante de chat (FORA de qualquer container, direto no body) -->
+<button x-show="user && !isGuest && friends.length > 0 && !chatModalOpen"
         @click="chatPanelOpen = !chatPanelOpen"
         x-transition:enter="transition ease-out duration-200"
         x-transition:enter-start="opacity-0 scale-75"
         x-transition:enter-end="opacity-100 scale-100"
-        class="fixed bottom-6 right-6 z-[9998] px-5 py-3 rounded-full bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-        :class="currentView === 'sheet' ? '!left-6 !right-auto' : ''"
+        class="z-[9998] px-5 py-3 rounded-full bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        style="position: fixed; bottom: 24px;"
+        :style="currentView === 'sheet' ? 'left: 24px; right: auto;' : 'right: 24px; left: auto;'"
         title="Chat com amigos">
     <i class="fa-solid fa-comments text-lg"></i>
     <span class="text-sm font-bold">Chat</span>
@@ -2944,9 +2946,10 @@
      x-transition:leave-start="opacity-100 translate-y-0"
      x-transition:leave-end="opacity-0 translate-y-4"
      @click.outside="chatPanelOpen = false"
-     class="fixed bottom-20 right-6 z-[9999] w-72 max-h-80 glass rounded-2xl border border-pink-500/30 shadow-2xl overflow-hidden flex flex-col"
-     :class="currentView === 'sheet' ? '!left-6 !right-auto' : ''">
-    <!-- Header -->
+     class="z-[9999] w-72 max-h-80 glass rounded-2xl border border-pink-500/30 shadow-2xl overflow-hidden flex flex-col"
+     style="position: fixed; bottom: 80px;"
+     :style="currentView === 'sheet' ? 'left: 24px; right: auto;' : 'right: 24px; left: auto;'">
+    <!-- Lista de amigos (header no topo, X no header) -->
     <div class="p-3 border-b border-white/10 flex items-center justify-between bg-pink-500/5">
         <h3 class="text-sm font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-comments text-pink-400"></i> Chat

@@ -460,6 +460,7 @@ function zeniteSystem() {
                                     logger.error('ONBOARD', 'Erro ao verificar onboarding:', onboardErr);
                                 }
                                 try {
+                                    await this.loadFriends(); // Carrega amigos ao fazer login
                                     await this.setupFriendsRealtime();
                                 } catch (friendsErr) {
                                     logger.error('FRIENDS', 'Erro ao configurar realtime:', friendsErr);
@@ -739,29 +740,6 @@ function zeniteSystem() {
             if (!this.supabase || !this.user || this.isGuest) return;
             
             try {
-                // Verifica mensagens não lidas
-                const { data: unreadMessages } = await this.supabase
-                    .from('chat_messages')
-                    .select('id, sender_id, content, created_at')
-                    .eq('receiver_id', this.user.id)
-                    .eq('read', false)
-                    .order('created_at', { ascending: false })
-                    .limit(5);
-                
-                if (unreadMessages && unreadMessages.length > 0) {
-                    // Notifica sobre novas mensagens (apenas se não estiver no chat)
-                    if (!this.chatModalOpen) {
-                        const count = unreadMessages.length;
-                        if (count > this._lastUnreadCount) {
-                            window.NotificationCenter?.show('message', 
-                                `Você tem ${count} mensagem${count > 1 ? 's' : ''} não lida${count > 1 ? 's' : ''}`,
-                                { duration: 5000 }
-                            );
-                        }
-                        this._lastUnreadCount = count;
-                    }
-                }
-                
                 // Verifica convites de amizade pendentes
                 const { data: pendingRequests } = await this.supabase
                     .from('friendships')
