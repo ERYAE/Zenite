@@ -262,7 +262,7 @@
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- AUTH MODAL - Login/Register/Forgot Password -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div x-show="(!user && !isGuest && !systemLoading) || recoverMode" 
+    <div x-show="((!user && !isGuest && !systemLoading) || recoverMode) && currentView === 'login'" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
@@ -786,7 +786,7 @@
         </div>
     </header>
 
-    <!-- Notification Panel (Dropdown) -->
+    <!-- Notification Panel (Dropdown) - Abre para esquerda (dentro da tela) -->
     <div x-show="notificationPanelOpen && user && !isGuest" 
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0 translate-y-2"
@@ -795,8 +795,10 @@
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-2"
          @click.outside="notificationPanelOpen = false"
-         style="position: fixed; top: 4.5rem; right: 1rem;"
-         class="z-[9999] w-80 max-h-[70vh] glass rounded-2xl border border-yellow-500/30 shadow-2xl overflow-hidden flex flex-col">
+         class="fixed top-16 z-[9999] w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] glass rounded-2xl border border-yellow-500/30 shadow-2xl overflow-hidden flex flex-col"
+         style="right: max(1rem, min(calc(100vw - 340px), 200px));">
+        <!-- Arrow pointing to notification button -->
+        <div class="absolute -top-2 right-6 w-4 h-4 bg-[#0a0a0f] border-t border-l border-yellow-500/30 transform rotate-45"></div>
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-white/10">
             <h3 class="text-sm font-bold text-white flex items-center gap-2">
@@ -2885,16 +2887,9 @@
                             
                             <!-- Ações -->
                             <div class="flex gap-2 mt-3 pt-3 border-t border-white/5">
-                                <!-- Chat -->
-                                <button @click="openChat(friend)" 
-                                        class="flex-1 py-2 rounded-lg bg-pink-500/20 text-pink-400 hover:bg-pink-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95">
-                                    <i class="fa-solid fa-comment"></i> Chat
-                                    <span x-show="friend.unreadMessages > 0" class="bg-pink-500 text-white px-1.5 rounded text-[9px]" x-text="friend.unreadMessages"></span>
-                                </button>
-                                
                                 <!-- Convidar para Campanha -->
                                 <button @click="openInviteCampaignModal(friend)" 
-                                        class="flex-1 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95">
+                                        class="w-full py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95">
                                     <i class="fa-solid fa-gamepad"></i> Convidar
                                 </button>
                                 
@@ -2930,12 +2925,13 @@
         x-transition:enter="transition ease-out duration-200"
         x-transition:enter-start="opacity-0 scale-75"
         x-transition:enter-end="opacity-100 scale-100"
-        class="fixed z-[9998] w-14 h-14 rounded-full bg-pink-500 text-white shadow-lg hover:bg-pink-600 hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
-        :class="currentView === 'sheet' ? 'bottom-6 left-6' : 'bottom-6 right-6'"
+        class="fixed bottom-6 right-6 z-[9998] px-5 py-3 rounded-full bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        :class="currentView === 'sheet' ? '!left-6 !right-auto' : ''"
         title="Chat com amigos">
-    <i class="fa-solid fa-comments text-xl"></i>
+    <i class="fa-solid fa-comments text-lg"></i>
+    <span class="text-sm font-bold">Chat</span>
     <span x-show="totalUnreadMessages > 0" 
-          class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center animate-pulse"
+          class="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center animate-pulse"
           x-text="totalUnreadMessages > 9 ? '9+' : totalUnreadMessages"></span>
 </button>
 
@@ -2948,8 +2944,8 @@
      x-transition:leave-start="opacity-100 translate-y-0"
      x-transition:leave-end="opacity-0 translate-y-4"
      @click.outside="chatPanelOpen = false"
-     class="fixed z-[9999] w-72 max-h-80 glass rounded-2xl border border-pink-500/30 shadow-2xl overflow-hidden flex flex-col"
-     :class="currentView === 'sheet' ? 'bottom-24 left-6' : 'bottom-24 right-6'">
+     class="fixed bottom-20 right-6 z-[9999] w-72 max-h-80 glass rounded-2xl border border-pink-500/30 shadow-2xl overflow-hidden flex flex-col"
+     :class="currentView === 'sheet' ? '!left-6 !right-auto' : ''">
     <!-- Header -->
     <div class="p-3 border-b border-white/10 flex items-center justify-between bg-pink-500/5">
         <h3 class="text-sm font-bold text-white flex items-center gap-2">
@@ -2968,7 +2964,7 @@
             </div>
         </template>
         <template x-for="friend in friends" :key="friend.id">
-            <button @click="openChat(friend.id); chatPanelOpen = false"
+            <button @click="openChat(friend); chatPanelOpen = false"
                     class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors text-left">
                 <div class="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center text-pink-400 overflow-hidden flex-shrink-0 relative">
                     <img x-show="friend.avatar" :src="friend.avatar" class="w-full h-full object-cover">

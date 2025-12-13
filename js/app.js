@@ -795,7 +795,9 @@ function zeniteSystem() {
             if (window.NotificationCenter) {
                 window.NotificationCenter.markAllRead();
                 this.notificationUnreadCount = 0;
-                this.refreshNotificationHistory();
+                this.$nextTick(() => {
+                    this.refreshNotificationHistory();
+                });
             }
         },
         

@@ -499,13 +499,13 @@ export const cloudLogic = {
             const migrationSeen = await hasMigrationSeen(this.supabase, this.user.id);
             
             if (!migrationSeen) {
-                setTimeout(() => {
+                setTimeout(async () => {
                     // Verifica se REALMENTE está no dashboard (não no login)
                     const isOnDashboard = this.currentView === 'dashboard' && window.location.hash.includes('dashboard');
                     if (isOnDashboard && this.user && !this.isGuest) {
                         this.migrationModalOpen = true;
                         // Marca como visto no banco
-                        markMigrationSeen(this.supabase);
+                        await markMigrationSeen(this.supabase);
                     }
                 }, 2000);
             }

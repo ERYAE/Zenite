@@ -47,7 +47,7 @@ export const uiLogic = {
                 const link = document.createElement('link');
                 link.id = 'low-perf-css';
                 link.rel = 'stylesheet';
-                link.href = '/css/low-performance.css';
+                link.href = './css/low-performance.css';
                 document.head.appendChild(link);
             }
             this.notify('Modo Performance ativado! Animações desabilitadas.', 'success');
