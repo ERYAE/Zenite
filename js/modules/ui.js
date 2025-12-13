@@ -549,6 +549,12 @@ export const uiLogic = {
     
     // Abre o cropper para re-cortar a imagem existente
     openRecropEditor(context = 'sheet') {
+        // Verifica se Cropper.js está carregado
+        if (typeof Cropper === 'undefined') {
+            this.notify('Editor de imagem carregando. Tente novamente.', 'warn');
+            return;
+        }
+        
         this.uploadContext = context;
         this.cropperMode = 'recrop';
         
@@ -572,11 +578,17 @@ export const uiLogic = {
         this.cropperOpen = true;
         
         setTimeout(() => {
-            if (this.cropperInstance) this.cropperInstance.destroy();
-            this.cropperInstance = new Cropper(img, {
-                aspectRatio: 1,
-                viewMode: 1
-            });
+            try {
+                if (this.cropperInstance) this.cropperInstance.destroy();
+                this.cropperInstance = new Cropper(img, {
+                    aspectRatio: 1,
+                    viewMode: 1
+                });
+            } catch (err) {
+                console.error('[CROPPER] Erro:', err);
+                this.notify('Erro ao abrir editor', 'error');
+                this.cropperOpen = false;
+            }
         }, 150);
     },
     

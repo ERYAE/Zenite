@@ -7,6 +7,7 @@
 import { sanitizeChar, migrateCharacter } from './utils.js';
 import { playSFX } from './audio.js';
 import { cloudLogger } from './logger.js';
+import { clearPreferencesCache, getDefaultTheme, loadUserPreferences, markMigrationSeen, hasMigrationSeen } from './preferences.js';
 
 const normalizeUsername = (rawUsername = '') => {
     return rawUsername
@@ -394,6 +395,23 @@ export const cloudLogic = {
         } finally {
             console.log('[CLOUD] Limpando estado...');
             localStorage.removeItem('zenite_is_guest');
+            localStorage.removeItem('zenite_my_profile');
+            
+            // Limpa stats e achievements do usuário atual se possível
+            if (this.user?.id) {
+                const prefix = `zenite_${this.user.id.slice(0,8)}_`;
+                localStorage.removeItem(`${prefix}local_stats`);
+                localStorage.removeItem(`${prefix}achievements`);
+            }
+            
+            // Limpa cache de preferências para evitar vazamento de tema
+            clearPreferencesCache();
+            
+            // IMPORTANTE: Reseta tema para padrão na tela de login
+            const defaultTheme = getDefaultTheme();
+            this.settings.theme = defaultTheme;
+            document.documentElement.style.setProperty('--neon-core', 'var(--neon-cyan)');
+            document.documentElement.style.setProperty('--neon-glow', 'var(--glow-cyan)');
 
             this.user = null;
             this.isGuest = false;
@@ -468,6 +486,32 @@ export const cloudLogic = {
         }
         
         console.log('[CLOUD] Intervals limpos');
+    },
+    
+    /**
+     * Verifica se deve mostrar modal de migração (usa Supabase para persistência)
+     */
+    async _checkMigrationModal() {
+        if (!this.user || this.isGuest || !this.supabase) return;
+        
+        try {
+            // Verifica no banco se já viu o modal
+            const migrationSeen = await hasMigrationSeen(this.supabase, this.user.id);
+            
+            if (!migrationSeen) {
+                setTimeout(() => {
+                    // Verifica se REALMENTE está no dashboard (não no login)
+                    const isOnDashboard = this.currentView === 'dashboard' && window.location.hash.includes('dashboard');
+                    if (isOnDashboard && this.user && !this.isGuest) {
+                        this.migrationModalOpen = true;
+                        // Marca como visto no banco
+                        markMigrationSeen(this.supabase);
+                    }
+                }, 2000);
+            }
+        } catch (e) {
+            console.warn('[CLOUD] Erro ao verificar migration modal:', e);
+        }
     },
 
     askSwitchToOnline() {
@@ -743,18 +787,8 @@ export const cloudLogic = {
             }
             
             // Modal de migração só aparece UMA VEZ por conta
-            // IMPORTANTE: Aguarda o router processar antes de abrir o modal
-            const migrationKey = `zenite_migration_seen_${this.user.id}`;
-            if (!localStorage.getItem(migrationKey)) {
-                setTimeout(() => { 
-                    // Verifica se REALMENTE está no dashboard (não no login)
-                    const isOnDashboard = this.currentView === 'dashboard' && window.location.hash.includes('dashboard');
-                    if (isOnDashboard && this.user && !this.isGuest) {
-                        this.migrationModalOpen = true;
-                        localStorage.setItem(migrationKey, 'true');
-                    }
-                }, 2000); // Aumentado para 2s para garantir que o router processou
-            }
+            // IMPORTANTE: Usa Supabase para persistência (não localStorage)
+            this._checkMigrationModal();
         } catch (e) {
             console.error('[CLOUD] Erro no login:', e);
             this.authMsg = this.translateAuthError(e.message);

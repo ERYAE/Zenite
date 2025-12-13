@@ -344,6 +344,15 @@ export const socialLogic = {
     chatModalOpen: false,
     viewingProfile: null,
     
+    // Typing Indicator
+    friendIsTyping: false,
+    _typingTimeout: null,
+    _typingDebounce: null,
+    
+    // Presence System
+    _presenceTimer: null,
+    _presencePollingTimer: null,
+    
     // Username System
     usernameInput: '',
     usernameChecking: false,
@@ -376,6 +385,8 @@ export const socialLogic = {
         if (savedAchievements) {
             try {
                 this.unlockedAchievements = JSON.parse(savedAchievements);
+                // Set para garantir unicidade e performance
+                this.unlockedAchievements = [...new Set(this.unlockedAchievements)];
             } catch (e) {
                 socialLogger.warn('Erro ao carregar achievements:', e);
                 this.unlockedAchievements = [];
@@ -408,9 +419,34 @@ export const socialLogic = {
         
         // Sincroniza com banco de dados (se logado)
         if (this.supabase && this.user) {
-            // Carrega stats e achievements do banco em background
-            this.loadStatsFromCloud();
-            this.loadAchievementsFromCloud();
+            // IMPORTANTE: Carrega do banco ANTES de verificar achievements
+            // para evitar duplicatas e garantir persistência
+            this._loadAndSyncAchievements();
+            
+            // Inicia sistema de presença online/offline
+            this.startPresenceSystem();
+        }
+    },
+    
+    /**
+     * Carrega achievements do banco e depois verifica novos
+     * Garante que não perdemos achievements já desbloqueados
+     */
+    async _loadAndSyncAchievements() {
+        try {
+            // 1. Carrega stats do banco primeiro
+            await this.loadStatsFromCloud();
+            
+            // 2. Carrega achievements do banco
+            await this.loadAchievementsFromCloud();
+            
+            // 3. Agora verifica se há novos achievements para desbloquear
+            // (com os dados atualizados do banco)
+            this.checkAchievements(true);
+            
+            console.log('[ACHIEVEMENTS] Sincronização completa');
+        } catch (e) {
+            console.warn('[ACHIEVEMENTS] Erro na sincronização:', e.message);
         }
     },
     
@@ -578,6 +614,7 @@ export const socialLogic = {
         
         achievements.forEach(achievement => {
             // Se já está desbloqueado, NUNCA mostra novamente
+            // Verifica tanto array em memória quanto storage para segurança extra
             const isUnlocked = this.unlockedAchievements.includes(achievement.id);
             if (isUnlocked) return;
             
@@ -1345,6 +1382,9 @@ export const socialLogic = {
         // Marca mensagens como lidas no banco E atualiza contadores locais
         await this.markMessagesAsRead(friend.friendId);
         
+        // Inicia polling de typing indicator
+        this._startTypingPolling();
+        
         this.chatLoading = false;
     },
     
@@ -1352,11 +1392,16 @@ export const socialLogic = {
      * Fecha o chat e desconecta realtime
      */
     async closeChat() {
+        // Para polling de typing
+        this._stopTypingPolling();
+        this._clearTypingStatus();
+        
         await this.disconnectChatRealtime();
         this.activeChatFriendId = null;
         this.activeChatFriend = null;
         this.chatMessages = [];
         this.chatModalOpen = false;
+        this.friendIsTyping = false;
     },
     
     /**
@@ -1457,6 +1502,9 @@ export const socialLogic = {
         
         const friendId = this.activeChatFriendId;
         this.chatInput = '';
+        
+        // Limpa typing status ao enviar mensagem
+        this._clearTypingStatus();
         
         // Adiciona mensagem otimista
         const tempId = `temp-${Date.now()}`;
@@ -1605,6 +1653,106 @@ export const socialLogic = {
         if (this.chatRealtimeChannel && this.supabase) {
             await this.supabase.removeChannel(this.chatRealtimeChannel);
             this.chatRealtimeChannel = null;
+        }
+        // Limpa typing status ao desconectar
+        this._clearTypingStatus();
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TYPING INDICATOR (Indicador "Escrevendo...")
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Chamado quando o usuário digita no campo de chat
+     * Envia status de typing para o banco (debounced)
+     */
+    onChatInputChange() {
+        if (!this.activeChatFriendId || !this.supabase) return;
+        
+        // Debounce: só envia após 300ms sem digitar
+        if (this._typingDebounce) clearTimeout(this._typingDebounce);
+        
+        this._typingDebounce = setTimeout(() => {
+            this._sendTypingStatus(true);
+        }, 300);
+        
+        // Auto-clear typing após 3 segundos sem atividade
+        if (this._typingTimeout) clearTimeout(this._typingTimeout);
+        this._typingTimeout = setTimeout(() => {
+            this._sendTypingStatus(false);
+        }, 3000);
+    },
+    
+    /**
+     * Envia status de typing para o banco
+     */
+    async _sendTypingStatus(isTyping) {
+        if (!this.activeChatFriendId || !this.supabase) return;
+        
+        try {
+            await this.supabase.rpc('set_typing_status', {
+                p_friend_id: this.activeChatFriendId,
+                p_is_typing: isTyping
+            });
+        } catch (e) {
+            // Silencioso - typing é secundário
+            console.debug('[TYPING] Erro ao enviar status:', e.message);
+        }
+    },
+    
+    /**
+     * Limpa status de typing (chamado ao fechar chat ou enviar mensagem)
+     */
+    _clearTypingStatus() {
+        if (this._typingDebounce) clearTimeout(this._typingDebounce);
+        if (this._typingTimeout) clearTimeout(this._typingTimeout);
+        this._typingDebounce = null;
+        this._typingTimeout = null;
+        this.friendIsTyping = false;
+        
+        // Envia status false para o banco
+        if (this.activeChatFriendId && this.supabase) {
+            this._sendTypingStatus(false);
+        }
+    },
+    
+    /**
+     * Verifica se o amigo está digitando (polling simples)
+     * Chamado periodicamente enquanto o chat está aberto
+     */
+    async _checkFriendTyping() {
+        if (!this.activeChatFriendId || !this.supabase || !this.chatModalOpen) return;
+        
+        try {
+            const { data, error } = await this.supabase.rpc('is_friend_typing', {
+                p_friend_id: this.activeChatFriendId
+            });
+            
+            if (!error) {
+                this.friendIsTyping = data === true;
+            }
+        } catch (e) {
+            // Silencioso
+        }
+    },
+    
+    /**
+     * Inicia polling de typing status
+     */
+    _startTypingPolling() {
+        // Polling a cada 2 segundos
+        this._typingPollInterval = setInterval(() => {
+            this._checkFriendTyping();
+        }, 2000);
+    },
+    
+    /**
+     * Para polling de typing status
+     */
+    _stopTypingPolling() {
+        if (this._typingPollInterval) {
+            clearInterval(this._typingPollInterval);
+            this._typingPollInterval = null;
         }
     },
     
@@ -2358,6 +2506,107 @@ export const socialLogic = {
             console.error('[CAMPAIGN] Erro ao deletar todas:', e);
             this.notify('Erro ao deletar campanhas.', 'error');
             return false;
+        }
+    },
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRESENCE SYSTEM (Online/Offline Status)
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Inicia o sistema de presença
+     * Atualiza status a cada 2 minutos e busca status de amigos a cada 30s
+     */
+    startPresenceSystem() {
+        if (!this.supabase || !this.user) return;
+        
+        // Atualiza presença imediatamente
+        this.updatePresence('online');
+        
+        // Atualiza presença a cada 2 minutos
+        this._presenceTimer = setInterval(() => {
+            this.updatePresence('online');
+        }, 120000);
+        
+        // Busca presença de amigos a cada 30 segundos
+        this._presencePollingTimer = setInterval(() => {
+            this.fetchFriendsPresence();
+        }, 30000);
+        
+        // Busca inicial
+        this.fetchFriendsPresence();
+        
+        // Marca como offline ao sair da página
+        window.addEventListener('beforeunload', () => {
+            this.updatePresence('offline');
+        });
+        
+        // Marca como away se a página ficar inativa
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.updatePresence('away');
+            } else {
+                this.updatePresence('online');
+            }
+        });
+        
+        console.log('[PRESENCE] Sistema iniciado');
+    },
+    
+    /**
+     * Para o sistema de presença
+     */
+    stopPresenceSystem() {
+        if (this._presenceTimer) {
+            clearInterval(this._presenceTimer);
+            this._presenceTimer = null;
+        }
+        if (this._presencePollingTimer) {
+            clearInterval(this._presencePollingTimer);
+            this._presencePollingTimer = null;
+        }
+        
+        // Marca como offline
+        this.updatePresence('offline');
+    },
+    
+    /**
+     * Atualiza status de presença do usuário
+     */
+    async updatePresence(status = 'online') {
+        if (!this.supabase || !this.user) return;
+        
+        try {
+            await this.supabase.rpc('update_presence', { p_status: status });
+        } catch (e) {
+            // Silencioso - presença é secundária
+        }
+    },
+    
+    /**
+     * Busca status de presença dos amigos
+     */
+    async fetchFriendsPresence() {
+        if (!this.supabase || !this.user || !this.friends) return;
+        
+        try {
+            const { data, error } = await this.supabase.rpc('get_friends_presence');
+            
+            if (error) throw error;
+            
+            if (data) {
+                // Atualiza status de cada amigo
+                data.forEach(presence => {
+                    const friend = this.friends.find(f => f.id === presence.user_id);
+                    if (friend) {
+                        friend.isOnline = presence.status === 'online';
+                        friend.status = presence.status;
+                        friend.lastSeen = presence.last_seen;
+                    }
+                });
+            }
+        } catch (e) {
+            // Silencioso
         }
     }
 };

@@ -19,7 +19,8 @@ import { netlinkLogic } from './modules/netlink.js';
 import { socialLogic, ACHIEVEMENTS } from './modules/social.js';
 import { router } from './modules/router.js';
 import { logger } from './modules/logger.js';
-import { hasNewUpdate, markUpdateSeen } from './modules/changelog.js';
+import { hasNewUpdate, markUpdateSeen, hasNewChangelogAsync, markChangelogSeenAsync } from './modules/changelog.js';
+import { loadUserPreferences, clearPreferencesCache } from './modules/preferences.js';
 import './modules/notifications.js'; // Sistema de notificações (NotificationCenter global)
 import { realtimeManager } from './modules/realtime-manager.js'; // Gerenciamento de conexões Realtime
 import { compressForUpload } from './modules/image-compression.js'; // Compressão de imagens
@@ -114,6 +115,15 @@ function zeniteSystem() {
         historyModal: false,
         usernameModalOpen: false, // Modal para forçar username
         tempUsername: '', // Username temporário para o modal
+        
+        // Notificações (histórico)
+        notificationPanelOpen: false,
+        notificationHistory: [],
+        notificationUnreadCount: 0,
+        _notificationPollingTimer: null,
+        
+        // Chat flutuante
+        chatPanelOpen: false,
         
         netlinkModal: false, // Modal do NetLink
         netlinkCreateMode: false, // Modo de criação de campanha
@@ -544,6 +554,9 @@ function zeniteSystem() {
                 logger.error('SOCIAL', 'Erro ao inicializar sistema social:', socialErr);
             }
             
+            // Inicializa sistema de notificações
+            this.initNotifications();
+            
             // Verifica se o usuário tem username definido
             try {
                 await this.checkUsername();
@@ -645,12 +658,20 @@ function zeniteSystem() {
             this.checkChangelog();
         },
         
-        checkChangelog() {
+        async checkChangelog() {
             // Verifica se há update novo do changelog
             const userId = this.user?.id || null;
             
-            // Verifica no localStorage por userId (funciona para logados e guests)
-            this.hasUnseenChangelog = hasNewUpdate(userId);
+            // Usa Supabase para usuários logados, localStorage para guests
+            if (userId && this.supabase) {
+                // Carrega preferências do banco (inclui changelog_version_seen)
+                const prefs = await loadUserPreferences(this.supabase, userId);
+                const cachedVersion = prefs?.changelog_version_seen || 0;
+                this.hasUnseenChangelog = await hasNewChangelogAsync(this.supabase, userId, cachedVersion);
+            } else {
+                // Guest: usa localStorage
+                this.hasUnseenChangelog = hasNewUpdate(userId);
+            }
             
             logger.info('CHANGELOG', `Verificando changelog - userId: ${userId ? userId.substring(0, 8) + '...' : 'guest'}, hasNew: ${this.hasUnseenChangelog}`);
             
@@ -668,13 +689,138 @@ function zeniteSystem() {
             }
         },
         
-        closeChangelogModal() {
+        async closeChangelogModal() {
             this.changelogModalOpen = false;
-            // Marca como visto quando fechar (salva no localStorage por userId)
             const userId = this.user?.id || null;
-            markUpdateSeen(userId);
+            
+            // Salva no Supabase para usuários logados, localStorage para guests
+            if (userId && this.supabase) {
+                await markChangelogSeenAsync(this.supabase, userId);
+            } else {
+                markUpdateSeen(userId);
+            }
+            
             this.hasUnseenChangelog = false;
             logger.info('CHANGELOG', 'Changelog marcado como visto');
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // NOTIFICAÇÕES - Histórico e Polling
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        initNotifications() {
+            // Carrega histórico do NotificationCenter
+            if (window.NotificationCenter) {
+                window.NotificationCenter.init();
+                this.notificationHistory = window.NotificationCenter.getHistory(20);
+                this.notificationUnreadCount = window.NotificationCenter.getUnreadCount();
+            }
+            
+            // Inicia polling de mensagens/convites (a cada 30 segundos)
+            this.startNotificationPolling();
+        },
+        
+        startNotificationPolling() {
+            if (this._notificationPollingTimer) return;
+            
+            this._notificationPollingTimer = setInterval(() => {
+                this.checkForNewNotifications();
+            }, 30000); // 30 segundos
+        },
+        
+        stopNotificationPolling() {
+            if (this._notificationPollingTimer) {
+                clearInterval(this._notificationPollingTimer);
+                this._notificationPollingTimer = null;
+            }
+        },
+        
+        async checkForNewNotifications() {
+            if (!this.supabase || !this.user || this.isGuest) return;
+            
+            try {
+                // Verifica mensagens não lidas
+                const { data: unreadMessages } = await this.supabase
+                    .from('chat_messages')
+                    .select('id, sender_id, content, created_at')
+                    .eq('receiver_id', this.user.id)
+                    .eq('read', false)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+                
+                if (unreadMessages && unreadMessages.length > 0) {
+                    // Notifica sobre novas mensagens (apenas se não estiver no chat)
+                    if (!this.chatModalOpen) {
+                        const count = unreadMessages.length;
+                        if (count > this._lastUnreadCount) {
+                            window.NotificationCenter?.show('message', 
+                                `Você tem ${count} mensagem${count > 1 ? 's' : ''} não lida${count > 1 ? 's' : ''}`,
+                                { duration: 5000 }
+                            );
+                        }
+                        this._lastUnreadCount = count;
+                    }
+                }
+                
+                // Verifica convites de amizade pendentes
+                const { data: pendingRequests } = await this.supabase
+                    .from('friendships')
+                    .select('id')
+                    .eq('friend_id', this.user.id)
+                    .eq('status', 'pending');
+                
+                if (pendingRequests && pendingRequests.length > this.friendRequests?.length) {
+                    window.NotificationCenter?.show('invite', 
+                        'Você tem novos pedidos de amizade!',
+                        { duration: 5000 }
+                    );
+                }
+                
+                // Atualiza histórico
+                this.refreshNotificationHistory();
+                
+            } catch (e) {
+                console.warn('[NOTIFICATIONS] Erro no polling:', e.message);
+            }
+        },
+        
+        refreshNotificationHistory() {
+            if (window.NotificationCenter) {
+                this.notificationHistory = window.NotificationCenter.getHistory(20);
+                this.notificationUnreadCount = window.NotificationCenter.getUnreadCount();
+            }
+        },
+        
+        markAllNotificationsRead() {
+            if (window.NotificationCenter) {
+                window.NotificationCenter.markAllRead();
+                this.notificationUnreadCount = 0;
+                this.refreshNotificationHistory();
+            }
+        },
+        
+        clearNotificationHistory() {
+            if (window.NotificationCenter) {
+                window.NotificationCenter.clearHistory();
+                this.notificationHistory = [];
+                this.notificationUnreadCount = 0;
+            }
+        },
+        
+        formatNotificationTime(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) return 'Agora';
+            if (diffMins < 60) return `${diffMins}min atrás`;
+            if (diffHours < 24) return `${diffHours}h atrás`;
+            if (diffDays < 7) return `${diffDays}d atrás`;
+            return date.toLocaleDateString('pt-BR');
         },
 
         setupListeners() {

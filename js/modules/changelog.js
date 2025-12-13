@@ -158,7 +158,7 @@ export function getLatestUpdate() {
 }
 
 // Verifica se há update novo desde a última visualização (por user.id)
-// Usa localStorage com chave por userId para diferenciar contas
+// LEGADO: Usa localStorage - para novos usuários, usar hasNewChangelogAsync
 export function hasNewUpdate(userId = null) {
     // Guest ou não logado: usa sistema simples por título
     if (!userId) {
@@ -174,7 +174,7 @@ export function hasNewUpdate(userId = null) {
 }
 
 // Marca update como visualizado (por user.id)
-// Usa localStorage com chave por userId para diferenciar contas
+// LEGADO: Usa localStorage - para novos usuários, usar markChangelogSeenAsync
 export function markUpdateSeen(userId = null) {
     // Guest ou não logado: usa sistema simples por título
     if (!userId) {
@@ -188,6 +188,66 @@ export function markUpdateSeen(userId = null) {
     // Usuário logado: salva no localStorage com chave por userId
     const storageKey = `zenite_changelog_seen_${userId}`;
     localStorage.setItem(storageKey, CHANGELOG_VERSION.toString());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOVAS FUNÇÕES COM SUPABASE (persistência no banco)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Verifica se há changelog novo usando Supabase (async)
+ * @param {object} supabase - Cliente Supabase
+ * @param {string} userId - ID do usuário
+ * @param {number|null} cachedVersion - Versão em cache (evita chamada ao banco)
+ * @returns {Promise<boolean>} True se há changelog novo
+ */
+export async function hasNewChangelogAsync(supabase, userId, cachedVersion = null) {
+    // Guest: usa localStorage
+    if (!userId || !supabase) {
+        const lastSeen = localStorage.getItem('zenite_changelog_version_guest');
+        return CHANGELOG_VERSION > parseInt(lastSeen || '0');
+    }
+    
+    // Se temos versão em cache, usa ela
+    if (cachedVersion !== null) {
+        return CHANGELOG_VERSION > cachedVersion;
+    }
+    
+    // Busca do banco
+    try {
+        const { data, error } = await supabase.rpc('get_user_preferences');
+        if (error) throw error;
+        
+        const seenVersion = data?.[0]?.changelog_version_seen || 0;
+        return CHANGELOG_VERSION > seenVersion;
+    } catch (e) {
+        console.warn('[CHANGELOG] Erro ao verificar no banco, usando localStorage:', e);
+        return hasNewUpdate(userId);
+    }
+}
+
+/**
+ * Marca changelog como visto no Supabase (async)
+ * @param {object} supabase - Cliente Supabase
+ * @param {string} userId - ID do usuário
+ */
+export async function markChangelogSeenAsync(supabase, userId) {
+    // Guest: usa localStorage
+    if (!userId || !supabase) {
+        localStorage.setItem('zenite_changelog_version_guest', CHANGELOG_VERSION.toString());
+        return;
+    }
+    
+    // Salva no banco
+    try {
+        await supabase.rpc('save_user_preferences', {
+            p_changelog_version: CHANGELOG_VERSION
+        });
+        console.log('[CHANGELOG] Marcado como visto no banco');
+    } catch (e) {
+        console.warn('[CHANGELOG] Erro ao salvar no banco, usando localStorage:', e);
+        markUpdateSeen(userId);
+    }
 }
 
 // Obtém a versão atual do changelog

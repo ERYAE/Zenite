@@ -137,6 +137,46 @@ export async function compressCharacterPhoto(file) {
 }
 
 /**
+ * Compressão adaptativa baseada no tamanho original
+ * Imagens maiores = mais compressão
+ * @param {File|Blob} file - Arquivo de imagem
+ * @param {string} type - Tipo ('avatar', 'character', 'campaign')
+ * @returns {Promise<Blob>} - Imagem comprimida
+ */
+export async function compressAdaptive(file, type = 'character') {
+    const sizeMB = file.size / (1024 * 1024);
+    
+    // Define qualidade baseada no tamanho
+    let quality;
+    if (sizeMB > 5) {
+        quality = 0.6; // Imagens muito grandes: compressão agressiva
+    } else if (sizeMB > 2) {
+        quality = 0.75; // Imagens grandes: compressão média
+    } else if (sizeMB > 1) {
+        quality = 0.85; // Imagens médias: compressão leve
+    } else {
+        quality = 0.92; // Imagens pequenas: qualidade alta
+    }
+    
+    // Define dimensões baseadas no tipo
+    const dimensions = {
+        avatar: { maxWidth: 400, maxHeight: 400 },
+        character: { maxWidth: 600, maxHeight: 600 },
+        campaign: { maxWidth: 1000, maxHeight: 1000 }
+    };
+    
+    const { maxWidth, maxHeight } = dimensions[type] || dimensions.character;
+    
+    console.log(`[COMPRESSION] Adaptativa: ${sizeMB.toFixed(2)}MB -> qualidade ${quality}, max ${maxWidth}x${maxHeight}`);
+    
+    return compressImage(file, {
+        maxWidth,
+        maxHeight,
+        quality
+    });
+}
+
+/**
  * Gera preview de imagem comprimida
  * @param {Blob} blob - Blob da imagem comprimida
  * @returns {Promise<string>} - Data URL para preview
@@ -242,6 +282,7 @@ export default {
     compressAvatar,
     compressCampaignCover,
     compressCharacterPhoto,
+    compressAdaptive,
     generatePreview,
     getCompressionStats,
     supportsWebP,

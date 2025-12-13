@@ -446,15 +446,14 @@ export const netlinkLogic = {
         }
         
         try {
-            // Busca a campanha pelo código (case insensitive)
-            const { data: campaign, error } = await this.supabase
-                .from('campaigns')
-                .select('*')
-                .ilike('invite_code', sanitizedCode)
-                .maybeSingle();
+            // Busca a campanha pelo código usando função SQL (case insensitive, busca invite_code E code)
+            const { data: campaigns, error } = await this.supabase
+                .rpc('find_campaign_by_code', { p_code: sanitizedCode });
+            
+            const campaign = campaigns?.[0];
             
             if (error || !campaign) {
-                netlinkLogger.warn('Campanha não encontrada para código:', sanitizedCode);
+                netlinkLogger.warn('Campanha não encontrada para código:', sanitizedCode, error?.message);
                 this.notify('Código de convite inválido ou campanha não encontrada.', 'error');
                 router.navigate('dashboard');
                 return false;

@@ -23,8 +23,83 @@ import { playSFX } from './audio.js';
 
 export const NotificationCenter = {
     queue: [],
+    history: [], // Histórico de notificações para consulta
     maxVisible: 5,
+    maxHistory: 50,
     soundEnabled: true,
+    initialized: false,
+    unreadCount: 0,
+    
+    init() {
+        if (this.initialized) return;
+        console.log('[NOTIFICATIONS] Inicializando NotificationCenter...');
+        this.initialized = true;
+        this._loadHistory();
+        this._render();
+    },
+    
+    /**
+     * Carrega histórico de notificações do localStorage
+     */
+    _loadHistory() {
+        try {
+            const saved = localStorage.getItem('zenite_notification_history');
+            if (saved) {
+                this.history = JSON.parse(saved);
+                this.unreadCount = this.history.filter(n => !n.read).length;
+            }
+        } catch (e) {
+            console.warn('[NOTIFICATIONS] Erro ao carregar histórico:', e);
+            this.history = [];
+        }
+    },
+    
+    /**
+     * Salva histórico no localStorage
+     */
+    _saveHistory() {
+        try {
+            // Limita tamanho do histórico
+            if (this.history.length > this.maxHistory) {
+                this.history = this.history.slice(-this.maxHistory);
+            }
+            localStorage.setItem('zenite_notification_history', JSON.stringify(this.history));
+        } catch (e) {
+            console.warn('[NOTIFICATIONS] Erro ao salvar histórico:', e);
+        }
+    },
+    
+    /**
+     * Retorna contagem de não lidas
+     */
+    getUnreadCount() {
+        return this.unreadCount;
+    },
+    
+    /**
+     * Marca todas como lidas
+     */
+    markAllRead() {
+        this.history.forEach(n => n.read = true);
+        this.unreadCount = 0;
+        this._saveHistory();
+    },
+    
+    /**
+     * Retorna histórico de notificações
+     */
+    getHistory(limit = 20) {
+        return this.history.slice(-limit).reverse();
+    },
+    
+    /**
+     * Limpa histórico
+     */
+    clearHistory() {
+        this.history = [];
+        this.unreadCount = 0;
+        this._saveHistory();
+    },
     
     // Tipos de notificação com configurações
     types: {
@@ -98,6 +173,20 @@ export const NotificationCenter = {
         
         // Adiciona à fila
         this.queue.push(notification);
+        
+        // Adiciona ao histórico (sem a função action que não serializa)
+        const historyEntry = {
+            id: notification.id,
+            type: notification.type,
+            message: notification.message,
+            icon: notification.icon,
+            color: notification.color,
+            timestamp: notification.timestamp.toISOString(),
+            read: false
+        };
+        this.history.push(historyEntry);
+        this.unreadCount++;
+        this._saveHistory();
         
         // Ordena por prioridade (maior primeiro)
         this.queue.sort((a, b) => b.priority - a.priority);
